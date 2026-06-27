@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎵 Navidrome AI 歌单生成器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+        }
+        .glass {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .song-item:hover { background: rgba(99, 102, 241, 0.15); }
+        .song-item.selected { background: rgba(99, 102, 241, 0.25); border-left: 3px solid #6366f1; }
+        .source-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; }
+        .badge-酷我 { background: #e74c3c20; color: #e74c3c; }
+        .badge-网易 { background: #e74c3c20; color: #ff6b6b; }
+        .badge-QQ { background: #3498db20; color: #3498db; }
+        .badge-酷狗 { background: #2ecc7120; color: #2ecc71; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .spinner { border: 3px solid rgba(255,255,255,0.1); border-top-color: #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 0.8s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .cover-preview { width: 180px; height: 180px; border-radius: 12px; object-fit: cover; }
+        .theme-btn { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #ccc; }
+        .theme-btn:hover { background: rgba(255,255,255,0.15); }
+        .theme-btn.active { background: rgba(99, 102, 241, 0.4); border-color: #6366f1; color: white; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <!-- 顶栏 -->
+    <div class="max-w-6xl mx-auto flex items-center justify-between mb-6">
+        <h1 class="text-xl md:text-2xl font-bold text-white">🎵 Navidrome AI 歌单生成器</h1>
+        <div class="flex items-center gap-4">
+            <span id="status-indicator" class="text-sm text-gray-400">检查连接中...</span>
+            <a href="/logout" class="text-sm text-gray-400 hover:text-white transition">退出</a>
+        </div>
+    </div>
+
+    <!-- 搜索区域 -->
+    <div class="max-w-6xl mx-auto glass rounded-2xl p-6 mb-6">
+        <div class="flex flex-col md:flex-row gap-4">
+            <div class="flex-1">
+                <input
+                    type="text"
+                    id="searchInput"
+                    placeholder="输入歌单主题，如：民谣歌单、80后经典、周杰伦精选、深夜emo..."
+                    class="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
+                    onkeydown="if(event.key==='Enter') startSearch()"
+                >
+            </div>
+            <div class="flex gap-2">
+                <input
+                    type="text"
+                    id="playlistName"
+                    placeholder="歌单名称（可选）"
+                    class="w-48 px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/50"
+                >
+                <button
+                    onclick="startSearch()"
+                    id="searchBtn"
+                    class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition duration-200 whitespace-nowrap"
+                >
+                    🔍 AI 搜索匹配
+                </button>
+            </div>
+        </div>
+
+        <!-- 来源选择 -->
+        <div class="mt-4 flex flex-wrap gap-2 items-center">
+            <span class="text-sm text-gray-400">搜索来源：</span>
+            <label class="flex items-center gap-1 text-sm text-gray-300">
+                <input type="checkbox" class="source-check rounded" value="酷我" checked> 酷我
+            </label>
+            <label class="flex items-center gap-1 text-sm text-gray-300">
+                <input type="checkbox" class="source-check rounded" value="网易云" checked> 网易云
+            </label>
+            <label class="flex items-center gap-1 text-sm text-gray-300">
+                <input type="checkbox" class="source-check rounded" value="QQ音乐" checked> QQ音乐
+            </label>
+            <label class="flex items-center gap-1 text-sm text-gray-300">
+                <input type="checkbox" class="source-check rounded" value="酷狗" checked> 酷狗
+            </label>
+        </div>
+    </div>
+
+    <!-- 加载中 -->
+    <div id="loading" class="max-w-6xl mx-auto glass rounded-2xl p-12 mb-6 text-center hidden">
+        <div class="spinner mb-4"></div>
+        <p class="text-gray-300" id="loadingText">正在搜索各平台并匹配曲库...</p>
+        <p class="text-gray-500 text-sm mt-2">这可能需要 10-30 秒，请耐心等待</p>
+    </div>
+
+    <!-- 结果区域 -->
+    <div id="results" class="max-w-6xl mx-auto hidden">
+        <!-- 统计卡片 -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="glass rounded-xl p-4 text-center fade-in">
+                <div class="text-3xl font-bold text-indigo-400" id="stat-searched">0</div>
+                <div class="text-sm text-gray-400">搜索到的歌曲</div>
+            </div>
+            <div class="glass rounded-xl p-4 text-center fade-in">
+                <div class="text-3xl font-bold text-green-400" id="stat-matched">0</div>
+                <div class="text-sm text-gray-400">曲库中已有</div>
+            </div>
+            <div class="glass rounded-xl p-4 text-center fade-in">
+                <div class="text-3xl font-bold text-yellow-400" id="stat-rate">0%</div>
+                <div class="text-sm text-gray-400">匹配率</div>
+            </div>
+            <div class="glass rounded-xl p-4 text-center fade-in">
+                <div class="text-3xl font-bold text-gray-400" id="stat-missing">0</div>
+                <div class="text-sm text-gray-400">未找到</div>
+            </div>
+        </div>
+
+        <!-- 来源统计 -->
+        <div id="sourceStats" class="flex flex-wrap gap-3 mb-6"></div>
+
+        <!-- 封面设置 -->
+        <div class="glass rounded-xl p-6 mb-6 fade-in">
+            <div class="flex items-start gap-6">
+                <div class="flex-shrink-0">
+                    <img id="coverPreview" class="cover-preview bg-white/10" src="" alt="封面预览"
+                         onerror="this.style.display='none'">
+                    <div id="coverPlaceholder" class="cover-preview bg-white/10 flex items-center justify-center text-gray-500 text-sm">
+                        封面预览
+                    </div>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-3 mb-3">
+                        <h3 class="text-white font-semibold">🎨 歌单封面</h3>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="coverEnabled" checked class="rounded"
+                                   onchange="toggleCoverOptions()">
+                            <span class="text-sm text-gray-300">自动生成封面</span>
+                        </label>
+                    </div>
+                    <div id="coverOptions">
+                        <p class="text-sm text-gray-400 mb-2">选择封面风格（留空则自动匹配）：</p>
+                        <div class="flex flex-wrap gap-2" id="themeButtons">
+                            <!-- 动态填充 -->
+                        </div>
+                        <button onclick="refreshCoverPreview()"
+                                class="mt-3 text-sm text-indigo-400 hover:text-indigo-300 transition">
+                            🔄 换一个封面
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作栏 -->
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-4">
+                <h2 class="text-lg font-semibold text-white">匹配到的歌曲</h2>
+                <button onclick="toggleSelectAll()" class="text-sm text-indigo-400 hover:text-indigo-300">全选/取消</button>
+            </div>
+            <button
+                onclick="createPlaylist()"
+                id="createBtn"
+                class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition duration-200"
+            >
+                ✅ 创建歌单
+            </button>
+        </div>
+
+        <!-- 歌曲列表 -->
+        <div id="songList" class="glass rounded-xl overflow-hidden mb-6">
+            <!-- 动态填充 -->
+        </div>
+
+        <!-- 未匹配的歌曲 -->
+        <div id="unmatchedSection" class="hidden">
+            <h2 class="text-lg font-semibold text-white mb-4">
+                😕 未在曲库中找到的歌曲
+                <span class="text-sm text-gray-400 font-normal">（可考虑后续导入）</span>
+            </h2>
+            <div id="unmatchedList" class="glass rounded-xl overflow-hidden">
+                <!-- 动态填充 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 成功弹窗 -->
+    <div id="successModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 hidden">
+        <div class="glass rounded-2xl p-8 max-w-md text-center">
+            <div class="text-6xl mb-4">🎉</div>
+            <h2 class="text-2xl font-bold text-white mb-2">歌单创建成功！</h2>
+            <p class="text-gray-300 mb-1" id="modalPlaylistName"></p>
+            <p class="text-gray-400 mb-2" id="modalSongCount"></p>
+            <p class="text-gray-400 mb-6 text-sm" id="modalCoverStatus"></p>
+            <button onclick="closeModal()" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition">确定</button>
+        </div>
+    </div>
+
+    <script>
+        let matchedSongs = [];
+        let selectedIds = new Set();
+        let selectedTheme = '';
+        let allThemes = [];
+
+        // 检查状态
+        async function checkStatus() {
+            try {
+                const resp = await fetch('/api/status');
+                const data = await resp.json();
+                const el = document.getElementById('status-indicator');
+                if (data.navidrome_connected) {
+                    el.innerHTML = `<span class="text-green-400">● 已连接</span> · 曲库 ${data.library_size} 首`;
+                } else {
+                    el.innerHTML = `<span class="text-red-400">● 连接失败</span>`;
+                }
+            } catch(e) {
+                document.getElementById('status-indicator').innerHTML = `<span class="text-red-400">● 网络错误</span>`;
+            }
+        }
+        checkStatus();
+
+        // 加载封面主题
+        async function loadThemes() {
+            try {
+                const resp = await fetch('/api/cover/themes');
+                const data = await resp.json();
+                allThemes = data.themes || [];
+                renderThemeButtons();
+            } catch(e) {
+                console.error('加载主题失败:', e);
+            }
+        }
+        loadThemes();
+
+        // 渲染主题按钮
+        function renderThemeButtons() {
+            const el = document.getElementById('themeButtons');
+            el.innerHTML = '';
+            // 自动匹配按钮
+            el.innerHTML += `<button class="theme-btn ${selectedTheme === '' ? 'active' : ''}"
+                              onclick="selectTheme('')">自动匹配</button>`;
+            allThemes.forEach(theme => {
+                el.innerHTML += `<button class="theme-btn ${selectedTheme === theme ? 'active' : ''}"
+                                  onclick="selectTheme('${theme}')">${theme}</button>`;
+            });
+        }
+
+        // 选择主题
+        function selectTheme(theme) {
+            selectedTheme = theme;
+            renderThemeButtons();
+            refreshCoverPreview();
+        }
+
+        // 切换封面选项显示
+        function toggleCoverOptions() {
+            const enabled = document.getElementById('coverEnabled').checked;
+            document.getElementById('coverOptions').style.display = enabled ? 'block' : 'none';
+            if (enabled) {
+                refreshCoverPreview();
+            } else {
+                document.getElementById('coverPreview').style.display = 'none';
+                document.getElementById('coverPlaceholder').style.display = 'flex';
+            }
+        }
+
+        // 刷新封面预览
+        async function refreshCoverPreview() {
+            const name = document.getElementById('playlistName').value.trim() || document.getElementById('searchInput').value.trim() || '歌单';
+            const count = selectedIds.size || 0;
+            try {
+                const resp = await fetch('/api/cover/preview', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({title: name, theme: selectedTheme, song_count: count}),
+                });
+                if (resp.ok) {
+                    const blob = await resp.blob();
+                    const url = URL.createObjectURL(blob);
+                    const img = document.getElementById('coverPreview');
+                    img.src = url;
+                    img.style.display = 'block';
+                    document.getElementById('coverPlaceholder').style.display = 'none';
+                }
+            } catch(e) {
+                console.error('封面预览失败:', e);
+            }
+        }
+
+        // 获取选中的来源
+        function getSelectedSources() {
+            return Array.from(document.querySelectorAll('.source-check:checked')).map(cb => cb.value);
+        }
+
+        // 开始搜索
+        async function startSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) { alert('请输入歌单主题'); return; }
+
+            const sources = getSelectedSources();
+            const playlistName = document.getElementById('playlistName').value.trim() || `${query} - AI生成`;
+
+            // UI 状态
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('searchBtn').disabled = true;
+            document.getElementById('searchBtn').textContent = '搜索中...';
+
+            try {
+                const resp = await fetch('/api/match', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({query, sources}),
+                });
+                const data = await resp.json();
+
+                if (resp.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                displayResults(data, playlistName);
+                // 搜索完成后刷新封面预览
+                refreshCoverPreview();
+            } catch(e) {
+                alert('搜索失败: ' + e.message);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('searchBtn').disabled = false;
+                document.getElementById('searchBtn').textContent = '🔍 AI 搜索匹配';
+            }
+        }
+
+        // 显示结果
+        function displayResults(data, playlistName) {
+            matchedSongs = data.matched || [];
+            selectedIds = new Set(matchedSongs.map(s => s.id));
+            const unmatched = data.unmatched || [];
+            const total = data.search_total || 0;
+            const matchedCount = data.matched_count || 0;
+            const rate = total > 0 ? Math.round(matchedCount / total * 100) : 0;
+
+            // 统计
+            document.getElementById('stat-searched').textContent = total;
+            document.getElementById('stat-matched').textContent = matchedCount;
+            document.getElementById('stat-rate').textContent = rate + '%';
+            document.getElementById('stat-missing').textContent = data.unmatched_count || 0;
+
+            // 来源统计
+            const statsEl = document.getElementById('sourceStats');
+            statsEl.innerHTML = '';
+            for (const [source, count] of Object.entries(data.source_stats || {})) {
+                statsEl.innerHTML += `<span class="source-badge badge-${source}">${source}: ${count}首</span>`;
+            }
+
+            // 歌曲列表
+            const listEl = document.getElementById('songList');
+            listEl.innerHTML = '';
+            if (matchedSongs.length === 0) {
+                listEl.innerHTML = '<div class="p-8 text-center text-gray-400">未在曲库中找到匹配的歌曲</div>';
+            } else {
+                matchedSongs.forEach((song, idx) => {
+                    const checked = selectedIds.has(song.id) ? 'selected' : '';
+                    listEl.innerHTML += `
+                        <div class="song-item flex items-center gap-3 px-4 py-3 border-b border-white/5 cursor-pointer ${checked}"
+                             data-id="${song.id}" onclick="toggleSong('${song.id}', this)">
+                            <input type="checkbox" ${selectedIds.has(song.id) ? 'checked' : ''} class="rounded song-check">
+                            <span class="text-gray-400 text-sm w-8">${idx + 1}</span>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-white truncate">${escapeHtml(song.title)}</div>
+                                <div class="text-gray-400 text-sm truncate">${escapeHtml(song.artist)}${song.album ? ' · ' + escapeHtml(song.album) : ''}</div>
+                            </div>
+                            <span class="source-badge badge-${song.source?.replace('(模糊)', '')}">${song.source}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            // 未匹配
+            const unmatchEl = document.getElementById('unmatchedList');
+            const unmatchSection = document.getElementById('unmatchedSection');
+            if (unmatched.length > 0) {
+                unmatchSection.classList.remove('hidden');
+                unmatchEl.innerHTML = '';
+                unmatched.forEach((song, idx) => {
+                    unmatchEl.innerHTML += `
+                        <div class="flex items-center gap-3 px-4 py-2 border-b border-white/5 opacity-60">
+                            <span class="text-gray-500 text-sm w-8">${idx + 1}</span>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-gray-300 truncate">${escapeHtml(song.title)}</div>
+                                <div class="text-gray-500 text-sm truncate">${escapeHtml(song.artist)}</div>
+                            </div>
+                            <span class="source-badge badge-${song.source}">${song.source}</span>
+                        </div>
+                    `;
+                });
+            } else {
+                unmatchSection.classList.add('hidden');
+            }
+
+            document.getElementById('results').classList.remove('hidden');
+            // 保存歌单名
+            document.getElementById('playlistName').value = playlistName;
+        }
+
+        // 切换选中
+        function toggleSong(id, el) {
+            if (selectedIds.has(id)) {
+                selectedIds.delete(id);
+                el.classList.remove('selected');
+                el.querySelector('.song-check').checked = false;
+            } else {
+                selectedIds.add(id);
+                el.classList.add('selected');
+                el.querySelector('.song-check').checked = true;
+            }
+        }
+
+        // 全选/取消
+        function toggleSelectAll() {
+            if (selectedIds.size === matchedSongs.length) {
+                selectedIds.clear();
+            } else {
+                selectedIds = new Set(matchedSongs.map(s => s.id));
+            }
+            document.querySelectorAll('.song-item').forEach(el => {
+                const id = el.dataset.id;
+                if (selectedIds.has(id)) {
+                    el.classList.add('selected');
+                    el.querySelector('.song-check').checked = true;
+                } else {
+                    el.classList.remove('selected');
+                    el.querySelector('.song-check').checked = false;
+                }
+            });
+        }
+
+        // 创建歌单
+        async function createPlaylist() {
+            const name = document.getElementById('playlistName').value.trim();
+            if (!name) { alert('请输入歌单名称'); return; }
+            if (selectedIds.size === 0) { alert('请至少选择一首歌曲'); return; }
+
+            const btn = document.getElementById('createBtn');
+            btn.disabled = true;
+            btn.textContent = '创建中...';
+
+            const coverEnabled = document.getElementById('coverEnabled').checked;
+
+            try {
+                const resp = await fetch('/api/playlist/create', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        name: name,
+                        song_ids: Array.from(selectedIds),
+                        cover_enabled: coverEnabled,
+                        cover_theme: selectedTheme,
+                    }),
+                });
+                const data = await resp.json();
+
+                if (resp.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                if (data.success) {
+                    document.getElementById('modalPlaylistName').textContent = `歌单: ${data.playlist_name}`;
+                    document.getElementById('modalSongCount').textContent = `包含 ${data.song_count} 首歌曲`;
+                    document.getElementById('modalCoverStatus').textContent =
+                        data.cover_generated ? '🎨 封面已自动生成' : '📷 未生成封面';
+                    document.getElementById('successModal').classList.remove('hidden');
+                } else {
+                    alert('创建失败: ' + (data.detail || '未知错误'));
+                }
+            } catch(e) {
+                alert('创建失败: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '✅ 创建歌单';
+            }
+        }
+
+        // 关闭弹窗
+        function closeModal() {
+            document.getElementById('successModal').classList.add('hidden');
+        }
+
+        // HTML 转义
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

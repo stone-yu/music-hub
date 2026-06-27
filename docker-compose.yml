@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  navidrome-ai-playlist:
+    build: .
+    container_name: navidrome-ai-playlist
+    restart: unless-stopped
+    ports:
+      - "8899:8899"
+    environment:
+      # ============================================
+      # 请修改以下配置
+      # ============================================
+      
+      # Navidrome 服务器地址
+      # 如果 Navidrome 也在同一台飞牛上，用局域网 IP 更快：
+      # 例如: http://192.168.1.100:4533/
+      - NAVIDROME_URL=http://j.tthsdd.top:4533/
+      
+      # Navidrome 登录信息
+      - NAVIDROME_USER=ccson
+      - NAVIDROME_PASS=shaozi1981
+      
+      # Web UI 访问密码（请改成你自己的密码！）
+      - LOGIN_PASSWORD=navidrome2024
+      
+      # 服务端口（一般不需要改）
+      - PORT=8899
