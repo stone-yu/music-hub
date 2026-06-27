@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   navidrome-ai-playlist:
     build: .
@@ -7,8 +6,8 @@ services:
     ports:
       - "8899:8899"
     environment:
-      - NAVIDROME_URL=http://j.tthsdd.top:4533/
-      - NAVIDROME_USER=ccson
-      - NAVIDROME_PASS=shaozi1981
-      - LOGIN_PASSWORD=navidrome2024
-      - PORT=8899
+      NAVIDROME_URL: "http://j.tthsdd.top:4533/"
+      NAVIDROME_USER: "ccson"
+      NAVIDROME_PASS: "shaozi1981"
+      LOGIN_PASSWORD: "navidrome2024"
+      PORT: "8899"
