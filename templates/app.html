@@ -487,10 +487,13 @@
                     <div class="text-green-400 text-xs mt-1">✓ 已在曲库${s.fuzzy?' (模糊)':''}</div>
                 </div>`;
             }
-            return `<div class="card rounded-lg p-2.5 opacity-50 fade-in">
+            return `<div class="card rounded-lg p-2.5 fade-in" data-dl-title="${escapeHtml(s.title)}" data-dl-artist="${escapeHtml(s.artist)}">
                 <div class="text-white truncate text-sm">${escapeHtml(s.title)}</div>
-                <div class="text-gray-500 text-xs truncate">${escapeHtml(s.artist)}</div>
-                <div class="text-gray-600 text-xs mt-1">未收录</div>
+                <div class="text-gray-500 text-xs truncate mb-1">${escapeHtml(s.artist)}</div>
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-gray-600 text-xs dl-status">未收录</span>
+                    <button onclick="downloadSong(this)" class="text-xs px-2 py-1 rounded bg-indigo-600/60 hover:bg-indigo-500 text-white transition whitespace-nowrap dl-btn">⬇下载</button>
+                </div>
             </div>`;
         }
         function renderRankSongs(songs){
@@ -563,6 +566,44 @@
             }catch(e){document.getElementById('addToPlaylistList').innerHTML='加载失败'}
         }
         function closeAddToPlaylistModal(){document.getElementById('addToPlaylistModal').classList.add('hidden')}
+        // ===== 下载未匹配歌曲 =====
+        async function downloadSong(btn){
+            const card=btn.closest('[data-dl-title]');
+            if(!card)return;
+            const title=card.dataset.dlTitle, artist=card.dataset.dlArtist;
+            const status=card.querySelector('.dl-status'), b=card.querySelector('.dl-btn');
+            status.textContent='下载中...';status.className='text-yellow-400 text-xs dl-status';
+            b.disabled=true;b.textContent='⏳';
+            try{
+                await authFetch('/api/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,artist})});
+                pollDownloadStatus();
+            }catch(e){status.textContent='下载失败';status.className='text-red-400 text-xs dl-status';b.disabled=false;b.textContent='⬇重试'}
+        }
+        let dlPollTimer=null;
+        function pollDownloadStatus(){
+            if(dlPollTimer)clearInterval(dlPollTimer);
+            const tick=async()=>{
+                const cards=Array.from(document.querySelectorAll('[data-dl-title]'));
+                if(!cards.length){clearInterval(dlPollTimer);dlPollTimer=null;return}
+                const songs=cards.map(c=>({title:c.dataset.dlTitle,artist:c.dataset.dlArtist}));
+                try{
+                    const r=await authFetch('/api/download/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({songs})});if(!r)return;
+                    const st=(await r.json()).statuses||[];
+                    let pending=false;
+                    st.forEach(s=>{
+                        const card=cards.find(c=>c.dataset.dlTitle===s.title&&c.dataset.dlArtist===s.artist);
+                        if(!card)return;
+                        const status=card.querySelector('.dl-status'),b=card.querySelector('.dl-btn');
+                        if(s.status==='downloading'){status.textContent='下载中...';status.className='text-yellow-400 text-xs dl-status';b.disabled=true;b.textContent='⏳';pending=true}
+                        else if(s.status==='success'){status.textContent='✓已下载';status.className='text-green-400 text-xs dl-status';b.disabled=true;b.textContent='✓完成'}
+                        else if(s.status==='failed'){status.textContent='失败';status.className='text-red-400 text-xs dl-status';b.disabled=false;b.textContent='⬇重试'}
+                        else if(s.status==='notfound'){status.textContent='未找到';status.className='text-gray-500 text-xs dl-status';b.disabled=true;b.textContent='无'}
+                    });
+                    if(!pending){clearInterval(dlPollTimer);dlPollTimer=null}
+                }catch(e){}
+            };
+            tick();dlPollTimer=setInterval(tick,2000);
+        }
         async function doAddToPlaylist(playlistId,playlistName){
             if(!addToPlaylistSongs.length)return;
             const listEl=document.getElementById('addToPlaylistList');

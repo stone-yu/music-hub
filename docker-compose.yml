@@ -1,13 +1,22 @@
 services:
   navidrome-ai-playlist:
+    # 本地构建：用下面的 build；想用预构建镜像（打 tag 后由 GitHub Actions 自动推送到 ghcr.io）：
+    # 注释掉 build、取消注释 image 即可
     build: .
-    # 若不想本地构建，可用预构建镜像（打 tag 后由 GitHub Actions 自动推送到 ghcr.io）：
-    # image: ghcr.io/<你的用户名>/<仓库名>:latest
+    # image: ghcr.io/stone-yu/ai-playlist:latest
     container_name: navidrome-ai-playlist
     restart: unless-stopped
     ports:
       - "8899:8899"
-    env_file:
-      - .env
     environment:
+      # Navidrome 服务器配置（改成你的实际值）
+      NAVIDROME_URL: "http://你的Navidrome地址:4533/"
+      NAVIDROME_USER: "你的用户名"
+      NAVIDROME_PASS: "你的密码"
+      LOGIN_PASSWORD: "你的Web访问密码"
+      # 服务配置
       PORT: "8899"
+      DOWNLOAD_DIR: "/app/downloads"
+    volumes:
+      # 下载的歌曲存到这里；把同一个宿主机目录也挂载到 Navidrome，即可自动扫描入库
+      - ./downloads:/app/downloads

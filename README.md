@@ -88,25 +88,35 @@ docker compose up -d --build  # 更新代码后重新构建部署
 
 ### 方式三：使用预构建镜像（GHCR）
 
-打 tag 后 GitHub Actions 会自动构建并推送镜像到 ghcr.io，可直接拉取：
+打 tag 后 GitHub Actions 会自动构建并推送镜像到 ghcr.io，可直接拉取无需本地构建。
+
+把 `docker-compose.yml` 里的 `build: .` 注释掉、取消 `image` 注释：
 
 ```yaml
-# docker-compose.yml 中替换 image
 services:
   navidrome-ai-playlist:
-    image: ghcr.io/<你的用户名>/<仓库名>:latest
-    # 删除 build: .
+    image: ghcr.io/stone-yu/ai-playlist:latest
     container_name: navidrome-ai-playlist
     restart: unless-stopped
     ports:
       - "8899:8899"
-    env_file:
-      - .env
+    environment:
+      NAVIDROME_URL: "http://你的Navidrome地址:4533/"
+      NAVIDROME_USER: "你的用户名"
+      NAVIDROME_PASS: "你的密码"
+      LOGIN_PASSWORD: "你的Web访问密码"
+      PORT: "8899"
+      DOWNLOAD_DIR: "/app/downloads"
+    volumes:
+      - ./downloads:/app/downloads
 ```
 
 ```bash
 docker compose up -d
 ```
+
+> 首次使用需先打个 tag 触发构建：`git tag v1.0.0 && git push origin v1.0.0`。
+> 构建完成后到 GitHub → Packages 把包可见性设为 public，才能免登录拉取。
 
 ## ⚙️ 环境变量
 

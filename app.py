@@ -27,6 +27,7 @@ from app.cover_generator import generate_cover, THEME_COLORS
 from app.playlist_parser import fetch_playlist_from_url, parse_playlist_url
 from app.hot_playlists import fetch_all_hot
 from app.hot_songs import get_all_ranks, fetch_rank_songs, RANK_PROVIDERS
+from app.downloader import download_manager, DOWNLOAD_SOURCES
 
 # 日志配置
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -377,6 +378,36 @@ async def api_add_to_playlist(req: AddToPlaylistRequest, request: Request):
         raise HTTPException(400, "歌曲列表不能为空")
     result = navidrome.add_to_playlist(req.playlist_id, req.song_ids)
     return {"success": True, **result}
+
+class DownloadRequest(BaseModel):
+    title: str
+    artist: str
+
+class DownloadStatusRequest(BaseModel):
+    songs: list  # [{title, artist}]
+
+@app.post("/api/download")
+async def api_download(req: DownloadRequest, request: Request):
+    """下载一首未匹配的歌曲到 DOWNLOAD_DIR（后台执行）"""
+    require_auth(request)
+    if not req.title.strip():
+        raise HTTPException(400, "歌曲名不能为空")
+    task = download_manager.submit(req.title.strip(), req.artist.strip(),
+                                   config.DOWNLOAD_SOURCE, config.DOWNLOAD_DIR)
+    return {"status": task.get('status', 'downloading'), "title": req.title, "artist": req.artist}
+
+@app.post("/api/download/status")
+async def api_download_status(req: DownloadStatusRequest, request: Request):
+    """批量查询下载状态"""
+    require_auth(request)
+    return {"statuses": download_manager.get_all_status(req.songs or [])}
+
+@app.get("/api/download/sources")
+async def api_download_sources(request: Request):
+    """可用下载源"""
+    require_auth(request)
+    return {"sources": list(DOWNLOAD_SOURCES.keys()), "current": config.DOWNLOAD_SOURCE,
+            "download_dir": config.DOWNLOAD_DIR}
 
 @app.post("/api/cover/preview")
 async def api_cover_preview(request: Request):

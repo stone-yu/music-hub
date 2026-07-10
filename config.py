@@ -29,3 +29,9 @@ PORT = int(os.getenv("PORT", "8899"))
 # ========== 搜索配置 ==========
 SEARCH_TIMEOUT = int(os.getenv("SEARCH_TIMEOUT", "10"))
 MAX_RESULTS_PER_SOURCE = 30
+
+# ========== 下载配置（未匹配歌曲下载到本地，供 Navidrome 扫描入库）==========
+# 下载目录（容器内路径，需在 docker-compose 中映射到宿主机，并让 Navidrome 也挂载该目录）
+DOWNLOAD_DIR = os.getenv("DOWNLOAD_DIR", "/app/downloads")
+# 下载源（当前仅酷我，架构支持扩展）
+DOWNLOAD_SOURCE = os.getenv("DOWNLOAD_SOURCE", "酷我")
