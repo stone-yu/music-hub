@@ -107,8 +107,15 @@ services:
       LOGIN_PASSWORD: "你的Web访问密码"
       PORT: "8899"
       DOWNLOAD_DIR: "/app/downloads"
+      SCRAPED_DIR: "/app/scraped"
+      DATA_DIR: "/app/data"
     volumes:
+      # 下载的歌曲（让 Navidrome 也挂载此目录即可扫描入库）
       - ./downloads:/app/downloads
+      # 刮削整理后的歌曲（按 艺术家/专辑 结构）
+      - ./scraped:/app/scraped
+      # 持久化数据（download_task.json 等任务记录）
+      - ./data:/app/data
 ```
 
 ```bash
@@ -116,6 +123,7 @@ docker compose up -d
 ```
 
 > 首次使用需先打个 tag 触发构建：`git tag v1.0.0 && git push origin v1.0.0`。
+> 构建完成后到 GitHub → Packages 把包可见性设为 public，才能免登录拉取。
 > 构建完成后到 GitHub → Packages 把包可见性设为 public，才能免登录拉取。
 
 ## ⚙️ 环境变量

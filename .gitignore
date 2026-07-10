@@ -1,6 +1,11 @@
 # 环境变量 / 密钥（本地配置，切勿提交）
 .env
 
+# 运行时数据（下载任务记录等）
+data/
+downloads/
+scraped/
+
 # Python
 .venv/
 venv/

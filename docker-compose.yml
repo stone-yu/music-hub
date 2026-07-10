@@ -17,6 +17,12 @@ services:
       # 服务配置
       PORT: "8899"
       DOWNLOAD_DIR: "/app/downloads"
+      SCRAPED_DIR: "/app/scraped"
+      DATA_DIR: "/app/data"
     volumes:
       # 下载的歌曲存到这里；把同一个宿主机目录也挂载到 Navidrome，即可自动扫描入库
       - ./downloads:/app/downloads
+      # 刮削整理后的歌曲（按 艺术家/专辑 结构）；同样让 Navidrome 挂载此目录
+      - ./scraped:/app/scraped
+      # 持久化数据（download_task.json 等）
+      - ./data:/app/data

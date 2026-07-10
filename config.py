@@ -35,3 +35,9 @@ MAX_RESULTS_PER_SOURCE = 30
 DOWNLOAD_DIR = os.getenv("DOWNLOAD_DIR", "/app/downloads")
 # 下载源（当前仅酷我，架构支持扩展）
 DOWNLOAD_SOURCE = os.getenv("DOWNLOAD_SOURCE", "酷我")
+
+# 刮削目录（刮削后的文件按 艺术家/专辑 整理到此，需映射卷让 Navidrome 扫描）
+SCRAPED_DIR = os.getenv("SCRAPED_DIR", "/app/scraped")
+
+# 数据目录（存放 download_task.json 等持久化数据）
+DATA_DIR = os.getenv("DATA_DIR", "/app/data")

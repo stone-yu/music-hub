@@ -63,20 +63,33 @@
 
     <div class="layout">
         <!-- 左侧菜单 -->
-        <div class="sidebar">
-            <div class="card rounded-2xl p-2.5 sticky top-4 flex flex-col gap-1">
+        <div class="sidebar flex flex-col gap-3 sticky top-4 self-start" style="max-height:calc(100vh - 2rem);overflow-y:auto">
+            <div class="card rounded-2xl p-2.5 flex flex-col gap-1">
                 <a href="/home" class="menu-item {{ 'active' if active=='home' else '' }}">🏠 首页</a>
                 <a href="/hot-songs" class="menu-item {{ 'active' if active=='hot-songs' else '' }}">🔥 热门歌曲</a>
                 <a href="/hot-playlists" class="menu-item {{ 'active' if active=='hot-playlists' else '' }}">🎶 热门歌单</a>
                 <a href="/search" class="menu-item {{ 'active' if active=='search' else '' }}">🔍 搜索歌单</a>
                 <a href="/import" class="menu-item {{ 'active' if active=='import' else '' }}">📋 手动粘贴</a>
                 <a href="/mine" class="menu-item {{ 'active' if active=='mine' else '' }}">🎵 我的歌单</a>
-                <!-- 已选歌曲 + 操作 -->
-                <div class="mt-2 pt-3 border-t border-white/10 flex flex-col gap-2">
-                    <div id="selectedCount" class="text-xs text-gray-400 text-center">已选择 0 首</div>
-                    <button id="globalCreateBtn" onclick="openCreateFromGlobal()" disabled class="px-3 py-2 rounded-lg text-sm font-medium transition bg-gray-700 text-gray-500 cursor-not-allowed">✅ 创建歌单</button>
-                    <button id="globalAddBtn" onclick="openAddToPlaylistModal()" disabled class="px-3 py-2 rounded-lg text-sm font-medium transition bg-gray-700 text-gray-500 cursor-not-allowed">➕ 加入歌单</button>
+            </div>
+            <!-- 下载任务列表 -->
+            <div class="card rounded-2xl p-3">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium text-gray-200">⬇ 下载任务</span>
+                    <div class="flex items-center gap-2">
+                        <span id="dlTaskCount" class="text-xs text-gray-500">0</span>
+                        <button onclick="openDownloadTasksModal()" class="text-xs text-indigo-400 hover:text-indigo-300 px-1.5 py-0.5 rounded hover:bg-white/5 transition" title="展开任务列表">⤢ 展开</button>
+                    </div>
                 </div>
+                <div id="dlTaskList" class="space-y-1.5 max-h-60 overflow-y-auto">
+                    <div class="text-xs text-gray-600 text-center py-2">暂无下载任务</div>
+                </div>
+            </div>
+            <!-- 已选歌曲 + 操作 -->
+            <div class="card rounded-2xl p-3 flex flex-col gap-2">
+                <div id="selectedCount" class="text-xs text-gray-400 text-center">已选择 0 首</div>
+                <button id="globalCreateBtn" onclick="openCreateFromGlobal()" disabled class="px-3 py-2 rounded-lg text-sm font-medium transition bg-gray-700 text-gray-500 cursor-not-allowed">✅ 创建歌单</button>
+                <button id="globalAddBtn" onclick="openAddToPlaylistModal()" disabled class="px-3 py-2 rounded-lg text-sm font-medium transition bg-gray-700 text-gray-500 cursor-not-allowed">➕ 加入歌单</button>
             </div>
         </div>
 
@@ -248,6 +261,19 @@
         </div>
     </div>
 
+    <!-- 全局试听播放器（固定底部，跨页面常驻） -->
+    <div id="globalPlayer" class="fixed bottom-0 left-0 right-0 z-40 hidden" style="background:#1e293b;border-top:1px solid rgba(255,255,255,0.12);box-shadow:0 -4px 20px rgba(0,0,0,0.3)">
+        <div class="max-w-[1600px] mx-auto px-4 py-2.5 flex items-center gap-3">
+            <div class="w-11 h-11 rounded-lg flex items-center justify-center text-2xl flex-shrink-0" style="background:linear-gradient(135deg,#6366f1,#8b5cf6)">🎵</div>
+            <div class="min-w-0 flex-1">
+                <div id="globalPlayerTitle" class="text-sm text-white truncate font-medium">未播放</div>
+                <div class="text-xs text-gray-500 truncate">试听</div>
+            </div>
+            <audio id="globalAudio" controls class="flex-1 max-w-xl" style="height:32px"></audio>
+            <button onclick="closeGlobalPlayer()" class="text-gray-400 hover:text-white text-lg leading-none flex-shrink0 px-2">×</button>
+        </div>
+    </div>
+
     <!-- Loading -->
     <div id="loading" class="fixed inset-0 bg-black/50 flex items-center justify-center z-40 hidden">
         <div class="card rounded-2xl p-6 text-center"><div class="spinner mb-3"></div><p class="text-gray-300 text-sm" id="loadingText">处理中...</p></div>
@@ -301,6 +327,52 @@
         </div>
     </div>
 
+    <!-- 下载任务列表大弹框（展开） -->
+    <div id="downloadTasksModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden p-4">
+        <div class="rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col" style="background:#1e293b;border:1px solid rgba(255,255,255,0.1)">
+            <div class="flex items-center justify-between p-5 border-b border-white/10">
+                <h2 class="text-lg font-bold text-white">⬇ 下载任务列表</h2>
+                <div class="flex items-center gap-3">
+                    <button onclick="scrapeAllTasks()" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">🏷 全部刮削</button>
+                    <button onclick="closeDownloadTasksModal()" class="text-gray-400 hover:text-white text-xl leading-none">×</button>
+                </div>
+            </div>
+            <div id="dlTasksModalList" class="flex-1 overflow-y-auto p-4 space-y-2">
+                <div class="text-center text-gray-500 text-sm py-8">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 下载任务操作弹窗 -->
+    <div id="downloadTaskModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden p-4">
+        <div class="rounded-2xl p-6 max-w-sm w-full" style="background:#1e293b;border:1px solid rgba(255,255,255,0.1)">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-lg font-bold text-white">下载任务</h2>
+                <button onclick="closeDownloadTaskModal()" class="text-gray-400 hover:text-white text-xl leading-none">×</button>
+            </div>
+            <div id="taskModalInfo" class="text-sm text-gray-300 mb-1"></div>
+            <div id="taskModalStatus" class="text-xs text-gray-500 mb-4"></div>
+            <div class="flex flex-col gap-2">
+                <button id="taskRedownloadBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">🔄 重新下载</button>
+                <button id="taskPreviewBtn" class="px-4 py-2 rounded-lg bg-indigo-600/60 hover:bg-indigo-500 text-white text-sm font-medium transition">▶ 试听</button>
+                <button id="taskRemoveRecordBtn" class="px-4 py-2 rounded-lg card hover:bg-white/10 text-gray-300 text-sm font-medium transition">🗑 删除任务记录</button>
+                <button id="taskRemoveFileBtn" class="px-4 py-2 rounded-lg bg-red-600/80 hover:bg-red-500 text-white text-sm font-medium transition">🗑 删除任务及文件</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 下载候选选择弹窗 -->
+    <div id="downloadSearchModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden p-4">
+        <div class="rounded-2xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto" style="background:#1e293b;border:1px solid rgba(255,255,255,0.1)">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-white">⬇ 选择下载版本</h2>
+                <button onclick="closeDownloadSearchModal()" class="text-gray-400 hover:text-white text-xl leading-none">×</button>
+            </div>
+            <p id="downloadSearchInfo" class="text-sm text-gray-400 mb-4"></p>
+            <div id="downloadSearchList" class="space-y-2"></div>
+        </div>
+    </div>
+
     <!-- 加入歌单弹窗 -->
     <div id="addToPlaylistModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden p-4">
         <div class="rounded-2xl p-6 max-w-md w-full max-h-[80vh] overflow-y-auto" style="background:#1e293b;border:1px solid rgba(255,255,255,0.1)">
@@ -332,6 +404,7 @@
         let allHotPlaylists={}, hotPlaylistActiveTab='';
         let homeData=null, rankSelected=new Set();
         let myLoaded=false;
+        let dlPollTimer=null, dlTaskPollTimer=null;
 
         function escapeHtml(t){if(!t)return'';const d=document.createElement('div');d.textContent=t;return d.innerHTML}
         function fmtCount(n){if(!n)return'';if(n>=1e8)return(n/1e8).toFixed(1)+'亿';if(n>=1e4)return(n/1e4).toFixed(1)+'万';return String(n)}
@@ -343,11 +416,12 @@
 
         async function checkStatus(){try{const r=await fetch('/api/status');const d=await r.json();const el=document.getElementById('status-indicator');el.innerHTML=d.navidrome_connected?`<span class="text-green-400">● 已连接</span> · 曲库 ${d.library_size} 首${d.library_loading?' ·加载中':''}`:`<span class="text-red-400">● 连接失败</span>`}catch(e){document.getElementById('status-indicator').innerHTML=`<span class="text-red-400">● 网络错误</span>`}}
         checkStatus();setInterval(checkStatus,15000);
+        startTaskPolling();
 
         async function loadThemes(){const r=await authFetch('/api/cover/themes');if(!r)return;allThemes=(await r.json()).themes||[];renderThemeButtons()}
         loadThemes();
-        function renderThemeButtons(){const el=document.getElementById('themeButtons');el.innerHTML=`<button class="theme-btn ${selectedTheme===''?'active':''}" onclick="selectTheme('')">自动匹配</button>`;allThemes.forEach(t=>{el.innerHTML+=`<button class="theme-btn ${selectedTheme===t?'active':''}" onclick="selectTheme('${t}')">${t}</button>`})}
-        function selectTheme(t){selectedTheme=t;renderThemeButtons();refreshCoverPreview()}
+        function renderThemeButtons(){const el=document.getElementById('cmThemeButtons');if(!el)return;el.innerHTML=`<button class="theme-btn ${selectedTheme===''?'active':''}" onclick="selectTheme('')">自动匹配</button>`;allThemes.forEach(t=>{el.innerHTML+=`<button class="theme-btn ${selectedTheme===t?'active':''}" onclick="selectTheme('${t}')">${t}</button>`})}
+        function selectTheme(t){selectedTheme=t;renderThemeButtons();refreshCmCover()}
         function toggleCoverOptions(){const en=document.getElementById('coverEnabled').checked;document.getElementById('coverOptions').style.display=en?'block':'none';if(en)refreshCoverPreview();else{document.getElementById('coverPreview').style.display='none';document.getElementById('coverPlaceholder').style.display='flex'}}
         async function refreshCoverPreview(){const name=document.getElementById('playlistName').value.trim()||'歌单';try{const r=await fetch('/api/cover/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:name,theme:selectedTheme,song_count:selectedIds.size})});if(r.ok){const b=await r.blob();const img=document.getElementById('coverPreview');img.src=URL.createObjectURL(b);img.style.display='block';document.getElementById('coverPlaceholder').style.display='none'}}catch(e){}}
 
@@ -396,7 +470,8 @@
                 <span class="w-4"></span>
                 <span class="text-gray-500 text-sm w-6">${i+1}</span>
                 <div class="flex-1 min-w-0"><div class="text-gray-400 truncate text-sm">${escapeHtml(s.title)}</div><div class="text-gray-600 text-xs truncate">${escapeHtml(s.artist)}</div></div>
-                <span class="text-gray-600 text-xs">未收录</span></div>`;
+                <span class="text-gray-600 text-xs">未收录</span>
+                <button class="home-dl-btn text-xs px-2 py-1 rounded bg-indigo-600/60 hover:bg-indigo-500 text-white transition flex-shrink-0" data-title="${escapeHtml(s.title)}" data-artist="${escapeHtml(s.artist)}">⬇下载</button></div>`;
         }
         function toggleHomeSong(el){
             const cb=el.querySelector('.home-check');cb.checked=!cb.checked;
@@ -568,18 +643,67 @@
         function closeAddToPlaylistModal(){document.getElementById('addToPlaylistModal').classList.add('hidden')}
         // ===== 下载未匹配歌曲 =====
         async function downloadSong(btn){
+            // 兼容两种来源：详情页未匹配卡片(data-dl-title) 或 首页下载按钮(data-title)
             const card=btn.closest('[data-dl-title]');
-            if(!card)return;
-            const title=card.dataset.dlTitle, artist=card.dataset.dlArtist;
-            const status=card.querySelector('.dl-status'), b=card.querySelector('.dl-btn');
-            status.textContent='下载中...';status.className='text-yellow-400 text-xs dl-status';
-            b.disabled=true;b.textContent='⏳';
+            let title, artist;
+            if(card){ title=card.dataset.dlTitle; artist=card.dataset.dlArtist; }
+            else if(btn.dataset.title){ title=btn.dataset.title; artist=btn.dataset.artist||'' }
+            else return;
+            // 打开搜索候选弹框
+            document.getElementById('downloadSearchInfo').textContent=`搜索: ${title} - ${artist}`;
+            document.getElementById('downloadSearchList').innerHTML='<div class="text-center text-gray-500 text-sm py-6">搜索中...</div>';
+            document.getElementById('downloadSearchModal').classList.remove('hidden');
+            // 记录当前目标歌曲（供选定 rid 后回写状态）
+            downloadTarget={title,artist};
             try{
-                await authFetch('/api/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,artist})});
-                pollDownloadStatus();
-            }catch(e){status.textContent='下载失败';status.className='text-red-400 text-xs dl-status';b.disabled=false;b.textContent='⬇重试'}
+                const r=await authFetch('/api/download/search?keyword='+encodeURIComponent(`${title} ${artist}`));if(!r)return;
+                const d=await r.json();
+                renderDownloadCandidates(d.candidates||[]);
+            }catch(e){document.getElementById('downloadSearchList').innerHTML='搜索失败'}
         }
-        let dlPollTimer=null;
+        let downloadTarget={};
+        function closeDownloadSearchModal(){document.getElementById('downloadSearchModal').classList.add('hidden')}
+        function previewSong(rid,label,btn){
+            const audio=document.getElementById('globalAudio');
+            const box=document.getElementById('globalPlayer');
+            // 切换：点击同一首正在播放的则暂停
+            if(audio.dataset.rid===rid && !audio.paused){audio.pause();return}
+            audio.src=`/api/download/preview?rid=${encodeURIComponent(rid)}`;
+            audio.dataset.rid=rid;
+            document.getElementById('globalPlayerTitle').textContent=label||'';
+            box.classList.remove('hidden');
+            audio.play().catch(()=>{});
+        }
+        function closeGlobalPlayer(){
+            const audio=document.getElementById('globalAudio');
+            audio.pause();audio.src='';
+            document.getElementById('globalPlayer').classList.add('hidden');
+        }
+        function renderDownloadCandidates(candidates){
+            const el=document.getElementById('downloadSearchList');
+            if(!candidates.length){el.innerHTML='<div class="text-center text-gray-500 text-sm py-6">未找到可下载的版本</div>';return}
+            el.innerHTML=`<div class="text-xs text-gray-500 mb-2">点击歌曲下载，或点「▶试听」在线试听</div>` + candidates.map(c=>`<div class="card rounded-lg p-3 flex items-center justify-between gap-3">
+                <div class="dl-cand-btn flex-1 min-w-0 cursor-pointer hover:bg-white/5 transition rounded p-1 -m-1" data-rid="${escapeHtml(c.rid)}" data-title="${escapeHtml(c.title)}" data-artist="${escapeHtml(c.artist)}">
+                    <div class="text-white text-sm truncate">${escapeHtml(c.title)} - ${escapeHtml(c.artist)}</div>
+                    <div class="text-gray-500 text-xs mt-0.5"><span class="source-badge badge-酷我">${c.source}</span> ${c.size_mb}MB · 点击下载</div>
+                </div>
+                <button class="preview-btn text-xs px-2.5 py-1.5 rounded bg-indigo-600/60 hover:bg-indigo-500 text-white transition whitespace-nowrap flex-shrink-0" data-rid="${escapeHtml(c.rid)}" data-label="${escapeHtml(c.title+' - '+c.artist)}">▶试听</button>
+            </div>`).join('');
+        }
+        async function downloadByCandidate(el){
+            const rid=el.dataset.rid, title=el.dataset.title, artist=el.dataset.artist;
+            // 用原始未匹配歌曲的 title/artist 作为状态 key
+            const t=downloadTarget.title, a=downloadTarget.artist;
+            closeDownloadSearchModal();
+            // 标记下载中
+            const card=document.querySelector(`[data-dl-title="${cssEscape(t)}"][data-dl-artist="${cssEscape(a)}"]`);
+            if(card){const status=card.querySelector('.dl-status'),b=card.querySelector('.dl-btn');status.textContent='下载中...';status.className='text-yellow-400 text-xs dl-status';b.disabled=true;b.textContent='⏳'}
+            try{
+                await authFetch('/api/download/by-rid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,artist:a,rid})});
+                pollDownloadStatus();
+            }catch(e){if(card){const status=card.querySelector('.dl-status'),b=card.querySelector('.dl-btn');status.textContent='下载失败';status.className='text-red-400 text-xs dl-status';b.disabled=false;b.textContent='⬇重试'}}
+        }
+        function cssEscape(s){return s.replace(/["\\]/g,'\\$&')}
         function pollDownloadStatus(){
             if(dlPollTimer)clearInterval(dlPollTimer);
             const tick=async()=>{
@@ -601,8 +725,191 @@
                     });
                     if(!pending){clearInterval(dlPollTimer);dlPollTimer=null}
                 }catch(e){}
+                loadDownloadTasks(); // 同步左侧下载任务列表
             };
             tick();dlPollTimer=setInterval(tick,2000);
+        }
+        // ===== 左侧下载任务列表 =====
+        async function loadDownloadTasks(){
+            try{
+                const r=await authFetch('/api/download/tasks');if(!r)return;
+                const tasks=(await r.json()).tasks||[];
+                renderDownloadTasks(tasks);
+            }catch(e){}
+        }
+        function renderDownloadTasks(tasks){
+            const el=document.getElementById('dlTaskList');
+            document.getElementById('dlTaskCount').textContent=tasks.length;
+            if(!tasks.length){el.innerHTML='<div class="text-xs text-gray-600 text-center py-2">暂无下载任务</div>';return}
+            el.innerHTML=tasks.map(t=>{
+                const rid=t.rid||'';
+                const stMap={'downloading':['下载中','text-yellow-400'],'success':['✓完成','text-green-400'],'failed':['失败','text-red-400'],'notfound':['未找到','text-gray-500']};
+                const [label,cls]=stMap[t.status]||[t.status,'text-gray-400'];
+                const lbl=escapeHtml(t.title+' - '+t.artist);
+                let pvBtn='';
+                if(t.status==='success'){
+                    pvBtn=`<button class="task-play-btn text-xs px-1.5 py-0.5 rounded bg-indigo-600/60 hover:bg-indigo-500 text-white transition" data-title="${escapeHtml(t.title)}" data-artist="${escapeHtml(t.artist)}" data-label="${lbl}">▶</button>`;
+                }else if(rid){
+                    pvBtn=`<button class="task-preview-btn text-xs px-1.5 py-0.5 rounded bg-indigo-600/60 hover:bg-indigo-500 text-white transition" data-rid="${escapeHtml(rid)}" data-label="${lbl}">▶</button>`;
+                }
+                return `<div class="flex items-center gap-1.5 text-xs">
+                    <div class="task-row flex-1 min-w-0 cursor-pointer hover:bg-white/5 rounded px-1 py-0.5 -mx-1" data-title="${escapeHtml(t.title)}" data-artist="${escapeHtml(t.artist)}" data-rid="${escapeHtml(rid)}" data-status="${escapeHtml(t.status)}">
+                        <div class="text-gray-200 truncate">${escapeHtml(t.title)}</div>
+                        <div class="text-gray-500 truncate">${escapeHtml(t.artist)}</div>
+                    </div>
+                    ${pvBtn}
+                    <span class="${cls} whitespace-nowrap">${label}</span>
+                </div>`;
+            }).join('');
+        }
+        function startTaskPolling(){
+            if(dlTaskPollTimer)return;
+            loadDownloadTasks();dlTaskPollTimer=setInterval(loadDownloadTasks,3000);
+        }
+        // ===== 下载任务操作弹窗 =====
+        let currentTask=null;
+        function openDownloadTaskModal(task){
+            currentTask=task;
+            document.getElementById('taskModalInfo').textContent=`${task.title} - ${task.artist}`;
+            const stMap={'downloading':'下载中','success':'✓ 已完成','failed':'下载失败','notfound':'未找到'};
+            document.getElementById('taskModalStatus').textContent='状态：'+(stMap[task.status]||task.status);
+            // 试听按钮：无 rid 则隐藏
+            document.getElementById('taskPreviewBtn').style.display=task.rid?'block':'none';
+            document.getElementById('downloadTaskModal').classList.remove('hidden');
+        }
+        function closeDownloadTaskModal(){document.getElementById('downloadTaskModal').classList.add('hidden')}
+        document.getElementById('taskRedownloadBtn').onclick=async()=>{
+            if(!currentTask)return;
+            const t=currentTask;
+            await authFetch('/api/download/by-rid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.title,artist:t.artist,rid:t.rid})});
+            closeDownloadTaskModal();loadDownloadTasks();
+        };
+        document.getElementById('taskPreviewBtn').onclick=()=>{
+            if(!currentTask||!currentTask.rid)return;
+            previewSong(currentTask.rid,`${currentTask.title} - ${currentTask.artist}`,null);
+        };
+        document.getElementById('taskRemoveRecordBtn').onclick=async()=>{
+            if(!currentTask)return;
+            const t=currentTask;
+            await authFetch('/api/download/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.title,artist:t.artist,delete_file:false})});
+            closeDownloadTaskModal();loadDownloadTasks();
+        };
+        document.getElementById('taskRemoveFileBtn').onclick=async()=>{
+            if(!currentTask)return;
+            if(!confirm('确定删除任务记录及已下载的文件？'))return;
+            const t=currentTask;
+            await authFetch('/api/download/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.title,artist:t.artist,delete_file:true})});
+            closeDownloadTaskModal();loadDownloadTasks();
+        };
+        // ===== 下载任务列表大弹框（展开）=====
+        let dlModalTasks=[];
+        function openDownloadTasksModal(){
+            document.getElementById('downloadTasksModal').classList.remove('hidden');
+            loadDownloadTasksModal();
+        }
+        function closeDownloadTasksModal(){document.getElementById('downloadTasksModal').classList.add('hidden')}
+        async function loadDownloadTasksModal(){
+            const el=document.getElementById('dlTasksModalList');
+            el.innerHTML='<div class="text-center text-gray-500 text-sm py-8">加载中...</div>';
+            try{
+                const r=await authFetch('/api/download/tasks');if(!r)return;
+                dlModalTasks=(await r.json()).tasks||[];
+                renderTasksModal();
+            }catch(e){el.innerHTML='加载失败'}
+        }
+        function renderTasksModal(){
+            const el=document.getElementById('dlTasksModalList');
+            if(!dlModalTasks.length){el.innerHTML='<div class="text-center text-gray-500 text-sm py-8">暂无下载任务</div>';return}
+            const stMap={'downloading':['下载中','text-yellow-400'],'success':['✓完成','text-green-400'],'failed':['失败','text-red-400'],'notfound':['未找到','text-gray-500']};
+            const scrapeStMap={'scraping':'刮削中...','success':'✓已整理','failed':'刮削失败','idle':''};
+            el.innerHTML=dlModalTasks.map((t,idx)=>{
+                const [label,cls]=stMap[t.status]||[t.status,'text-gray-400'];
+                const rid=t.rid||'';
+                const scraped=t.scrape_status==='success';
+                const canScrape=t.status==='success';
+                const hasFile=t.status==='success'&&t.filepath&&!scraped;
+                const scrapeLabel=scrapeStMap[t.scrape_status]||'';
+                const scrapeCls={'scraping':'text-yellow-400','success':'text-green-400','failed':'text-red-400','idle':'text-gray-500'}[t.scrape_status]||'text-gray-500';
+                // 刮削按钮：已整理则置灰禁用
+                const scrapeBtn = scraped
+                    ? `<span class="text-xs px-2 py-1 text-gray-600 cursor-not-allowed">刮削</span>`
+                    : (canScrape ? `<button onclick="modalScrape(this,'${escapeHtml(t.title)}','${escapeHtml(t.artist)}','${escapeHtml(t.filepath||'')}')" class="text-xs px-2 py-1 text-purple-400 hover:text-purple-300 transition">刮削</button>` : '');
+                // 整理后路径提示
+                const pathTip = scraped && t.scrape_path ? ` → ${escapeHtml(t.scrape_album||'')} ` : '';
+                return `<div class="card rounded-lg p-3 flex items-center gap-3 flex-wrap" data-mtitle="${escapeHtml(t.title)}" data-martist="${escapeHtml(t.artist)}" data-mrid="${escapeHtml(rid)}" data-mfilepath="${escapeHtml(t.filepath||'')}">
+                    <span class="text-gray-500 text-sm w-6 flex-shrink-0">${idx+1}</span>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-white text-sm truncate">${escapeHtml(t.title)} - ${escapeHtml(t.artist)}</div>
+                        <div class="text-xs mt-0.5"><span class="${cls}">${label}</span>${scrapeLabel||t.scrape_status?` <span class="scrape-status ${scrapeCls} ml-2">${scrapeLabel}${pathTip}</span>`:''}</div>
+                    </div>
+                    <div class="flex items-center gap-3 flex-shrink-0 text-xs">
+                        ${t.status==='success'?`<button onclick="modalPlayLocal(this,'${escapeHtml(t.title)}','${escapeHtml(t.artist)}','${escapeHtml(t.title+' - '+t.artist)}')" class="text-indigo-400 hover:text-indigo-300 transition">试听</button>`:(rid?`<button onclick="modalPreview(this,'${escapeHtml(rid)}','${escapeHtml(t.title+' - '+t.artist)}')" class="text-indigo-400 hover:text-indigo-300 transition">试听</button>`:'')}
+                        ${t.rid?`<button onclick="modalRedownload(this,'${escapeHtml(t.title)}','${escapeHtml(t.artist)}','${escapeHtml(t.rid)}')" class="text-blue-400 hover:text-blue-300 transition">重下</button>`:''}
+                        ${scrapeBtn}
+                        <button onclick="modalRemove(this,'${escapeHtml(t.title)}','${escapeHtml(t.artist)}',false)" class="text-gray-400 hover:text-gray-200 transition">删记录</button>
+                        ${hasFile?`<button onclick="modalRemove(this,'${escapeHtml(t.title)}','${escapeHtml(t.artist)}',true)" class="text-red-400 hover:text-red-300 transition">删文件</button>`:(scraped?`<span class="text-gray-600 cursor-not-allowed">删文件</span>`:'')}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        function modalPreview(btn,rid,label){previewSong(rid,label,btn)}
+        function modalPlayLocal(btn,title,artist,label){
+            // 试听本地文件：优先刮削后路径，其次下载文件
+            const url=`/api/download/play?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`;
+            const audio=document.getElementById('globalAudio');
+            const box=document.getElementById('globalPlayer');
+            if(audio.dataset.rid===url && !audio.paused){audio.pause();return}
+            audio.src=url;audio.dataset.rid=url;
+            document.getElementById('globalPlayerTitle').textContent=label||'';
+            box.classList.remove('hidden');
+            audio.play().catch(()=>{});
+        }
+        async function modalRedownload(btn,title,artist,rid){
+            await authFetch('/api/download/by-rid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,artist,rid})});
+            loadDownloadTasksModal();loadDownloadTasks();
+        }
+        async function modalScrape(btn,title,artist,filepath){
+            const row=btn.closest('[data-mtitle]');
+            const st=row.querySelector('.scrape-status');
+            if(st){st.textContent='刮削中...';st.className='scrape-status text-yellow-400 ml-2';}
+            try{
+                await authFetch('/api/download/scrape',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,artist,filepath})});
+                pollScrapeStatus();
+            }catch(e){if(st){st.textContent='刮削失败';st.className='scrape-status text-red-400 ml-2';}}
+        }
+        async function modalRemove(btn,title,artist,delFile){
+            if(delFile&&!confirm('确定删除任务记录及已下载的文件？'))return;
+            await authFetch('/api/download/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,artist,delete_file:delFile})});
+            loadDownloadTasksModal();loadDownloadTasks();
+        }
+        async function scrapeAllTasks(){
+            const tasks=dlModalTasks.filter(t=>t.status==='success'&&t.filepath).map(t=>({title:t.title,artist:t.artist,filepath:t.filepath}));
+            if(!tasks.length){alert('没有可刮削的已完成任务');return}
+            const r=await authFetch('/api/download/scrape/batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tasks})});
+            if(r){const d=await r.json();alert(`已提交 ${d.submitted} 首刮削`);pollScrapeStatus();}
+        }
+        let scrapePollTimer=null;
+        function pollScrapeStatus(){
+            if(scrapePollTimer)clearInterval(scrapePollTimer);
+            const tick=async()=>{
+                // 弹框关闭则停止
+                if(document.getElementById('downloadTasksModal').classList.contains('hidden')){
+                    clearInterval(scrapePollTimer);scrapePollTimer=null;return;
+                }
+                const rows=Array.from(document.querySelectorAll('#dlTasksModalList [data-mtitle]'));
+                if(!rows.length){clearInterval(scrapePollTimer);scrapePollTimer=null;return}
+                const songs=rows.map(r=>({title:r.dataset.mtitle,artist:r.dataset.martist}));
+                try{
+                    const r=await authFetch('/api/download/scrape/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({songs})});if(!r)return;
+                    const st=(await r.json()).statuses||[];
+                    const pending=st.some(s=>s.status==='scraping');
+                    // 有状态变化（success/failed）则重新加载列表刷新按钮与状态
+                    const changed=st.some(s=>s.status==='success'||s.status==='failed');
+                    if(changed){await loadDownloadTasksModal();}
+                    if(!pending){clearInterval(scrapePollTimer);scrapePollTimer=null}
+                }catch(e){}
+            };
+            tick();scrapePollTimer=setInterval(tick,2500);
         }
         async function doAddToPlaylist(playlistId,playlistName){
             if(!addToPlaylistSongs.length)return;
@@ -683,15 +990,14 @@
             const p=new URLSearchParams();
             if(id)p.set('nid',id);
             if(name)p.set('name',name);
-            window.location.href='/playlist?'+p.toString();
+            ajaxNavigate('/playlist?'+p.toString());
         }
 
         // ===== 搜索（同页展示结果）=====
         function topSearch(){
             const v=document.getElementById('topSearchInput').value.trim();
             if(!v)return;
-            // 跳到搜索页并通过 URL 参数带关键词
-            window.location.href='/search?q='+encodeURIComponent(v);
+            ajaxNavigate('/search?q='+encodeURIComponent(v));
         }
         function getSelectedSources(){return Array.from(document.querySelectorAll('.source-check:checked')).map(cb=>cb.value)}
         async function startSearch(){
@@ -710,16 +1016,14 @@
         async function importFromUrl(){
             const url=document.getElementById('playlistUrl').value.trim();
             if(!url){alert('请粘贴歌单链接');return}
-            // 直接跳转详情页，由详情页读取 url 参数加载
-            window.location.href='/playlist?url='+encodeURIComponent(url);
+            ajaxNavigate('/playlist?url='+encodeURIComponent(url));
         }
         function importFromHotPlaylist(url,name,coverUrl){
-            // 热门歌单点击 → 跳转详情页，带 url/name/cover 参数
             const p=new URLSearchParams();
             if(url)p.set('url',url);
             if(name)p.set('name',name);
             if(coverUrl)p.set('cover',coverUrl);
-            window.location.href='/playlist?'+p.toString();
+            ajaxNavigate('/playlist?'+p.toString());
         }
         let pendingCoverUrl='';
 
@@ -903,27 +1207,34 @@
             if (rtab) { loadRankSongs(rtab.dataset.rid, rtab.dataset.rname); return; }
             const addBtn = e.target.closest('.add-pl-btn');
             if (addBtn) { doAddToPlaylist(addBtn.dataset.pid, addBtn.dataset.pname); return; }
+            const dlCand = e.target.closest('.dl-cand-btn');
+            if (dlCand) { downloadByCandidate(dlCand); return; }
+            const homeDl = e.target.closest('.home-dl-btn');
+            if (homeDl) { downloadSong(homeDl); return; }
+            const playBtn = e.target.closest('.task-play-btn');
+            if (playBtn) { modalPlayLocal(playBtn, playBtn.dataset.title, playBtn.dataset.artist, playBtn.dataset.label); return; }
+            const pvBtn = e.target.closest('.preview-btn, .task-preview-btn');
+            if (pvBtn) { previewSong(pvBtn.dataset.rid, pvBtn.dataset.label, pvBtn); return; }
+            const taskRow = e.target.closest('.task-row');
+            if (taskRow) { openDownloadTaskModal({title:taskRow.dataset.title,artist:taskRow.dataset.artist,rid:taskRow.dataset.rid,status:taskRow.dataset.status}); return; }
         });
 
-        // ===== 按 active 初始化当前页 =====
-        {% if active == 'home' %}
-        loadHome();
-        {% elif active == 'hot-songs' %}
-        loadRanks();
-        {% elif active == 'hot-playlists' %}
-        loadHotPlaylists();
-        {% elif active == 'mine' %}
-        loadMyPlaylists();
-        {% elif active == 'search' %}
-        // 搜索页：若 URL 带 q 参数则自动搜索
-        (function(){const q=new URLSearchParams(location.search).get('q');if(q){document.getElementById('searchInput').value=q;startSearch();}})();
-        {% elif active == 'detail' %}
-        // 歌单详情页：读 URL 参数加载
-        (function(){
+        // ===== 按 active 初始化当前页（初始加载与 AJAX 导航共用）=====
+        function runPageInit(active){
+            if(active==='home') loadHome();
+            else if(active==='hot-songs') loadRanks();
+            else if(active==='hot-playlists') loadHotPlaylists();
+            else if(active==='mine') loadMyPlaylists();
+            else if(active==='search'){
+                const q=new URLSearchParams(location.search).get('q');
+                if(q){document.getElementById('searchInput').value=q;startSearch();}
+            }
+            else if(active==='detail'){ initDetailPage(); }
+        }
+        function initDetailPage(){
             const params=new URLSearchParams(location.search);
             const url=params.get('url'), name=params.get('name'), cover=params.get('cover'), nid=params.get('nid');
             if(nid){
-                // Navidrome 已有歌单只读查看
                 showLoading('加载歌单内容...');
                 document.getElementById('detailTitle').textContent='🎵 '+(name||'歌单');
                 authFetch(`/api/playlists/${encodeURIComponent(nid)}/songs`).then(r=>r&&r.json()).then(d=>{
@@ -955,8 +1266,55 @@
             }else{
                 document.getElementById('detailTitle').textContent='未指定歌单';
             }
-        })();
-        {% endif %}
+        }
+
+        // ===== AJAX 导航（不刷新整页，播放器持续播放）=====
+        function pathToActive(path){
+            const p=path.split('?')[0].replace(/\/$/,'');
+            const map={'/home':'home','/hot-songs':'hot-songs','/hot-playlists':'hot-playlists','/search':'search','/import':'import','/mine':'mine','/playlist':'detail'};
+            return map[p]||'home';
+        }
+        async function ajaxNavigate(url, push){
+            try{
+                const resp=await fetch(url, {headers:{'X-Requested-With':'XMLHttpRequest'}});
+                const html=await resp.text();
+                const doc=new DOMParser().parseFromString(html,'text/html');
+                const newMain=doc.querySelector('.main');
+                if(!newMain){ window.location.href=url; return; }
+                document.querySelector('.main').innerHTML=newMain.innerHTML;
+                const active=pathToActive(url);
+                currentView=active;
+                // 更新菜单 active
+                document.querySelectorAll('.menu-item').forEach(m=>m.classList.remove('active'));
+                document.querySelectorAll('.menu-item').forEach(m=>{
+                    const href=m.getAttribute('href')||'';
+                    if(pathToActive(href)===active) m.classList.add('active');
+                });
+                // 重置选择状态（新页面）
+                selectedIds=new Set();updateGlobalCreateBtn();
+                if(push!==false) history.pushState({url},'',url);
+                runPageInit(active);
+                window.scrollTo(0,0);
+            }catch(e){ window.location.href=url; }
+        }
+        // 拦截内部链接
+        document.addEventListener('click', function(e){
+            const a=e.target.closest('a');
+            if(!a) return;
+            const href=a.getAttribute('href');
+            if(!href) return;
+            if(href.startsWith('http')||href.startsWith('#')||a.target==='_blank') return;
+            if(href==='/logout'||href.startsWith('/login')) return; // 登出/登录走正常跳转
+            if(href==='/') { e.preventDefault(); ajaxNavigate('/home'); return; }
+            e.preventDefault();
+            ajaxNavigate(href);
+        });
+        window.addEventListener('popstate', function(ev){
+            const url=(ev.state&&ev.state.url)||location.pathname+location.search;
+            ajaxNavigate(url, false);
+        });
+        // 初始加载
+        runPageInit('{{ active }}');
     </script>
 </body>
 </html>

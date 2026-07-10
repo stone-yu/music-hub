@@ -27,7 +27,8 @@ from app.cover_generator import generate_cover, THEME_COLORS
 from app.playlist_parser import fetch_playlist_from_url, parse_playlist_url
 from app.hot_playlists import fetch_all_hot
 from app.hot_songs import get_all_ranks, fetch_rank_songs, RANK_PROVIDERS
-from app.downloader import download_manager, DOWNLOAD_SOURCES
+from app.downloader import download_manager, DOWNLOAD_SOURCES, kuwo_search_candidates, MAX_TASKS
+from app.scraper import scrape_manager, METADATA_SOURCES as SCRAPE_SOURCES
 
 # 日志配置
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -392,9 +393,99 @@ async def api_download(req: DownloadRequest, request: Request):
     require_auth(request)
     if not req.title.strip():
         raise HTTPException(400, "歌曲名不能为空")
+    if download_manager.count() >= MAX_TASKS:
+        raise HTTPException(400, f"下载任务已达上限 {MAX_TASKS} 个，请先清理历史任务")
     task = download_manager.submit(req.title.strip(), req.artist.strip(),
                                    config.DOWNLOAD_SOURCE, config.DOWNLOAD_DIR)
     return {"status": task.get('status', 'downloading'), "title": req.title, "artist": req.artist}
+
+class DownloadByRidRequest(BaseModel):
+    title: str
+    artist: str
+    rid: str
+
+@app.post("/api/download/by-rid")
+async def api_download_by_rid(req: DownloadByRidRequest, request: Request):
+    """用户从候选列表选定 rid 后下载"""
+    require_auth(request)
+    if not req.rid.strip():
+        raise HTTPException(400, "rid 不能为空")
+    if download_manager.count() >= MAX_TASKS:
+        raise HTTPException(400, f"下载任务已达上限 {MAX_TASKS} 个，请先清理历史任务")
+    task = download_manager.submit_by_rid(req.title.strip(), req.artist.strip(),
+                                          req.rid.strip(), config.DOWNLOAD_SOURCE,
+                                          config.DOWNLOAD_DIR)
+    return {"status": task.get('status', 'downloading'), "title": req.title, "artist": req.artist}
+
+@app.get("/api/download/search")
+async def api_download_search(request: Request, keyword: str = ""):
+    """搜索下载候选列表（含大小，用于前端选择）"""
+    require_auth(request)
+    if not keyword.strip():
+        raise HTTPException(400, "关键词不能为空")
+    candidates = kuwo_search_candidates(keyword.strip(), limit=8)
+    return {"candidates": candidates}
+
+@app.get("/api/download/preview")
+async def api_download_preview(request: Request, rid: str = ""):
+    """试听代理：转发酷我音频流（带 Referer，支持 Range 分段播放）"""
+    require_auth(request)
+    if not rid.strip():
+        raise HTTPException(400, "rid 不能为空")
+    from app.downloader import kuwo_get_url
+    url = kuwo_get_url(rid.strip())
+    if not url:
+        raise HTTPException(404, "获取试听URL失败")
+    # 转发客户端的 Range 请求头
+    fwd_headers = {**HEADERS}
+    range_header = request.headers.get('range')
+    if range_header:
+        fwd_headers['Range'] = range_header
+    try:
+        resp = requests.get(url, headers=fwd_headers, timeout=30, stream=True)
+        # 透传音频流和 Content-Type / Content-Range / Content-Length
+        excluded = {'content-encoding', 'transfer-encoding', 'connection'}
+        headers = {k: v for k, v in resp.headers.items() if k.lower() not in excluded}
+        return Response(content=resp.content, status_code=resp.status_code,
+                        headers=headers, media_type=resp.headers.get('Content-Type', 'audio/mpeg'))
+    except Exception as e:
+        logger.warning(f"试听代理失败: {e}")
+        raise HTTPException(502, "试听失败")
+
+@app.get("/api/download/play")
+async def api_download_play(request: Request, title: str = "", artist: str = ""):
+    """试听本地文件：优先刮削后路径，其次下载文件路径（支持 Range）"""
+    require_auth(request)
+    if not title.strip():
+        raise HTTPException(400, "title 不能为空")
+    task = download_manager.get_status(title.strip(), artist.strip())
+    filepath = ''
+    if isinstance(task, dict):
+        filepath = task.get('scrape_path') or task.get('filepath') or ''
+    if not filepath or not os.path.exists(filepath):
+        raise HTTPException(404, "文件不存在或未下载完成")
+    # 支持 Range 分段播放
+    range_header = request.headers.get('range', '')
+    file_size = os.path.getsize(filepath)
+    if range_header:
+        start, end = 0, file_size - 1
+        m = re.search(r'bytes=(\d+)-(\d*)', range_header)
+        if m:
+            start = int(m.group(1))
+            if m.group(2):
+                end = int(m.group(2))
+        length = end - start + 1
+        with open(filepath, 'rb') as f:
+            f.seek(start)
+            data = f.read(length)
+        return Response(content=data, status_code=206,
+                        headers={'Content-Range': f'bytes {start}-{end}/{file_size}',
+                                 'Accept-Ranges': 'bytes', 'Content-Length': str(length)},
+                        media_type='audio/mpeg')
+    with open(filepath, 'rb') as f:
+        data = f.read()
+    return Response(content=data, media_type='audio/mpeg',
+                    headers={'Accept-Ranges': 'bytes', 'Content-Length': str(file_size)})
 
 @app.post("/api/download/status")
 async def api_download_status(req: DownloadStatusRequest, request: Request):
@@ -408,6 +499,94 @@ async def api_download_sources(request: Request):
     require_auth(request)
     return {"sources": list(DOWNLOAD_SOURCES.keys()), "current": config.DOWNLOAD_SOURCE,
             "download_dir": config.DOWNLOAD_DIR}
+
+@app.get("/api/download/tasks")
+async def api_download_tasks(request: Request):
+    """获取所有下载任务列表（合并刮削状态，供展开弹框展示）"""
+    require_auth(request)
+    tasks = download_manager.list_all()
+    # 合并刮削状态
+    if tasks:
+        songs = [{"title": t["title"], "artist": t["artist"]} for t in tasks]
+        scrape_statuses = {f"{s['title']}|{s['artist']}": s
+                           for s in scrape_manager.get_all_status(songs)}
+        for t in tasks:
+            key = f"{t['title']}|{t['artist']}"
+            ss = scrape_statuses.get(key, {})
+            t["scrape_status"] = ss.get("status", "idle")
+            t["scrape_album"] = ss.get("album", "")
+            t["scrape_path"] = ss.get("scraped_path", "")
+    return {"tasks": tasks}
+
+class DownloadRemoveRequest(BaseModel):
+    title: str
+    artist: str
+    delete_file: bool = False
+
+@app.post("/api/download/remove")
+async def api_download_remove(req: DownloadRemoveRequest, request: Request):
+    """删除一个下载任务记录，可选删除已下载文件"""
+    require_auth(request)
+    ok = download_manager.remove(req.title.strip(), req.artist.strip(), req.delete_file)
+    return {"success": ok}
+
+class ScrapeRequest(BaseModel):
+    title: str
+    artist: str
+    filepath: str = ""
+
+class ScrapeBatchRequest(BaseModel):
+    tasks: list  # [{title, artist, filepath}]
+
+class ScrapeStatusRequest(BaseModel):
+    songs: list  # [{title, artist}]
+
+@app.post("/api/download/scrape")
+async def api_scrape(req: ScrapeRequest, request: Request):
+    """触发单首歌曲刮削（后台执行：搜元数据→写标签→整理）"""
+    require_auth(request)
+    if not req.title.strip():
+        raise HTTPException(400, "歌曲名不能为空")
+    # filepath 未传则从下载任务查
+    filepath = req.filepath.strip()
+    if not filepath:
+        task = download_manager.get_status(req.title.strip(), req.artist.strip())
+        filepath = task.get('filepath', '') if isinstance(task, dict) else ''
+    if not filepath:
+        raise HTTPException(400, "找不到文件路径，请先下载")
+    task = scrape_manager.submit(req.title.strip(), req.artist.strip(), filepath, config.SCRAPED_DIR)
+    return {"status": task.get('status', 'scraping'), "title": req.title, "artist": req.artist}
+
+@app.post("/api/download/scrape/batch")
+async def api_scrape_batch(req: ScrapeBatchRequest, request: Request):
+    """批量刮削"""
+    require_auth(request)
+    submitted = 0
+    for t in (req.tasks or []):
+        title = t.get('title', '').strip()
+        artist = t.get('artist', '').strip()
+        filepath = t.get('filepath', '').strip()
+        if not title:
+            continue
+        if not filepath:
+            task = download_manager.get_status(title, artist)
+            filepath = task.get('filepath', '') if isinstance(task, dict) else ''
+        if filepath:
+            scrape_manager.submit(title, artist, filepath, config.SCRAPED_DIR)
+            submitted += 1
+    return {"submitted": submitted}
+
+@app.post("/api/download/scrape/status")
+async def api_scrape_status(req: ScrapeStatusRequest, request: Request):
+    """批量查询刮削状态"""
+    require_auth(request)
+    return {"statuses": scrape_manager.get_all_status(req.songs or [])}
+
+@app.get("/api/download/scrape/sources")
+async def api_scrape_sources(request: Request):
+    """可用刮削数据源"""
+    require_auth(request)
+    return {"sources": list(SCRAPE_SOURCES.keys()), "scraped_dir": config.SCRAPED_DIR}
 
 @app.post("/api/cover/preview")
 async def api_cover_preview(request: Request):
