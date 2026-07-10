@@ -10,17 +10,23 @@ import threading
 from typing import Optional
 from pathlib import Path
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, Request, Response, HTTPException, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+import requests
 
 import config
-from searchers import search_all, search_all_merged, Song
-from navidrome_client import NavidromeClient
-from cover_generator import generate_cover, THEME_COLORS
-from playlist_parser import fetch_playlist_from_url, parse_playlist_url
+from searchers import search_all, search_all_merged, Song, HEADERS
+from app.navidrome_client import NavidromeClient
+from app.cover_generator import generate_cover, THEME_COLORS
+from app.playlist_parser import fetch_playlist_from_url, parse_playlist_url
+from app.hot_playlists import fetch_all_hot
+from app.hot_songs import get_all_ranks, fetch_rank_songs, RANK_PROVIDERS
 
 # 日志配置
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -62,10 +68,14 @@ def require_auth(request: Request):
 
 
 # ==================== 页面路由 ====================
+def _render_app(request: Request, active: str = "home"):
+    """统一渲染主应用页，active 标识当前页（高亮菜单、决定渲染哪个视图）"""
+    return templates.TemplateResponse("app.html", {"request": request, "active": active})
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     if is_authenticated(request):
-        return RedirectResponse(url="/app")
+        return RedirectResponse(url="/home")
     return RedirectResponse(url="/login")
 
 @app.get("/login", response_class=HTMLResponse)
@@ -77,7 +87,7 @@ async def do_login(request: Request, password: str = Form(...)):
     if password == config.LOGIN_PASSWORD:
         token = secrets.token_hex(32)
         active_sessions[token] = time.time()
-        response = RedirectResponse(url="/app", status_code=302)
+        response = RedirectResponse(url="/home", status_code=302)
         response.set_cookie("session_token", token, httponly=True, max_age=86400)
         return response
     return templates.TemplateResponse("login.html", {
@@ -85,11 +95,61 @@ async def do_login(request: Request, password: str = Form(...)):
         "error": "密码错误，请重试"
     })
 
-@app.get("/app", response_class=HTMLResponse)
-async def app_page(request: Request):
+def _require_login(request: Request):
+    """页面路由用：未登录跳登录页"""
     if not is_authenticated(request):
         return RedirectResponse(url="/login")
-    return templates.TemplateResponse("app.html", {"request": request})
+    return None
+
+@app.get("/home", response_class=HTMLResponse)
+async def page_home(request: Request):
+    r = _require_login(request);
+    if r: return r
+    return _render_app(request, "home")
+
+@app.get("/hot-songs", response_class=HTMLResponse)
+async def page_hot_songs(request: Request):
+    r = _require_login(request)
+    if r: return r
+    return _render_app(request, "hot-songs")
+
+@app.get("/hot-playlists", response_class=HTMLResponse)
+async def page_hot_playlists(request: Request):
+    r = _require_login(request)
+    if r: return r
+    return _render_app(request, "hot-playlists")
+
+@app.get("/search", response_class=HTMLResponse)
+async def page_search(request: Request):
+    r = _require_login(request)
+    if r: return r
+    return _render_app(request, "search")
+
+@app.get("/import", response_class=HTMLResponse)
+async def page_import(request: Request):
+    r = _require_login(request)
+    if r: return r
+    return _render_app(request, "import")
+
+@app.get("/mine", response_class=HTMLResponse)
+async def page_mine(request: Request):
+    r = _require_login(request)
+    if r: return r
+    return _render_app(request, "mine")
+
+@app.get("/playlist", response_class=HTMLResponse)
+async def page_playlist(request: Request):
+    """歌单详情页：query 参数 url= 或 source=&rank_id= 标识来源"""
+    r = _require_login(request)
+    if r: return r
+    return _render_app(request, "detail")
+
+@app.get("/app", response_class=HTMLResponse)
+async def app_page_legacy(request: Request):
+    """旧链接兼容，重定向到首页"""
+    if not is_authenticated(request):
+        return RedirectResponse(url="/login")
+    return RedirectResponse(url="/home")
 
 @app.get("/logout")
 async def logout(request: Request):
@@ -111,6 +171,7 @@ class CreatePlaylistRequest(BaseModel):
     song_ids: list
     cover_theme: str = ""  # 封面主题（可选）
     cover_enabled: bool = True  # 是否生成封面
+    cover_url: str = ""  # 原歌单封面URL（优先于自动生成）
 
 class MatchRequest(BaseModel):
     query: str
@@ -173,7 +234,7 @@ async def api_match(req: MatchRequest, request: Request):
 
     # 1. 从各平台搜索
     logger.info(f"匹配搜索: {req.query}")
-    from searchers import ALL_SEARCHERS, Song
+    from searchers import ALL_SEARCHERS
     all_search_songs = []
     source_stats = {}
 
@@ -200,49 +261,7 @@ async def api_match(req: MatchRequest, request: Request):
             unique_songs.append(song)
 
     # 3. 与 Navidrome 库匹配
-    library = _get_library()
-    lib_index = {}
-    for ls in library:
-        key = ls.match_key
-        if key not in lib_index:
-            lib_index[key] = ls
-
-    matched = []
-    unmatched = []
-    for song in unique_songs:
-        key = song.match_key
-        if key in lib_index:
-            ns = lib_index[key]
-            matched.append({
-                "title": ns.title,
-                "artist": ns.artist,
-                "album": ns.album,
-                "id": ns.id,
-                "source": song.source,
-            })
-        else:
-            # 尝试模糊匹配：只要歌名包含
-            found = False
-            title_clean = re.sub(r'[\s\-\(\)（）]', '', song.title.lower())
-            for lk, ls in lib_index.items():
-                lib_title = re.sub(r'[\s\-\(\)（）]', '', ls.title.lower())
-                if title_clean and lib_title and (title_clean in lib_title or lib_title in title_clean):
-                    if len(title_clean) >= 2:  # 避免太短的误匹配
-                        matched.append({
-                            "title": ls.title,
-                            "artist": ls.artist,
-                            "album": ls.album,
-                            "id": ls.id,
-                            "source": f"{song.source}(模糊)",
-                        })
-                        found = True
-                        break
-            if not found:
-                unmatched.append({
-                    "title": song.title,
-                    "artist": song.artist,
-                    "source": song.source,
-                })
+    matched, unmatched = _match_songs(unique_songs)
 
     return {
         "query": req.query,
@@ -250,7 +269,7 @@ async def api_match(req: MatchRequest, request: Request):
         "search_total": len(unique_songs),
         "matched": matched,
         "matched_count": len(matched),
-        "unmatched": unmatched[:50],  # 最多返回50个未匹配
+        "unmatched": unmatched[:50],
         "unmatched_count": len(unmatched),
     }
 
@@ -285,50 +304,7 @@ async def api_playlist_from_url(req: PlaylistUrlRequest, request: Request):
             unique_songs.append(song)
 
     # 3. 与 Navidrome 库匹配
-    import re
-    library = _get_library()
-    lib_index = {}
-    for ls in library:
-        key = ls.match_key
-        if key not in lib_index:
-            lib_index[key] = ls
-
-    matched = []
-    unmatched = []
-    for song in unique_songs:
-        key = song.match_key
-        if key in lib_index:
-            ns = lib_index[key]
-            matched.append({
-                "title": ns.title,
-                "artist": ns.artist,
-                "album": ns.album,
-                "id": ns.id,
-                "source": song.source,
-            })
-        else:
-            # 模糊匹配
-            found = False
-            title_clean = re.sub(r'[\s\-\(\)（）]', '', song.title.lower())
-            for lk, ls in lib_index.items():
-                lib_title = re.sub(r'[\s\-\(\)（）]', '', ls.title.lower())
-                if title_clean and lib_title and (title_clean in lib_title or lib_title in title_clean):
-                    if len(title_clean) >= 2:
-                        matched.append({
-                            "title": ls.title,
-                            "artist": ls.artist,
-                            "album": ls.album,
-                            "id": ls.id,
-                            "source": f"{song.source}(模糊)",
-                        })
-                        found = True
-                        break
-            if not found:
-                unmatched.append({
-                    "title": song.title,
-                    "artist": song.artist,
-                    "source": song.source,
-                })
+    matched, unmatched = _match_songs(unique_songs)
 
     return {
         "playlist_name": playlist_name,
@@ -350,13 +326,29 @@ async def api_create_playlist(req: CreatePlaylistRequest, request: Request):
 
     logger.info(f"创建歌单: {req.name}, 歌曲数: {len(req.song_ids)}, 封面: {req.cover_enabled}")
 
-    # 生成封面
+    # 封面：优先使用原歌单封面URL，其次自动生成
     cover_data = None
-    if req.cover_enabled:
+    cover_used = False
+    if req.cover_url.strip():
+        try:
+            from urllib.parse import urlparse
+            cu = req.cover_url.strip()
+            host = urlparse(cu).hostname or ""
+            if any(host == h or host.endswith("." + h) for h in _COVER_HOST_WHITELIST):
+                resp = requests.get(cu, headers={**HEADERS, 'Referer': f'{urlparse(cu).scheme}://{host}/'},
+                                    timeout=15, verify=False)
+                resp.raise_for_status()
+                cover_data = resp.content
+                cover_used = len(cover_data) > 0
+                logger.info(f"使用原歌单封面: {len(cover_data)} bytes")
+        except Exception as e:
+            logger.warning(f"获取原歌单封面失败: {e}")
+    if not cover_data and req.cover_enabled:
         try:
             theme = req.cover_theme if req.cover_theme else None
             subtitle = f"{len(req.song_ids)} 首歌曲 · AI 生成"
             cover_data = generate_cover(req.name, subtitle=subtitle, theme=theme)
+            cover_used = True
             logger.info(f"封面已生成: {len(cover_data)} bytes")
         except Exception as e:
             logger.warning(f"封面生成失败: {e}")
@@ -368,10 +360,23 @@ async def api_create_playlist(req: CreatePlaylistRequest, request: Request):
             "playlist_id": result.get("id"),
             "playlist_name": result.get("name"),
             "song_count": len(req.song_ids),
-            "cover_generated": cover_data is not None,
+            "cover_generated": cover_used,
         }
     else:
         raise HTTPException(500, "创建歌单失败")
+
+class AddToPlaylistRequest(BaseModel):
+    playlist_id: str
+    song_ids: list
+
+@app.post("/api/playlist/add")
+async def api_add_to_playlist(req: AddToPlaylistRequest, request: Request):
+    """将歌曲加入已有 Navidrome 歌单，自动去重"""
+    require_auth(request)
+    if not req.song_ids:
+        raise HTTPException(400, "歌曲列表不能为空")
+    result = navidrome.add_to_playlist(req.playlist_id, req.song_ids)
+    return {"success": True, **result}
 
 @app.post("/api/cover/preview")
 async def api_cover_preview(request: Request):
@@ -401,6 +406,107 @@ async def api_playlists(request: Request):
     playlists = navidrome.get_playlists()
     return {"playlists": playlists}
 
+@app.get("/api/playlists/{playlist_id}/songs")
+async def api_playlist_songs(playlist_id: str, request: Request):
+    """获取某 Navidrome 歌单内的歌曲（只读查看）"""
+    require_auth(request)
+    songs = navidrome.get_playlist_songs(playlist_id)
+    return {"songs": [s.__dict__ for s in songs]}
+
+@app.get("/api/cover/navidrome/{cover_id}")
+async def api_navidrome_cover(cover_id: str, request: Request):
+    """代理 Navidrome 歌单封面（需要 Subsonic 认证，前端无法直接拼 URL）"""
+    require_auth(request)
+    data = navidrome.get_cover_art(cover_id)
+    if not data:
+        raise HTTPException(404, "封面不存在")
+    return Response(content=data, media_type="image/jpeg")
+
+@app.get("/api/hot-playlists")
+async def api_hot_playlists(request: Request):
+    """获取各平台热门歌单列表，点击后用其中的 url 走 /api/playlist/from-url 导入"""
+    require_auth(request)
+    grouped = fetch_all_hot()
+    return {
+        "playlists": {
+            name: [p.to_dict() for p in items]
+            for name, items in grouped.items()
+        }
+    }
+
+@app.get("/api/ranks")
+async def api_ranks(request: Request):
+    """获取各平台排行榜列表，按平台分组"""
+    require_auth(request)
+    return {"ranks": get_all_ranks()}
+
+@app.get("/api/rank/songs")
+async def api_rank_songs(request: Request, source: str = "", rank_id: str = "", limit: int = 100):
+    """取某平台某榜单的歌曲，并标注每首是否已在曲库"""
+    require_auth(request)
+    if not source or not rank_id:
+        raise HTTPException(400, "缺少 source 或 rank_id")
+    songs = fetch_rank_songs(source, rank_id, limit)
+    annotated = _annotate_songs(songs)
+    return {
+        "source": source,
+        "rank_id": rank_id,
+        "total": len(annotated),
+        "songs": annotated,
+    }
+
+@app.get("/api/home")
+async def api_home(request: Request):
+    """首页聚合：各平台 top5 热门歌曲 + top5 热门歌单"""
+    require_auth(request)
+    # 各平台取第一个榜单的前5首
+    top_songs = {}
+    for source in RANK_PROVIDERS:
+        try:
+            ranks = RANK_PROVIDERS[source]["ranks"]()
+            if ranks:
+                songs = fetch_rank_songs(source, ranks[0].id, 5)
+                top_songs[source] = _annotate_songs(songs)
+        except Exception as e:
+            logger.error(f"首页[{source}]榜单失败: {e}")
+            top_songs[source] = []
+    # 各平台 top5 热门歌单
+    hot = fetch_all_hot(limit_per_source=5)
+    top_playlists = {name: [p.to_dict() for p in items] for name, items in hot.items()}
+    return {"top_songs": top_songs, "top_playlists": top_playlists}
+
+# 允许代理的封面图域名白名单，避免被当作开放 SSRF
+_COVER_HOST_WHITELIST = (
+    'music.126.net',      # 网易云封面 CDN
+    'qpic.y.qq.com',      # QQ音乐封面
+    'y.gtimg.cn',
+    'mobilecdn.kugou.com',
+    'kuwo.cn',
+)
+
+@app.get("/api/cover/proxy")
+async def api_cover_proxy(request: Request, url: str = ""):
+    """代理封面图：规避热链 Referer 限制与 http/https 混合内容问题"""
+    require_auth(request)
+    url = (url or "").strip()
+    if not url:
+        raise HTTPException(400, "缺少 url 参数")
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(400, "仅支持 http/https 链接")
+    from urllib.parse import urlparse
+    host = urlparse(url).hostname or ""
+    if not any(host == h or host.endswith("." + h) for h in _COVER_HOST_WHITELIST):
+        raise HTTPException(403, "该图片域名不在允许列表内")
+    try:
+        resp = requests.get(url, headers={**HEADERS, 'Referer': f'{urlparse(url).scheme}://{host}/'},
+                            timeout=15, verify=False)
+        resp.raise_for_status()
+        content_type = resp.headers.get('Content-Type', 'image/jpeg')
+        return Response(content=resp.content, media_type=content_type)
+    except Exception as e:
+        logger.warning(f"封面代理失败 {url}: {e}")
+        raise HTTPException(502, "封面获取失败")
+
 @app.post("/api/library/refresh")
 async def api_refresh_library(request: Request):
     require_auth(request)
@@ -417,6 +523,75 @@ def _get_library():
     if now - library_cache.get("last_update", 0) > CACHE_TTL:
         _refresh_library()
     return library_cache.get("songs", [])
+
+def _lib_index():
+    """构建曲库 match_key 索引"""
+    idx = {}
+    for ls in _get_library():
+        k = ls.match_key
+        if k not in idx:
+            idx[k] = ls
+    return idx
+
+def _match_one(song, lib_index):
+    """单首歌与曲库匹配，返回 (matched_dict|None, is_fuzzy)"""
+    key = song.match_key
+    if key in lib_index:
+        ns = lib_index[key]
+        return {"title": ns.title, "artist": ns.artist, "album": ns.album,
+                "id": ns.id, "source": song.source}, False
+    # 模糊匹配
+    title_clean = re.sub(r'[\s\-\(\)（）]', '', song.title.lower())
+    if title_clean and len(title_clean) >= 2:
+        for ls in lib_index.values():
+            lib_title = re.sub(r'[\s\-\(\)（）]', '', ls.title.lower())
+            if lib_title and (title_clean in lib_title or lib_title in title_clean):
+                return {"title": ls.title, "artist": ls.artist, "album": ls.album,
+                        "id": ls.id, "source": f"{song.source}(模糊)"}, True
+    return None, False
+
+def _match_songs(songs):
+    """将一批 Song 与曲库匹配，返回 (matched, unmatched)。
+    按 lib_id 去重：同一首库内歌曲只保留首次匹配，避免多平台/多搜索结果重复。"""
+    lib_index = _lib_index()
+    matched, unmatched = [], []
+    seen_lib_ids = set()
+    for song in songs:
+        m, _ = _match_one(song, lib_index)
+        if m:
+            if m["id"] in seen_lib_ids:
+                continue  # 同一首库歌已匹配过，跳过
+            seen_lib_ids.add(m["id"])
+            matched.append(m)
+        else:
+            unmatched.append({"title": song.title, "artist": song.artist, "source": song.source})
+    return matched, unmatched
+
+def _annotate_songs(songs):
+    """给一批 Song 标注曲库匹配状态，保留原始顺序，返回 dict 列表（含 in_library 字段）。
+    未在库的歌曲保留全部；已匹配的按 lib_id 去重，同一首库歌只标一次。"""
+    lib_index = _lib_index()
+    result = []
+    seen_lib_ids = set()
+    for song in songs:
+        m, _ = _match_one(song, lib_index)
+        item = {"title": song.title, "artist": song.artist, "album": song.album, "source": song.source}
+        if m:
+            if m["id"] in seen_lib_ids:
+                # 同一首库歌已出现过，标为未收录避免重复展示
+                item["in_library"] = False
+                result.append(item)
+                continue
+            seen_lib_ids.add(m["id"])
+            item["in_library"] = True
+            item["lib_id"] = m["id"]
+            item["lib_title"] = m["title"]
+            item["lib_artist"] = m["artist"]
+            item["fuzzy"] = "(模糊)" in m["source"]
+        else:
+            item["in_library"] = False
+        result.append(item)
+    return result
 
 def _refresh_library():
     """刷新歌曲库（后台线程）"""

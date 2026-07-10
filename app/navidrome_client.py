@@ -140,6 +140,34 @@ class NavidromeClient:
             return []
         return result.get('playlists', {}).get('playlist', [])
 
+    def get_playlist_songs(self, playlist_id: str) -> List[NavidromeSong]:
+        """获取某歌单内的歌曲列表"""
+        result = self._get('getPlaylist', {'id': playlist_id})
+        if not result:
+            return []
+        songs = []
+        for song_data in result.get('playlist', {}).get('entry', []):
+            songs.append(NavidromeSong(
+                id=song_data.get('id', ''),
+                title=song_data.get('title', ''),
+                artist=song_data.get('artist', ''),
+                album=song_data.get('album', ''),
+            ))
+        return songs
+
+    def add_to_playlist(self, playlist_id: str, song_ids: List[str]) -> dict:
+        """将歌曲加入已有歌单，自动跳过已存在的歌曲。
+        返回 {"added": N, "skipped": M}"""
+        existing = {s.id for s in self.get_playlist_songs(playlist_id)}
+        to_add = [sid for sid in song_ids if sid not in existing]
+        if to_add:
+            self._get('updatePlaylist', {
+                'playlistId': playlist_id,
+                'songIdToAdd': to_add,
+            })
+        return {"added": len(to_add), "skipped": len(song_ids) - len(to_add)}
+
+
     def create_playlist(self, name: str, song_ids: List[str], cover_data: bytes = None) -> Optional[dict]:
         """创建歌单，可选附带封面图"""
         if cover_data:
@@ -177,3 +205,15 @@ class NavidromeClient:
         """删除歌单"""
         result = self._get('deletePlaylist', {'id': playlist_id})
         return result is not None
+
+    def get_cover_art(self, cover_id: str, size: int = 300) -> Optional[bytes]:
+        """获取封面图二进制（getCoverArt）"""
+        url = f"{self._api_base}/getCoverArt"
+        params = self._make_params({'id': cover_id, 'size': size})
+        try:
+            resp = requests.get(url, params=params, timeout=30, verify=False)
+            resp.raise_for_status()
+            return resp.content
+        except Exception as e:
+            logger.warning(f"获取封面失败 {cover_id}: {e}")
+            return None

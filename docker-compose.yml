@@ -1,13 +1,13 @@
 services:
   navidrome-ai-playlist:
     build: .
+    # 若不想本地构建，可用预构建镜像（打 tag 后由 GitHub Actions 自动推送到 ghcr.io）：
+    # image: ghcr.io/<你的用户名>/<仓库名>:latest
     container_name: navidrome-ai-playlist
     restart: unless-stopped
     ports:
       - "8899:8899"
+    env_file:
+      - .env
     environment:
-      NAVIDROME_URL: "http://j.tthsdd.top:4533/"
-      NAVIDROME_USER: "ccson"
-      NAVIDROME_PASS: "shaozi1981"
-      LOGIN_PASSWORD: "navidrome2024"
       PORT: "8899"

@@ -1,0 +1,15 @@
+# 环境变量 / 密钥（本地配置，切勿提交）
+.env
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code 本地配置
+.claude/
