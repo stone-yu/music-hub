@@ -214,6 +214,13 @@ music-hub/
 - 因使用本项目产生的任何法律后果由使用者自行承担，作者不承担任何责任。
 - 如本项目侵犯了任何方的合法权益，请联系删除。
 
+## 🙏 致谢
+
+本项目在开发过程中参考了以下优秀开源项目，特此致谢：
+
+- [go-music-dl](https://github.com/guohuiyuan/go-music-dl) — 全网音乐搜索与下载工具，为本项目的多平台音乐搜索/下载与歌单搜索接口设计提供了重要参考。
+- [navidrome-ai-playlist](https://github.com/yueyoue/navidrome-ai-playlist) — Navidrome AI 智能歌单生成器，为本项目基于 Navidrome 的歌单管理与交互设计带来了灵感。
+
 ## 📄 License
 
 MIT

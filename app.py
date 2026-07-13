@@ -22,7 +22,7 @@ import requests
 
 import config
 from searchers import search_all, search_all_merged, Song, HEADERS
-from app.navidrome_client import NavidromeClient
+from app.navidrome_client import NavidromeClient, NavidromeSong
 from app.cover_generator import generate_cover, THEME_COLORS
 from app.playlist_parser import fetch_playlist_from_url, parse_playlist_url
 from app.hot_playlists import fetch_all_hot, HOT_PLAYLIST_FETCHERS
@@ -47,9 +47,44 @@ active_sessions = {}
 # Navidrome 客户端
 navidrome = NavidromeClient(config.NAVIDROME_URL, config.NAVIDROME_USER, config.NAVIDROME_PASS)
 
-# 歌曲库缓存
+# 歌曲库缓存（内存 + 磁盘持久化，避免重启后重新全量拉取）
+LIBRARY_JSON = os.path.join(os.getenv('DATA_DIR', '/app/data'), 'library_cache.json')
 library_cache = {"songs": [], "last_update": 0, "loading": False}
 CACHE_TTL = 600  # 10分钟刷新一次
+_library_lock = threading.Lock()
+
+
+def _load_library_from_disk():
+    """启动时从磁盘加载上次的曲库快照，命中即无需等待全量拉取"""
+    try:
+        if os.path.exists(LIBRARY_JSON):
+            with open(LIBRARY_JSON, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, dict) and isinstance(data.get("songs"), list):
+                library_cache["songs"] = [NavidromeSong(**s) for s in data["songs"] if isinstance(s, dict)]
+                library_cache["last_update"] = data.get("last_update", 0)
+                logger.info(f"从磁盘加载曲库快照: {len(library_cache['songs'])} 首歌曲 (快照时间 {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(data.get('last_update', 0)))})")
+    except Exception as e:
+        logger.warning(f"加载曲库快照失败: {e}")
+
+
+def _save_library_to_disk():
+    """把当前曲库缓存写入磁盘（在 _refresh_library 成功后调用）"""
+    try:
+        os.makedirs(os.path.dirname(LIBRARY_JSON), exist_ok=True)
+        with _library_lock:
+            songs = [{"id": s.id, "title": s.title, "artist": s.artist, "album": s.album} for s in library_cache["songs"]]
+            payload = {"songs": songs, "last_update": library_cache["last_update"]}
+        tmp = LIBRARY_JSON + ".tmp"
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, ensure_ascii=False)
+        os.replace(tmp, LIBRARY_JSON)
+    except Exception as e:
+        logger.warning(f"保存曲库快照失败: {e}")
+
+
+# 启动时优先加载磁盘快照
+_load_library_from_disk()
 
 # 聚合接口缓存：外部音乐接口(网易云/酷狗/QQ)慢变，列表类结果短 TTL 缓存，
 # 避免每次切页都重新串行抓取。key=接口路径，value=(过期时间戳, 数据)。
@@ -161,6 +196,12 @@ def page_mine(request: Request):
     r = _require_login(request)
     if r: return r
     return _render_app(request, "mine")
+
+@app.get("/settings", response_class=HTMLResponse)
+def page_settings(request: Request):
+    r = _require_login(request)
+    if r: return r
+    return _render_app(request, "settings")
 
 @app.get("/playlist", response_class=HTMLResponse)
 def page_playlist(request: Request):
@@ -958,8 +999,10 @@ def _refresh_library(scan_first=False):
                     logger.warning(f"触发扫描失败，直接重载缓存: {e}")
             logger.info("正在刷新歌曲库...")
             songs = navidrome.get_all_songs()
-            library_cache["songs"] = songs
-            library_cache["last_update"] = time.time()
+            with _library_lock:
+                library_cache["songs"] = songs
+                library_cache["last_update"] = time.time()
+            _save_library_to_disk()
             logger.info(f"歌曲库已更新: {len(songs)} 首歌曲")
         except Exception as e:
             logger.error(f"刷新歌曲库失败: {e}")
@@ -971,12 +1014,16 @@ def _refresh_library(scan_first=False):
 # ==================== 启动 ====================
 if __name__ == "__main__":
     import uvicorn
-    # 启动时在后台预加载歌曲库
+    # 启动时在后台预加载歌曲库（有磁盘快照且未过期则跳过立即刷新）
     try:
         logger.info(f"正在连接 Navidrome: {config.NAVIDROME_URL}")
         if navidrome.ping():
-            logger.info("Navidrome 连接成功！正在后台加载歌曲库...")
-            _refresh_library()
+            snapshot_fresh = (time.time() - library_cache.get("last_update", 0)) < CACHE_TTL
+            if snapshot_fresh and library_cache.get("songs"):
+                logger.info("Navidrome 连接成功，曲库快照未过期，跳过立即刷新")
+            else:
+                logger.info("Navidrome 连接成功！正在后台加载歌曲库...")
+                _refresh_library()
         else:
             logger.warning("Navidrome 连接失败，将在首次请求时重试")
     except Exception as e:

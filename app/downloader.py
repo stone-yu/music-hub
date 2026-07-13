@@ -182,16 +182,24 @@ class DownloadManager:
         self._load()
 
     def _load(self):
-        """启动时从 JSON 加载历史任务"""
+        """启动时从 JSON 加载历史任务，并把服务中断残留的 downloading 任务标记为 failed"""
         try:
             if os.path.exists(TASKS_JSON):
                 with open(TASKS_JSON, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 if isinstance(data, list):
+                    dirty = False
                     for t in data:
                         key = self._key(t.get('title',''), t.get('artist',''))
+                        # 服务重启会中断后台下载线程，残留的 downloading 状态需重置为失败，否则永久卡住
+                        if t.get('status') == 'downloading':
+                            t['status'] = 'failed'
+                            t['error'] = '服务重启中断，请重试'
+                            dirty = True
                         self._tasks[key] = t
                     logger.info(f"从 JSON 加载 {len(self._tasks)} 个下载任务")
+                    if dirty:
+                        self._save()
         except Exception as e:
             logger.warning(f"加载下载任务 JSON 失败: {e}")
 
@@ -225,11 +233,16 @@ class DownloadManager:
                                 'updated': time.time()}
             self._save()
         def _do():
-            fn = DOWNLOAD_SOURCES.get(source)
-            if not fn:
-                res = DownloadResult(title, artist, source, 'failed', error='不支持的平台')
-            else:
-                res = fn(title, artist, save_dir)
+            res = None
+            try:
+                fn = DOWNLOAD_SOURCES.get(source)
+                if not fn:
+                    res = DownloadResult(title, artist, source, 'failed', error='不支持的平台')
+                else:
+                    res = fn(title, artist, save_dir)
+            except Exception as e:
+                logger.warning(f"下载异常 title={title} artist={artist}: {e}")
+                res = DownloadResult(title, artist, source, 'failed', error=str(e))
             with self._lock:
                 t = self._tasks.get(key, {})
                 t.update({'status': res.status, 'filepath': res.filepath,
@@ -247,7 +260,12 @@ class DownloadManager:
                                 'updated': time.time()}
             self._save()
         def _do():
-            res = kuwo_download_by_rid(rid, save_dir, title, artist)
+            res = None
+            try:
+                res = kuwo_download_by_rid(rid, save_dir, title, artist)
+            except Exception as e:
+                logger.warning(f"下载异常 rid={rid} title={title}: {e}")
+                res = DownloadResult(title, artist, source, 'failed', error=str(e))
             with self._lock:
                 t = self._tasks.get(key, {})
                 t.update({'status': res.status, 'filepath': res.filepath,

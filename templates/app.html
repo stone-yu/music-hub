@@ -445,6 +445,54 @@
         </div>
         {% endif %}
 
+        {% if active == 'settings' %}
+        <!-- ========== 设置页 ========== -->
+        <div id="view-settings">
+            <div class="flex items-center gap-3 mb-4">
+                <button onclick="history.back()" class="text-sm text-gray-400 hover:text-white transition">← 返回</button>
+                <h2 class="text-lg font-semibold text-white">⚙️ 设置</h2>
+            </div>
+            <div class="card rounded-2xl p-5 max-w-2xl">
+                <div class="space-y-4">
+                    <!-- 自动刮削 -->
+                    <div class="p-4 rounded-lg" style="background:rgba(255,255,255,0.03)">
+                        <div class="flex items-center justify-between gap-4">
+                            <div>
+                                <div class="text-sm text-gray-200 font-medium">自动刮削</div>
+                                <div class="text-xs text-gray-500 mt-0.5">下载完成后自动刮削元数据并整理到曲库目录</div>
+                            </div>
+                            <label class="setting-switch">
+                                <input type="checkbox" id="autoScrapeToggle" onchange="onAutoScrapeChange()">
+                                <span class="setting-slider"></span>
+                            </label>
+                        </div>
+                        <div class="mt-3 pt-3 border-t border-white/5 text-xs text-gray-400 leading-relaxed">
+                            <span class="text-gray-300">当前刮削模式：</span>按 <span class="text-indigo-300">艺术家 / 专辑</span> 二级目录整理（<span class="text-gray-500">曲库根目录/艺术家/专辑/曲目</span>），并补全内嵌封面、歌词与元数据标签。
+                        </div>
+                    </div>
+                    <!-- 首页热歌平台 -->
+                    <div class="p-4 rounded-lg" style="background:rgba(255,255,255,0.03)">
+                        <div class="flex items-center justify-between">
+                            <div class="text-sm text-gray-200 font-medium">首页热歌平台</div>
+                            <span class="text-xs text-gray-500">最多3个</span>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-0.5 mb-2.5">勾选的平台展示在首页热歌 Top5</div>
+                        <div id="homeSongPlatforms" class="flex flex-wrap gap-2"></div>
+                    </div>
+                    <!-- 首页歌单平台 -->
+                    <div class="p-4 rounded-lg" style="background:rgba(255,255,255,0.03)">
+                        <div class="flex items-center justify-between">
+                            <div class="text-sm text-gray-200 font-medium">首页歌单平台</div>
+                            <span class="text-xs text-gray-500">最多3个</span>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-0.5 mb-2.5">勾选的平台展示在首页热榜歌单 Top5</div>
+                        <div id="homePlaylistPlatforms" class="flex flex-wrap gap-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         {% if active == 'detail' %}
         <!-- ========== 歌单详情页 ========== -->
         <div id="detailView">
@@ -630,41 +678,19 @@
         </div>
     </div>
 
-    <!-- 设置弹窗 -->
-    <div id="settingsModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden p-4">
+    <!-- 曲库加载中提示弹框 -->
+    <div id="libLoadingModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden p-4">
         <div class="rounded-2xl p-6 max-w-md w-full" style="background:#1e293b;border:1px solid rgba(255,255,255,0.1)">
-            <div class="flex items-center justify-between mb-5">
-                <h2 class="text-lg font-bold text-white">⚙️ 设置</h2>
-                <button onclick="closeSettings()" class="text-gray-400 hover:text-white text-xl leading-none">×</button>
+            <div class="flex items-center gap-3 mb-3">
+                <div class="text-3xl">⏳</div>
+                <h2 class="text-lg font-bold text-white">曲库正在加载中</h2>
             </div>
-            <div class="space-y-4">
-                <div class="flex items-center justify-between gap-4 p-3 rounded-lg" style="background:rgba(255,255,255,0.03)">
-                    <div>
-                        <div class="text-sm text-gray-200 font-medium">自动刮削</div>
-                        <div class="text-xs text-gray-500 mt-0.5">下载完成后自动刮削元数据并整理到曲库目录</div>
-                    </div>
-                    <label class="setting-switch">
-                        <input type="checkbox" id="autoScrapeToggle" onchange="onAutoScrapeChange()">
-                        <span class="setting-slider"></span>
-                    </label>
-                </div>
-                <div class="p-3 rounded-lg" style="background:rgba(255,255,255,0.03)">
-                    <div class="flex items-center justify-between">
-                        <div class="text-sm text-gray-200 font-medium">首页热歌平台</div>
-                        <span class="text-xs text-gray-500">最多3个</span>
-                    </div>
-                    <div class="text-xs text-gray-500 mt-0.5 mb-2.5">勾选的平台展示在首页热歌 Top5</div>
-                    <div id="homeSongPlatforms" class="flex flex-wrap gap-2"></div>
-                </div>
-                <div class="p-3 rounded-lg" style="background:rgba(255,255,255,0.03)">
-                    <div class="flex items-center justify-between">
-                        <div class="text-sm text-gray-200 font-medium">首页歌单平台</div>
-                        <span class="text-xs text-gray-500">最多3个</span>
-                    </div>
-                    <div class="text-xs text-gray-500 mt-0.5 mb-2.5">勾选的平台展示在首页热榜歌单 Top5</div>
-                    <div id="homePlaylistPlatforms" class="flex flex-wrap gap-2"></div>
-                </div>
+            <div class="text-sm text-gray-300 space-y-2 mb-5 leading-relaxed">
+                <p>系统正在连接 Navidrome 并初始化曲库索引，<span class="text-indigo-300">首次启动通常需要 1～3 分钟</span>（曲库越大耗时越久，每百位艺术家约半分钟）。</p>
+                <p>在曲库加载完成前，页面上的「已收录 / 未收录」匹配数据可能<span class="text-yellow-300">不准确</span>。</p>
+                <p>请耐心等待右上角状态指示变为 <span class="text-green-400">● 已连接</span> 后再进行匹配与歌单操作。</p>
             </div>
+            <button onclick="closeLibLoadingModal()" class="w-full px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition">我知道了</button>
         </div>
     </div>
 
@@ -726,22 +752,18 @@
                 document.getElementById('profileMenu').classList.remove('show');
             }
         });
-        // 设置弹窗 + 自动刮削开关
+        // 设置页 + 自动刮削开关（默认开启）
         let homePlatformsDirty=false;
+        function autoScrapeEnabled(){ return localStorage.getItem('autoScrape')!=='0'; }
         function openSettings(){
             document.getElementById('profileMenu').classList.remove('show');
+            window.location.href='/settings';
+        }
+        function initSettingsPage(){
             const t=document.getElementById('autoScrapeToggle');
-            if(t)t.checked=localStorage.getItem('autoScrape')==='1';
+            if(t)t.checked=autoScrapeEnabled();
             homePlatformsDirty=false;
             loadHomePlatformSettings();
-            document.getElementById('settingsModal').classList.remove('hidden');
-        }
-        function closeSettings(){
-            document.getElementById('settingsModal').classList.add('hidden');
-            if(homePlatformsDirty && document.querySelector('.nav-item.active')?.dataset?.page==='home'){
-                loadHome();
-            }
-            homePlatformsDirty=false;
         }
         const HOME_SONG_DEFAULTS=['网易云','QQ音乐','酷狗'];
         const HOME_PLAYLIST_DEFAULTS=['网易云','酷狗'];
@@ -783,10 +805,6 @@
             const v=document.getElementById('autoScrapeToggle').checked?'1':'0';
             localStorage.setItem('autoScrape',v);
         }
-        document.addEventListener('click',e=>{
-            const modal=document.getElementById('settingsModal');
-            if(!modal.classList.contains('hidden')&&e.target===modal)closeSettings();
-        });
         startTaskPolling();
 
         // ===== 侧栏：桌面端图标轨展开/折叠，移动端抽屉 =====
@@ -1183,7 +1201,7 @@
         }
         // 自动刮削：检测下载刚完成且未刮削的任务，若开关开启则自动刮削
         function maybeAutoScrape(tasks){
-            if(localStorage.getItem('autoScrape')!=='1')return;
+            if(!autoScrapeEnabled())return;
             for(const t of tasks){
                 const key=`${t.title}|${t.artist}`;
                 const prev=_prevDlStatus[key];
@@ -1213,18 +1231,25 @@
                 const lbl=escapeHtml(t.title+' - '+t.artist);
                 let pvBtn='';
                 if(t.status==='success'){
-                    pvBtn=`<button class="task-play-btn text-xs px-1.5 py-0.5 rounded bg-indigo-600/60 hover:bg-indigo-500 text-white transition" data-title="${escapeHtml(t.title)}" data-artist="${escapeHtml(t.artist)}" data-label="${lbl}">▶</button>`;
+                    pvBtn=`<button class="task-play-btn text-xs px-2 py-0.5 rounded bg-indigo-600/60 hover:bg-indigo-500 text-white transition" data-title="${escapeHtml(t.title)}" data-artist="${escapeHtml(t.artist)}" data-label="${lbl}">试听</button>`;
                 }else if(rid){
-                    pvBtn=`<button class="task-preview-btn text-xs px-1.5 py-0.5 rounded bg-indigo-600/60 hover:bg-indigo-500 text-white transition" data-rid="${escapeHtml(rid)}" data-label="${lbl}">▶</button>`;
+                    pvBtn=`<button class="task-preview-btn text-xs px-2 py-0.5 rounded bg-indigo-600/60 hover:bg-indigo-500 text-white transition" data-rid="${escapeHtml(rid)}" data-label="${lbl}">试听</button>`;
+                }
+                const ss=t.scrape_status||'idle';
+                let scBtn='';
+                if(t.status==='success'&&ss!=='success'&&ss!=='scraping'){
+                    scBtn=`<button class="task-scrape-btn text-xs px-2 py-0.5 rounded bg-emerald-600/60 hover:bg-emerald-500 text-white transition whitespace-nowrap" data-title="${escapeHtml(t.title)}" data-artist="${escapeHtml(t.artist)}" data-filepath="${escapeHtml(t.filepath||'')}">刮削</button>`;
                 }
                 return `<div class="flex items-center gap-1.5 text-xs">
                     <div class="task-row flex-1 min-w-0 cursor-pointer hover:bg-white/5 rounded px-1 py-0.5 -mx-1" data-title="${escapeHtml(t.title)}" data-artist="${escapeHtml(t.artist)}" data-rid="${escapeHtml(rid)}" data-status="${escapeHtml(t.status)}">
                         <div class="text-gray-200 truncate">${escapeHtml(t.title)}</div>
                         <div class="text-gray-500 truncate">${escapeHtml(t.artist)}</div>
+                        ${(t.status==='failed'||t.status==='notfound')&&t.error?`<div class="text-red-400/80 truncate">⚠ ${escapeHtml(t.error)}</div>`:''}
                     </div>
                     ${pvBtn}
+                    ${scBtn}
                     <span class="${cls} whitespace-nowrap">${label}</span>
-                    ${t.scrape_status&&t.scrape_status!=='idle'?`<span class="${scStCls[t.scrape_status]||'text-gray-500'} whitespace-nowrap">${({scraping:'⏳刮削',success:'✓整理',failed:'✗刮削'})[t.scrape_status]||''}</span>`:''}
+                    ${ss!=='idle'?`<span class="${scStCls[ss]||'text-gray-500'} whitespace-nowrap">${({scraping:'⏳刮削',success:'✓整理',failed:'✗刮削'})[ss]||''}</span>`:''}
                 </div>`;
             }).join('');
         }
@@ -1254,6 +1279,7 @@
         function _renderTaskModal(t){
             const dlEl=document.getElementById('taskModalDlStatus');
             dlEl.textContent=dlStMap[t.status]||t.status;
+            if((t.status==='failed'||t.status==='notfound')&&t.error){dlEl.textContent+=`（${t.error}）`;}
             dlEl.className=dlStCls[t.status]||'text-gray-400';
             const scEl=document.getElementById('taskModalScStatus');
             const ss=t.scrape_status||'idle';
@@ -1362,6 +1388,7 @@
                     <div class="flex-1 min-w-0">
                         <div class="text-white text-sm truncate">${escapeHtml(t.title)} - ${escapeHtml(t.artist)}</div>
                         <div class="text-xs mt-0.5"><span class="${cls}">${label}</span>${scrapeLabel||t.scrape_status?` <span class="scrape-status ${scrapeCls} ml-2">${scrapeLabel}${pathTip}</span>`:''}</div>
+                        ${(t.status==='failed'||t.status==='notfound')&&t.error?`<div class="text-xs text-red-400/80 mt-0.5 truncate">⚠ ${escapeHtml(t.error)}</div>`:''}
                     </div>
                     <div class="flex items-center gap-3 flex-shrink-0 text-xs">
                         ${t.status==='success'?`<button onclick="modalPlayLocal(this,'${escapeHtml(t.title)}','${escapeHtml(t.artist)}','${escapeHtml(t.title+' - '+t.artist)}')" class="text-indigo-400 hover:text-indigo-300 transition">试听</button>`:(rid?`<button onclick="modalPreview(this,'${escapeHtml(rid)}','${escapeHtml(t.title+' - '+t.artist)}')" class="text-indigo-400 hover:text-indigo-300 transition">试听</button>`:'')}
@@ -1765,6 +1792,17 @@
             }catch(e){alert('创建失败: '+e.message)}finally{btn.disabled=false;btn.textContent='创建'}
         }
         function closeModal(){document.getElementById('successModal').classList.add('hidden')}
+        function closeLibLoadingModal(){document.getElementById('libLoadingModal').classList.add('hidden')}
+        // 进入首页时检查曲库是否仍在加载，若是则弹出提示
+        async function checkLibLoadingOnHome(){
+            try{
+                const r=await fetch('/api/status');if(!r)return;
+                const d=await r.json();
+                if(!d.navidrome_connected || d.library_loading){
+                    document.getElementById('libLoadingModal').classList.remove('hidden');
+                }
+            }catch(e){}
+        }
         function showLoading(text){document.getElementById('loadingText').textContent=text||'处理中...';document.getElementById('loading').classList.remove('hidden')}
         function hideLoading(){document.getElementById('loading').classList.add('hidden')}
 
@@ -1786,16 +1824,27 @@
             if (playBtn) { modalPlayLocal(playBtn, playBtn.dataset.title, playBtn.dataset.artist, playBtn.dataset.label); return; }
             const pvBtn = e.target.closest('.preview-btn, .task-preview-btn');
             if (pvBtn) { previewSong(pvBtn.dataset.rid, pvBtn.dataset.label, pvBtn); return; }
+            const scBtn = e.target.closest('.task-scrape-btn');
+            if (scBtn) {
+                const title=scBtn.dataset.title, artist=scBtn.dataset.artist, filepath=scBtn.dataset.filepath;
+                if(!filepath){ return; }
+                scBtn.disabled=true; scBtn.textContent='…';
+                authFetch('/api/download/scrape',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,artist,filepath})}).then(r=>r&&r.json()).then(d=>{
+                    loadDownloadTasks();
+                }).catch(err=>{ scBtn.textContent='✗'; setTimeout(()=>loadDownloadTasks(),500); });
+                return;
+            }
             const taskRow = e.target.closest('.task-row');
             if (taskRow) { openDownloadTaskModal({title:taskRow.dataset.title,artist:taskRow.dataset.artist,rid:taskRow.dataset.rid,status:taskRow.dataset.status}); return; }
         });
 
         // ===== 按 active 初始化当前页（初始加载与 AJAX 导航共用）=====
         function runPageInit(active){
-            if(active==='home') loadHome();
+            if(active==='home'){ loadHome(); checkLibLoadingOnHome(); }
             else if(active==='hot-songs') loadRanks();
             else if(active==='hot-playlists') loadHotPlaylists();
             else if(active==='mine') loadMyPlaylists();
+            else if(active==='settings') initSettingsPage();
             else if(active==='search'){
                 const params=new URLSearchParams(location.search);
                 const q=params.get('q');
