@@ -1,4 +1,4 @@
-# 🎵 MusicHub
+# MusicHub
 
 聚合网易云、QQ音乐、酷狗、酷我等各大音乐平台的**热榜歌单**与**热榜歌曲**，与你本地的 [Navidrome](https://github.com/navidrome/navidrome) 曲库进行比对匹配，一键把网络歌单里已收录的歌曲转成 Navidrome 歌单；对未收录的歌曲提供下载 → 自动刮削元数据 → 按艺术家/专辑整理归档 → 触发曲库扫描的闭环，持续补充曲库内容。
 
