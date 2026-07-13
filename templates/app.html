@@ -3,89 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎵 MusicHub</title>
+    <title>MusicHub</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238b9cff'/%3E%3Cstop offset='1' stop-color='%236b7cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='48' height='48' rx='12' fill='url(%23g)'/%3E%3Cpath d='M20 13v15.5a4.5 4.5 0 1 1-2.4-3.98V13z' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linejoin='round'/%3E%3Cpath d='M20 13l11-2.6v3.4L20 17z' fill='%23fff'/%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root { --bg:#0f172a; --card:rgba(255,255,255,0.04); --border:rgba(255,255,255,0.08); --accent:#6366f1; }
-        body { background:var(--bg); min-height:100vh; color:#e5e7eb; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
-        .card { background:var(--card); border:1px solid var(--border); }
-        .card-hover { transition:all .2s ease; }
-        .card-hover:hover { transform:translateY(-2px); background:rgba(255,255,255,0.07); border-color:rgba(99,102,241,0.3); }
-        .song-row:hover { background:rgba(99,102,241,0.1); }
-        .song-row.selected { background:rgba(99,102,241,0.2); }
-        .source-badge { font-size:.7rem; padding:2px 7px; border-radius:4px; }
-        .badge-酷我{background:#e74c3c20;color:#e74c3c}.badge-网易{background:#e74c3c20;color:#ff6b6b}.badge-QQ{background:#3498db20;color:#3498db}.badge-酷狗{background:#2ecc7120;color:#2ecc71}
-        .fade-in{animation:fadeIn .25s ease}
-        @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        .spinner{border:3px solid rgba(255,255,255,.1);border-top-color:var(--accent);border-radius:50%;width:22px;height:22px;animation:spin .7s linear infinite;display:inline-block}
+        :root{
+            --bg:#0b1020; --bg-soft:#111733; --card:#161d38; --card-2:#1c2444;
+            --border:rgba(255,255,255,0.07); --border-strong:rgba(255,255,255,0.12);
+            --accent:#8b9cff; --accent-soft:rgba(139,156,255,0.16); --accent-glow:rgba(139,156,255,0.35);
+            --text:#e8ecf5; --text-muted:#9aa3bd; --text-dim:#6b7493;
+            --hover:rgba(255,255,255,0.05); --input-bg:rgba(255,255,255,0.04);
+            --panel-bg:#161d38; --shadow:0 2px 10px rgba(0,0,0,0.25); --shadow-lg:0 12px 40px rgba(0,0,0,0.45);
+            --radius:14px; --radius-lg:20px;
+        }
+        [data-theme="light"]{
+            --bg:#f4f6fb; --bg-soft:#eef1f7; --card:#ffffff; --card-2:#f7f9fd;
+            --border:rgba(15,23,42,0.07); --border-strong:rgba(15,23,42,0.12);
+            --accent:#6b7cf6; --accent-soft:rgba(107,124,246,0.12); --accent-glow:rgba(107,124,246,0.22);
+            --text:#1e2433; --text-muted:#5c6580; --text-dim:#9aa3bd;
+            --hover:rgba(15,23,42,0.04); --input-bg:rgba(15,23,42,0.03);
+            --panel-bg:#ffffff; --shadow:0 2px 10px rgba(15,23,42,0.06); --shadow-lg:0 12px 40px rgba(15,23,42,0.12);
+        }
+        *{box-sizing:border-box}
+        body{background:var(--bg);min-height:100vh;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+        .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+        .card-hover{transition:transform .25s cubic-bezier(.4,0,.2,1),box-shadow .25s,border-color .25s}
+        .card-hover:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);border-color:var(--accent-glow)}
+        .song-row{transition:background .18s ease}
+        .song-row:hover{background:var(--accent-soft)}
+        .song-row.selected{background:var(--accent-soft)}
+        .source-badge{font-size:.68rem;padding:2px 8px;border-radius:6px;font-weight:500}
+        .badge-酷我{background:rgba(231,76,60,0.15);color:#ff8a7a}
+        .badge-网易{background:rgba(255,107,107,0.15);color:#ff8a8a}
+        .badge-QQ{background:rgba(52,152,219,0.15);color:#6ab8e8}
+        .badge-酷狗{background:rgba(46,204,113,0.15);color:#5fd995}
+        .fade-in{animation:fadeIn .3s ease}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        .spinner{border:3px solid var(--border-strong);border-top-color:var(--accent);border-radius:50%;width:22px;height:22px;animation:spin .7s linear infinite;display:inline-block}
         @keyframes spin{to{transform:rotate(360deg)}}
-        ::-webkit-scrollbar{width:6px;height:6px}
+        ::-webkit-scrollbar{width:7px;height:7px}
         ::-webkit-scrollbar-track{background:transparent}
-        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px}
-        .cover-preview{width:150px;height:150px;border-radius:12px;object-fit:cover}
-        .theme-btn{padding:4px 11px;border-radius:6px;font-size:.75rem;cursor:pointer;transition:all .15s;border:1px solid var(--border);background:transparent;color:#9ca3af}
-        .theme-btn:hover{background:rgba(255,255,255,.06);color:#e5e7eb}
-        .theme-btn.active{background:rgba(99,102,241,.35);border-color:var(--accent);color:#fff}
+        ::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px}
+        ::-webkit-scrollbar-thumb:hover{background:var(--text-dim)}
+        .cover-preview{width:150px;height:150px;border-radius:var(--radius);object-fit:cover;box-shadow:var(--shadow)}
+        .theme-btn{padding:5px 12px;border-radius:8px;font-size:.75rem;cursor:pointer;transition:all .2s;border:1px solid var(--border);background:transparent;color:var(--text-muted)}
+        .theme-btn:hover{background:var(--hover);color:var(--text)}
+        .theme-btn.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+        /* 按钮 */
+        button,a{transition:all .2s ease}
+        .btn-primary{background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:10px;font-weight:500;cursor:pointer;box-shadow:0 2px 8px var(--accent-glow)}
+        .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px var(--accent-glow)}
         /* 左侧菜单 */
-        .menu-item{padding:11px 16px;border-radius:9px;cursor:pointer;transition:all .15s;color:#94a3b8;font-weight:500;font-size:.92rem;display:flex;align-items:center;gap:10px}
-        .menu-item:hover{color:#e5e7eb;background:rgba(255,255,255,.04)}
-        .menu-item.active{color:#fff;background:rgba(99,102,241,.22)}
-        .menu-item.active::before{content:"";width:3px;height:16px;background:var(--accent);border-radius:2px;margin-right:-6px}
+        .menu-item{padding:11px 14px;border-radius:10px;cursor:pointer;transition:all .2s ease;color:var(--text-muted);font-weight:500;font-size:.9rem;display:flex;align-items:center;gap:11px}
+        .menu-item:hover{color:var(--text);background:var(--hover)}
+        .menu-item.active{color:var(--accent);background:var(--accent-soft)}
+        .menu-item.active::before{content:"";width:3px;height:16px;background:var(--accent);border-radius:2px;margin-right:-8px}
         /* 子tab */
-        .ptab{padding:5px 14px;border-radius:999px;font-size:.8rem;cursor:pointer;transition:all .15s;border:1px solid var(--border);color:#9ca3af;white-space:nowrap}
-        .ptab:hover{color:#e5e7eb}
-        .ptab.active{background:var(--accent);border-color:var(--accent);color:#fff}
-        .layout{display:flex;gap:20px;max-width:1600px;margin:0 auto}
-        .sidebar{width:200px;flex-shrink:0;transition:width .2s;overflow:hidden}
-        .sidebar.collapsed{width:48px}
-        .sidebar.collapsed .menu-item:not(.toggle-btn){display:none}
-        .sidebar.collapsed .toggle-btn{justify-content:center}
-        .toggle-btn{display:flex!important}
-        .main{flex:1;min-width:0;padding-bottom:40px}
+        .ptab{padding:6px 15px;border-radius:999px;font-size:.78rem;cursor:pointer;transition:all .2s;border:1px solid var(--border);color:var(--text-muted);white-space:nowrap;background:transparent}
+        .ptab:hover{color:var(--text);border-color:var(--border-strong)}
+        .ptab.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 8px var(--accent-glow)}
+        .topbar{position:sticky;top:0;z-index:50;background:var(--bg);backdrop-filter:blur(12px);padding:14px 20px;margin:-16px -20px 18px;border-bottom:1px solid var(--border)}
+        .brand{display:flex;align-items:center;gap:10px;cursor:pointer;border:none;background:transparent;padding:0;flex-shrink:0}
+        @media(min-width:769px){
+            .brand{position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:1}
+            body.sidebar-open .brand{left:14px}
+            .topbar>div{padding-left:150px}
+        }
+        .brand-icon{width:30px;height:30px;border-radius:9px;flex-shrink:0;box-shadow:0 2px 8px var(--accent-glow);transition:transform .2s ease}
+        .brand:hover .brand-icon{transform:scale(1.06)}
+        .brand-title{font-weight:700;font-size:1.05rem;white-space:nowrap;color:var(--text);margin-right:4px}
+        .brand-expand{display:none;width:34px;height:34px;border-radius:9px;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--card);color:var(--text-muted);cursor:pointer;flex-shrink:0;transition:all .2s ease}
+        .brand-expand:hover{color:var(--accent);border-color:var(--accent)}
+        .layout{max-width:1600px;margin:0 auto}
+        .sidebar{position:fixed;left:0;top:0;bottom:0;z-index:45;width:72px;transition:width .28s cubic-bezier(.4,0,.2,1);overflow-x:hidden;overflow-y:auto;background:var(--bg-soft);border-right:1px solid var(--border);padding:72px 10px 16px}
+        body.sidebar-open .sidebar{width:248px;padding-left:14px;padding-right:14px}
+        .sidebar-backdrop{display:none}
+        .sidebar-backdrop.show{display:block}
+        .menu-text{white-space:nowrap;overflow:hidden;max-width:160px;transition:opacity .2s ease,max-width .28s cubic-bezier(.4,0,.2,1)}
+        body:not(.sidebar-open) .menu-item{justify-content:center;gap:0}
+        body:not(.sidebar-open) .menu-text{opacity:0;max-width:0}
+        body:not(.sidebar-open) .menu-item.active::before{display:none}
+        .sidebar-toggle{display:flex;align-items:center;width:100%;height:36px;margin-bottom:6px;border:none;background:transparent;color:var(--text-muted);cursor:pointer;transition:color .2s ease;border-radius:9px}
+        .sidebar-toggle:hover{color:var(--accent);background:var(--card)}
+        .sidebar-toggle .tg-arrow{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;flex-shrink:0;font-size:1rem;line-height:1}
+        /* 展开态：箭头在右，指向左（折叠） */
+        body.sidebar-open .sidebar-toggle{justify-content:flex-end;padding-right:4px}
+        body.sidebar-open .sidebar-toggle .tg-arrow::before{content:'◀'}
+        /* 折叠态：箭头在左，指向右（展开） */
+        body:not(.sidebar-open) .sidebar-toggle{justify-content:center;padding:0}
+        body:not(.sidebar-open) .sidebar-toggle .tg-arrow::before{content:'▶'}
+        @media(max-width:768px){.sidebar-toggle{display:none}}
+        .main{padding-bottom:48px;padding-left:72px;transition:padding-left .28s cubic-bezier(.4,0,.2,1)}
+        body.sidebar-open .main{padding-left:248px}
+        @media(max-width:768px){
+          .sidebar{width:248px;transform:translateX(-100%);padding:72px 14px 16px}
+          body.sidebar-open .sidebar{transform:translateX(0);width:248px}
+          .main,body.sidebar-open .main{padding-left:0}
+          .menu-item{justify-content:flex-start!important;gap:11px}
+          .menu-text{opacity:1!important;max-width:160px!important}
+          .menu-item.active::before{display:block!important}
+          .brand-expand{display:flex}
+          .sidebar-backdrop.show{position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(2px);z-index:44}
+        }
         /* 悬浮球 */
-        .float-ball{position:fixed;right:16px;z-index:45;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.4);font-size:20px;color:#fff;transition:all .15s}
-        .float-ball:hover{transform:scale(1.1)}
-        .float-ball-download{bottom:80px;background:#6366f1}
-        .float-ball-create{bottom:24px;background:#22c55e}
-        .float-ball-create.disabled{background:#6b7280;cursor:not-allowed}
-        .float-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;border-radius:9px;background:#ef4444;font-size:10px;display:flex;align-items:center;justify-content:center;padding:0 4px;font-weight:bold}
+        .float-ball{position:fixed;right:18px;z-index:45;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--shadow-lg);font-size:20px;color:#fff;transition:all .2s ease}
+        .float-ball:hover{transform:scale(1.08) translateY(-2px)}
+        .float-ball:active{transform:scale(0.96)}
+        .float-ball-download{bottom:84px;background:linear-gradient(135deg,#8b9cff,#6b7cf6)}
+        .float-ball-create{bottom:24px;background:linear-gradient(135deg,#4ade80,#22c55e)}
+        .float-ball-create.disabled{background:#6b7280;cursor:not-allowed;opacity:.6}
+        .float-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;border-radius:9px;background:#ef4444;font-size:10px;display:flex;align-items:center;justify-content:center;padding:0 4px;font-weight:bold;border:2px solid var(--bg);box-shadow:0 2px 6px rgba(0,0,0,0.3)}
         .float-badge.green{background:#22c55e}
-        .float-panel{position:fixed;right:16px;z-index:46;width:320px;max-height:60vh;overflow-y:auto;display:none;border-radius:16px}
+        .float-panel{position:fixed;right:18px;z-index:46;width:340px;max-height:60vh;overflow-y:auto;display:none;border-radius:var(--radius-lg);background:var(--panel-bg);border:1px solid var(--border);box-shadow:var(--shadow-lg);animation:panelIn .22s ease}
         .float-panel.show{display:block}
+        @keyframes panelIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
         .float-backdrop{display:none;position:fixed;inset:0;z-index:44}
         .float-backdrop.show{display:block}
-        /* 移动端：侧栏抽屉 */
-        .sidebar-toggle{display:none}
-        .sidebar-backdrop{display:none}
         @media(max-width:768px){
-          .sidebar{position:fixed;left:0;top:0;bottom:0;z-index:50;width:240px;transform:translateX(-100%);transition:transform .2s;max-height:none;overflow-y:auto}
-          .sidebar.mobile-open{transform:translateX(0)}
-          .sidebar.collapsed{width:240px;overflow-y:auto}
-          .sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:49}
-          .sidebar-backdrop.show{display:block}
-          .sidebar-toggle{display:flex}
           .float-panel{width:calc(100vw - 32px)}
         }
         /* 横向滑动列 */
-        .h-scroll{display:flex;gap:16px;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory}
+        .h-scroll{display:flex;gap:16px;overflow-x:auto;padding-bottom:10px;scroll-snap-type:x mandatory}
         .h-scroll>*{scroll-snap-align:start;flex:0 0 320px}
-        .h-scroll::-webkit-scrollbar{height:4px}
+        .h-scroll::-webkit-scrollbar{height:5px}
+        /* 输入框 */
+        input{transition:border-color .2s,box-shadow .2s}
+        /* 尊重动效偏好 */
+        @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+        /* ===== 主题自适应：覆盖 Tailwind 硬编码颜色 ===== */
+        /* 文字色 */
+        .text-white{color:var(--text)!important}
+        .text-gray-200,.text-gray-300{color:var(--text)!important}
+        .text-gray-400,.text-gray-500{color:var(--text-muted)!important}
+        .text-gray-600{color:var(--text-dim)!important}
+        .text-gray-700{color:var(--text-dim)!important}
+        .text-indigo-300,.text-indigo-400{color:var(--accent)!important}
+        .text-purple-400{color:#a78bfa!important}
+        [data-theme="light"] .text-purple-400{color:#7c3aed!important}
+        .text-green-400{color:#4ade80!important}
+        [data-theme="light"] .text-green-400{color:#16a34a!important}
+        .text-yellow-400{color:#facc15!important}
+        [data-theme="light"] .text-yellow-400{color:#ca8a04!important}
+        .text-red-400{color:#f87171!important}
+        [data-theme="light"] .text-red-400{color:#dc2626!important}
+        /* hover 文字 */
+        .hover\:text-white:hover{color:var(--text)!important}
+        .hover\:text-gray-200:hover{color:var(--text)!important}
+        .hover\:text-indigo-300:hover{color:var(--accent)!important;filter:brightness(1.1)}
+        .hover\:text-purple-300:hover{color:#a78bfa!important;filter:brightness(1.1)}
+        .hover\:text-red-300:hover{color:#f87171!important;filter:brightness(1.1)}
+        .hover\:text-red-400:hover{color:#f87171!important;filter:brightness(1.1)}
+        /* placeholder */
+        .placeholder-gray-500::placeholder{color:var(--text-dim)!important}
+        /* 背景色：灰系 */
+        .bg-gray-700,.bg-gray-800{background:var(--card-2)!important}
+        .bg-gray-900{background:var(--bg-soft)!important}
+        .bg-white{background:var(--card)!important}
+        .bg-white\/5{background:var(--hover)!important}
+        .hover\:bg-white\/5:hover{background:var(--hover)!important}
+        .hover\:bg-white\/10:hover{background:var(--border-strong)!important}
+        /* 主色按钮背景 */
+        .bg-indigo-600,.bg-indigo-500{background:var(--accent)!important;color:#fff!important}
+        .bg-indigo-600\/60{background:var(--accent-soft)!important;color:var(--accent)!important}
+        .hover\:bg-indigo-500:hover{background:var(--accent)!important;filter:brightness(1.1)}
+        .bg-purple-600,.bg-purple-500{background:#a78bfa!important;color:#fff!important}
+        .hover\:bg-purple-500:hover{background:#a78bfa!important;filter:brightness(1.1)}
+        .bg-green-500,.bg-green-600{background:#22c55e!important;color:#fff!important}
+        .hover\:bg-green-500:hover{background:#22c55e!important;filter:brightness(1.1)}
+        .bg-red-600{background:#ef4444!important;color:#fff!important}
+        .bg-red-600\/80{background:rgba(239,68,68,0.85)!important;color:#fff!important}
+        .hover\:bg-red-500:hover{background:#ef4444!important;filter:brightness(1.1)}
+        .hover\:bg-white:hover{background:var(--hover)!important}
+        /* 边框 */
+        .border-indigo-500{border-color:var(--accent)!important}
+        .border-white{border-color:var(--border-strong)!important}
+        .border-white\/5,.border-white\/10{border-color:var(--border)!important}
+        /* 内联深色背景（弹窗/播放器/面板里的 #1e293b）→ panel-bg */
+        [style*="#1e293b"]{background:var(--panel-bg)!important}
+        [style*="rgba(255,255,255,0.1)"]{border-color:var(--border-strong)!important}
+        [style*="rgba(255,255,255,0.12)"]{border-color:var(--border-strong)!important}
+        /* 主色按钮上的白字保持白色 */
+        .bg-indigo-600 .text-white,.bg-green-600 .text-white,.bg-purple-600 .text-white,
+        .bg-red-600 .text-white,.bg-red-600\/80 .text-white,.ptab.active{color:#fff!important}
+        /* 复选框/表单 */
+        input[type="checkbox"]{accent-color:var(--accent)}
     </style>
 </head>
 <body class="px-5 py-4">
-    <!-- 顶部栏 -->
-    <div class="max-w-[1600px] mx-auto flex items-center gap-3 mb-5">
-        <button onclick="toggleSidebar()" class="sidebar-toggle items-center justify-center w-9 h-9 rounded-lg card text-white text-lg flex-shrink-0">☰</button>
-        <h1 class="text-lg font-bold text-white whitespace-nowrap">🎵 MusicHub</h1>
-        <div class="flex-1 max-w-xl mx-auto">
-            <input type="text" id="topSearchInput"
-                placeholder="🔍 搜索歌单主题：周杰伦、深夜emo、80后经典..."
-                class="w-full px-4 py-2 rounded-lg card text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50"
-                onkeydown="if(event.key==='Enter') topSearch()">
-        </div>
-        <div class="flex items-center gap-3 ml-auto whitespace-nowrap">
-            <span id="status-indicator" class="text-sm text-gray-400">检查连接中...</span>
-            <a href="/logout" class="text-sm text-gray-400 hover:text-white transition">退出</a>
+    <script>
+        // 主题初始化（避免闪烁，放在 body 最前面）
+        (function(){
+            const t=localStorage.getItem('theme')||'dark';
+            document.documentElement.setAttribute('data-theme',t);
+        })();
+    </script>
+    <!-- 顶部栏（固定） -->
+    <div class="topbar">
+        <div class="max-w-[1600px] mx-auto flex items-center gap-3">
+            <button onclick="toggleSidebar()" class="brand" id="brandBtn" title="展开/折叠菜单">
+                <img class="brand-icon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238b9cff'/%3E%3Cstop offset='1' stop-color='%236b7cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='48' height='48' rx='12' fill='url(%23g)'/%3E%3Cpath d='M20 13v15.5a4.5 4.5 0 1 1-2.4-3.98V13z' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linejoin='round'/%3E%3Cpath d='M20 13l11-2.6v3.4L20 17z' fill='%23fff'/%3E%3C/svg%3E" alt="MusicHub">
+                <span class="brand-title">MusicHub</span>
+            </button>
+            <button onclick="toggleSidebar()" class="brand-expand" id="brandExpand" title="展开菜单">☰</button>
+            <div class="flex-1 max-w-xl mx-auto">
+                <input type="text" id="topSearchInput"
+                    placeholder="🔍 搜索歌单主题：周杰伦、深夜emo、80后经典..."
+                    class="w-full px-4 py-2 rounded-lg card text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50"
+                    style="color:var(--text)"
+                    onkeydown="if(event.key==='Enter') topSearch()">
+            </div>
+            <div class="flex items-center gap-3 ml-auto whitespace-nowrap">
+                <span id="status-indicator" class="text-sm" style="color:var(--text-muted)">检查连接中...</span>
+                <button onclick="toggleTheme()" id="themeToggle" class="text-sm w-8 h-8 rounded-lg card flex items-center justify-center transition" title="切换主题">🌙</button>
+                <a href="/logout" class="text-sm hover:opacity-70 transition" style="color:var(--text-muted)">退出</a>
+            </div>
         </div>
     </div>
 
@@ -93,15 +225,15 @@
         <!-- 移动端遮罩 -->
         <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeMobileSidebar()"></div>
         <!-- 左侧菜单 -->
-        <div class="sidebar flex flex-col gap-3 sticky top-4 self-start" id="sidebar" style="max-height:calc(100vh - 2rem);overflow-y:auto">
+        <div class="sidebar flex flex-col gap-3" id="sidebar">
+            <button class="sidebar-toggle" onclick="toggleSidebar()" title="折叠/展开菜单" aria-label="折叠/展开菜单"><span class="tg-arrow"></span></button>
             <div class="card rounded-2xl p-2.5 flex flex-col gap-1">
-                <button onclick="toggleSidebar()" class="menu-item toggle-btn" id="sidebarToggle" style="justify-content:flex-end;font-size:.8rem">◀ 折叠</button>
-                <a href="/home" class="menu-item {{ 'active' if active=='home' else '' }}">🏠 首页</a>
-                <a href="/hot-songs" class="menu-item {{ 'active' if active=='hot-songs' else '' }}">🔥 热门歌曲</a>
-                <a href="/hot-playlists" class="menu-item {{ 'active' if active=='hot-playlists' else '' }}">🎶 热门歌单</a>
-                <a href="/search" class="menu-item {{ 'active' if active=='search' else '' }}">🔍 搜索歌单</a>
-                <a href="/import" class="menu-item {{ 'active' if active=='import' else '' }}">📋 手动粘贴</a>
-                <a href="/mine" class="menu-item {{ 'active' if active=='mine' else '' }}">🎵 我的歌单</a>
+                <a href="/home" class="menu-item {{ 'active' if active=='home' else '' }}"><span class="menu-icon">🏠</span><span class="menu-text">首页</span></a>
+                <a href="/hot-songs" class="menu-item {{ 'active' if active=='hot-songs' else '' }}"><span class="menu-icon">🔥</span><span class="menu-text">热门歌曲</span></a>
+                <a href="/hot-playlists" class="menu-item {{ 'active' if active=='hot-playlists' else '' }}"><span class="menu-icon">🎶</span><span class="menu-text">热门歌单</span></a>
+                <a href="/search" class="menu-item {{ 'active' if active=='search' else '' }}"><span class="menu-icon">🔍</span><span class="menu-text">搜索歌单</span></a>
+                <a href="/import" class="menu-item {{ 'active' if active=='import' else '' }}"><span class="menu-icon">📋</span><span class="menu-text">手动粘贴</span></a>
+                <a href="/mine" class="menu-item {{ 'active' if active=='mine' else '' }}"><span class="menu-icon">🎵</span><span class="menu-text">我的歌单</span></a>
             </div>
         </div>
 
@@ -461,23 +593,35 @@
 
         async function checkStatus(){try{const r=await fetch('/api/status');const d=await r.json();const el=document.getElementById('status-indicator');el.innerHTML=d.navidrome_connected?`<span class="text-green-400">● 已连接</span> · 曲库 ${d.library_size} 首${d.library_loading?' ·加载中':''}`:`<span class="text-red-400">● 连接失败</span>`}catch(e){document.getElementById('status-indicator').innerHTML=`<span class="text-red-400">● 网络错误</span>`}}
         checkStatus();setInterval(checkStatus,15000);
+        // 主题切换
+        function toggleTheme(){
+            const cur=document.documentElement.getAttribute('data-theme')||'dark';
+            const next=cur==='dark'?'light':'dark';
+            document.documentElement.setAttribute('data-theme',next);
+            localStorage.setItem('theme',next);
+            document.getElementById('themeToggle').textContent=next==='dark'?'🌙':'☀️';
+        }
+        // 初始化按钮图标
+        (function(){const t=localStorage.getItem('theme')||'dark';const btn=document.getElementById('themeToggle');if(btn)btn.textContent=t==='dark'?'🌙':'☀️';})();
         startTaskPolling();
 
-        // ===== 侧栏折叠/移动端抽屉 =====
-        function toggleSidebar(){
-            const sb=document.getElementById('sidebar');
-            const btn=document.getElementById('sidebarToggle');
-            if(window.innerWidth<=768){
-                sb.classList.toggle('mobile-open');
-                document.getElementById('sidebarBackdrop').classList.toggle('show',sb.classList.contains('mobile-open'));
-            }else{
-                const collapsed=sb.classList.toggle('collapsed');
-                if(btn){btn.innerHTML=collapsed?'▶':'◀ 折叠';btn.style.justifyContent=collapsed?'center':'flex-end';}
+        // ===== 侧栏：桌面端图标轨展开/折叠，移动端抽屉 =====
+        // 桌面端默认状态从 localStorage 读取（首次访问默认展开）
+        (function(){
+            if(window.innerWidth>768){
+                const pref=localStorage.getItem('sidebar-open');
+                if(pref==='0'){document.body.classList.remove('sidebar-open');}
+                else{document.body.classList.add('sidebar-open');}
             }
+        })();
+        function toggleSidebar(){
+            const open=!document.body.classList.contains('sidebar-open');
+            document.body.classList.toggle('sidebar-open',open);
+            document.getElementById('sidebarBackdrop').classList.toggle('show',open&&window.innerWidth<=768);
+            if(window.innerWidth>768){localStorage.setItem('sidebar-open',open?'1':'0');}
         }
         function closeMobileSidebar(){
-            const sb=document.getElementById('sidebar');
-            sb.classList.remove('mobile-open');
+            document.body.classList.remove('sidebar-open');
             document.getElementById('sidebarBackdrop').classList.remove('show');
         }
 
@@ -1385,7 +1529,7 @@
                 if(push!==false) history.pushState({url},'',url);
                 runPageInit(active);
                 window.scrollTo(0,0);
-                closeMobileSidebar(); // 移动端导航后关闭抽屉
+                if(window.innerWidth<=768) closeMobileSidebar(); // 仅移动端导航后关闭抽屉
                 closeAllFloatPanels(); // 导航后关闭悬浮面板
             }catch(e){ window.location.href=url; }
         }
