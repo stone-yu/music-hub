@@ -3,7 +3,7 @@ services:
     # 本地构建：用下面的 build；想用预构建镜像（打 tag 后由 GitHub Actions 自动推送到 ghcr.io）：
     # 注释掉 build、取消注释 image 即可
     build: .
-    # image: ghcr.io/stone-yu/ai-playlist:latest
+    # image: ghcr.io/stone-yu/music-hub:latest
     container_name: musichub
     restart: unless-stopped
     ports:

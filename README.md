@@ -40,7 +40,7 @@
 ```bash
 # 1. 克隆
 git clone <仓库地址>
-cd ai-playlist
+cd music-hub
 
 # 2. 创建虚拟环境并安装依赖
 python3 -m venv .venv
@@ -65,7 +65,7 @@ cp .env.example .env
 ```bash
 # 1. 克隆
 git clone <仓库地址>
-cd ai-playlist
+cd music-hub
 
 # 2. 配置环境变量
 cp .env.example .env
@@ -95,7 +95,7 @@ docker compose up -d --build  # 更新代码后重新构建部署
 ```yaml
 services:
   musichub:
-    image: ghcr.io/stone-yu/ai-playlist:latest
+    image: ghcr.io/stone-yu/music-hub:latest
     container_name: musichub
     restart: unless-stopped
     ports:
@@ -150,7 +150,7 @@ docker compose up -d
 ## 📁 项目结构
 
 ```
-ai-playlist/
+music-hub/
 ├── app.py                 # FastAPI 主应用（入口）
 ├── config.py              # 配置（环境变量加载与校验）
 ├── app/                   # 业务代码包
