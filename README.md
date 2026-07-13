@@ -1,4 +1,4 @@
-# 🎵 Navidrome AI 智能歌单生成器
+# 🎵 MusicHub
 
 从各大音乐平台搜索 / 抓取热门歌单与排行榜，自动匹配你的 Navidrome 曲库，勾选已收录歌曲一键创建带封面的歌单，或加入已有歌单。
 
@@ -94,9 +94,9 @@ docker compose up -d --build  # 更新代码后重新构建部署
 
 ```yaml
 services:
-  navidrome-ai-playlist:
+  musichub:
     image: ghcr.io/stone-yu/ai-playlist:latest
-    container_name: navidrome-ai-playlist
+    container_name: musichub
     restart: unless-stopped
     ports:
       - "8899:8899"
@@ -123,7 +123,6 @@ docker compose up -d
 ```
 
 > 首次使用需先打个 tag 触发构建：`git tag v1.0.0 && git push origin v1.0.0`。
-> 构建完成后到 GitHub → Packages 把包可见性设为 public，才能免登录拉取。
 > 构建完成后到 GitHub → Packages 把包可见性设为 public，才能免登录拉取。
 
 ## ⚙️ 环境变量

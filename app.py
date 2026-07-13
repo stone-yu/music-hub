@@ -1,5 +1,5 @@
 """
-Navidrome AI 智能歌单生成器 - 主应用
+MusicHub - 音乐中枢：搜索、匹配、下载、刮削、歌单管理
 """
 import os
 import json
@@ -34,7 +34,7 @@ from app.scraper import scrape_manager, METADATA_SOURCES as SCRAPE_SOURCES
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Navidrome AI Playlist Generator")
+app = FastAPI(title="MusicHub")
 
 # 模板和静态文件
 BASE_DIR = Path(__file__).parent

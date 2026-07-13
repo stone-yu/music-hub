@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎵 AI 歌单生成器</title>
+    <title>🎵 MusicHub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root { --bg:#0f172a; --card:rgba(255,255,255,0.04); --border:rgba(255,255,255,0.08); --accent:#6366f1; }
@@ -36,9 +36,36 @@
         .ptab:hover{color:#e5e7eb}
         .ptab.active{background:var(--accent);border-color:var(--accent);color:#fff}
         .layout{display:flex;gap:20px;max-width:1600px;margin:0 auto}
-        .sidebar{width:200px;flex-shrink:0}
+        .sidebar{width:200px;flex-shrink:0;transition:width .2s;overflow:hidden}
+        .sidebar.collapsed{width:48px}
+        .sidebar.collapsed .menu-item:not(.toggle-btn){display:none}
+        .sidebar.collapsed .toggle-btn{justify-content:center}
+        .toggle-btn{display:flex!important}
         .main{flex:1;min-width:0;padding-bottom:40px}
-        @media(max-width:768px){.layout{flex-direction:column}.sidebar{width:100%}.menu-item{display:inline-flex}}
+        /* 悬浮球 */
+        .float-ball{position:fixed;right:16px;z-index:45;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.4);font-size:20px;color:#fff;transition:all .15s}
+        .float-ball:hover{transform:scale(1.1)}
+        .float-ball-download{bottom:80px;background:#6366f1}
+        .float-ball-create{bottom:24px;background:#22c55e}
+        .float-ball-create.disabled{background:#6b7280;cursor:not-allowed}
+        .float-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;border-radius:9px;background:#ef4444;font-size:10px;display:flex;align-items:center;justify-content:center;padding:0 4px;font-weight:bold}
+        .float-badge.green{background:#22c55e}
+        .float-panel{position:fixed;right:16px;z-index:46;width:320px;max-height:60vh;overflow-y:auto;display:none;border-radius:16px}
+        .float-panel.show{display:block}
+        .float-backdrop{display:none;position:fixed;inset:0;z-index:44}
+        .float-backdrop.show{display:block}
+        /* 移动端：侧栏抽屉 */
+        .sidebar-toggle{display:none}
+        .sidebar-backdrop{display:none}
+        @media(max-width:768px){
+          .sidebar{position:fixed;left:0;top:0;bottom:0;z-index:50;width:240px;transform:translateX(-100%);transition:transform .2s;max-height:none;overflow-y:auto}
+          .sidebar.mobile-open{transform:translateX(0)}
+          .sidebar.collapsed{width:240px;overflow-y:auto}
+          .sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:49}
+          .sidebar-backdrop.show{display:block}
+          .sidebar-toggle{display:flex}
+          .float-panel{width:calc(100vw - 32px)}
+        }
         /* 横向滑动列 */
         .h-scroll{display:flex;gap:16px;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory}
         .h-scroll>*{scroll-snap-align:start;flex:0 0 320px}
@@ -47,8 +74,9 @@
 </head>
 <body class="px-5 py-4">
     <!-- 顶部栏 -->
-    <div class="max-w-[1600px] mx-auto flex items-center gap-4 mb-5">
-        <h1 class="text-lg font-bold text-white whitespace-nowrap">🎵 AI 歌单生成器</h1>
+    <div class="max-w-[1600px] mx-auto flex items-center gap-3 mb-5">
+        <button onclick="toggleSidebar()" class="sidebar-toggle items-center justify-center w-9 h-9 rounded-lg card text-white text-lg flex-shrink-0">☰</button>
+        <h1 class="text-lg font-bold text-white whitespace-nowrap">🎵 MusicHub</h1>
         <div class="flex-1 max-w-xl mx-auto">
             <input type="text" id="topSearchInput"
                 placeholder="🔍 搜索歌单主题：周杰伦、深夜emo、80后经典..."
@@ -62,9 +90,12 @@
     </div>
 
     <div class="layout">
+        <!-- 移动端遮罩 -->
+        <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeMobileSidebar()"></div>
         <!-- 左侧菜单 -->
-        <div class="sidebar flex flex-col gap-3 sticky top-4 self-start" style="max-height:calc(100vh - 2rem);overflow-y:auto">
+        <div class="sidebar flex flex-col gap-3 sticky top-4 self-start" id="sidebar" style="max-height:calc(100vh - 2rem);overflow-y:auto">
             <div class="card rounded-2xl p-2.5 flex flex-col gap-1">
+                <button onclick="toggleSidebar()" class="menu-item toggle-btn" id="sidebarToggle" style="justify-content:flex-end;font-size:.8rem">◀ 折叠</button>
                 <a href="/home" class="menu-item {{ 'active' if active=='home' else '' }}">🏠 首页</a>
                 <a href="/hot-songs" class="menu-item {{ 'active' if active=='hot-songs' else '' }}">🔥 热门歌曲</a>
                 <a href="/hot-playlists" class="menu-item {{ 'active' if active=='hot-playlists' else '' }}">🎶 热门歌单</a>
@@ -72,25 +103,39 @@
                 <a href="/import" class="menu-item {{ 'active' if active=='import' else '' }}">📋 手动粘贴</a>
                 <a href="/mine" class="menu-item {{ 'active' if active=='mine' else '' }}">🎵 我的歌单</a>
             </div>
-            <!-- 下载任务列表 -->
-            <div class="card rounded-2xl p-3">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-sm font-medium text-gray-200">⬇ 下载任务</span>
-                    <div class="flex items-center gap-2">
-                        <span id="dlTaskCount" class="text-xs text-gray-500">0</span>
-                        <button onclick="openDownloadTasksModal()" class="text-xs text-indigo-400 hover:text-indigo-300 px-1.5 py-0.5 rounded hover:bg-white/5 transition" title="展开任务列表">⤢ 展开</button>
-                    </div>
-                </div>
-                <div id="dlTaskList" class="space-y-1.5 max-h-60 overflow-y-auto">
-                    <div class="text-xs text-gray-600 text-center py-2">暂无下载任务</div>
+        </div>
+
+        <!-- 悬浮球背景遮罩 -->
+        <div class="float-backdrop" id="floatBackdrop" onclick="closeAllFloatPanels()"></div>
+        <!-- 悬浮球：下载任务 -->
+        <div class="float-ball float-ball-download" onclick="toggleFloatPanel('download')" title="下载任务">⬇<span class="float-badge" id="floatDlBadge" style="display:none">0</span></div>
+        <!-- 悬浮球：创建歌单 -->
+        <div class="float-ball float-ball-create disabled" id="floatCreateBall" onclick="toggleFloatPanel('create')" title="创建歌单">✅<span class="float-badge green" id="floatCreateBadge" style="display:none">0</span></div>
+
+        <!-- 悬浮面板：下载任务 -->
+        <div class="float-panel p-4" id="floatDownloadPanel" style="bottom:140px;background:#1e293b;border:1px solid rgba(255,255,255,0.1)">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-white">⬇ 下载任务</span>
+                <div class="flex items-center gap-2">
+                    <span id="dlTaskCount" class="text-xs text-gray-500">0</span>
+                    <button onclick="openDownloadTasksModal()" class="text-xs text-indigo-400 hover:text-indigo-300">⤢ 展开</button>
+                    <button onclick="closeAllFloatPanels()" class="text-gray-400 hover:text-white text-lg leading-none">×</button>
                 </div>
             </div>
-            <!-- 已选歌曲 + 操作 -->
-            <div class="card rounded-2xl p-3 flex flex-col gap-2">
-                <div id="selectedCount" class="text-xs text-gray-400 text-center">已选择 0 首</div>
-                <button id="globalCreateBtn" onclick="openCreateFromGlobal()" disabled class="px-3 py-2 rounded-lg text-sm font-medium transition bg-gray-700 text-gray-500 cursor-not-allowed">✅ 创建歌单</button>
-                <button id="globalAddBtn" onclick="openAddToPlaylistModal()" disabled class="px-3 py-2 rounded-lg text-sm font-medium transition bg-gray-700 text-gray-500 cursor-not-allowed">➕ 加入歌单</button>
+            <div id="dlTaskList" class="space-y-1.5 max-h-48 overflow-y-auto">
+                <div class="text-xs text-gray-600 text-center py-2">暂无下载任务</div>
             </div>
+        </div>
+
+        <!-- 悬浮面板：创建/加入歌单 -->
+        <div class="float-panel p-4" id="floatCreatePanel" style="bottom:80px;background:#1e293b;border:1px solid rgba(255,255,255,0.1)">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-white">歌单操作</span>
+                <button onclick="closeAllFloatPanels()" class="text-gray-400 hover:text-white text-lg leading-none">×</button>
+            </div>
+            <div id="selectedCount" class="text-xs text-gray-400 text-center mb-3">已选择 0 首</div>
+            <button id="globalCreateBtn" onclick="openCreateFromGlobal()" disabled class="w-full px-3 py-2 rounded-lg text-sm font-medium transition bg-gray-700 text-gray-500 cursor-not-allowed mb-2">✅ 创建歌单</button>
+            <button id="globalAddBtn" onclick="openAddToPlaylistModal()" disabled class="w-full px-3 py-2 rounded-lg text-sm font-medium transition bg-gray-700 text-gray-500 cursor-not-allowed">➕ 加入歌单</button>
         </div>
 
         <div class="main">
@@ -418,6 +463,44 @@
         checkStatus();setInterval(checkStatus,15000);
         startTaskPolling();
 
+        // ===== 侧栏折叠/移动端抽屉 =====
+        function toggleSidebar(){
+            const sb=document.getElementById('sidebar');
+            const btn=document.getElementById('sidebarToggle');
+            if(window.innerWidth<=768){
+                sb.classList.toggle('mobile-open');
+                document.getElementById('sidebarBackdrop').classList.toggle('show',sb.classList.contains('mobile-open'));
+            }else{
+                const collapsed=sb.classList.toggle('collapsed');
+                if(btn){btn.innerHTML=collapsed?'▶':'◀ 折叠';btn.style.justifyContent=collapsed?'center':'flex-end';}
+            }
+        }
+        function closeMobileSidebar(){
+            const sb=document.getElementById('sidebar');
+            sb.classList.remove('mobile-open');
+            document.getElementById('sidebarBackdrop').classList.remove('show');
+        }
+
+        // ===== 悬浮球面板 =====
+        function toggleFloatPanel(name){
+            const dlPanel=document.getElementById('floatDownloadPanel');
+            const crPanel=document.getElementById('floatCreatePanel');
+            const backdrop=document.getElementById('floatBackdrop');
+            const isDownload=name==='download';
+            const target=isDownload?dlPanel:crPanel;
+            const other=isDownload?crPanel:dlPanel;
+            const wasShow=target.classList.contains('show');
+            other.classList.remove('show');
+            target.classList.toggle('show',!wasShow);
+            backdrop.classList.toggle('show',!wasShow);
+            if(!wasShow && isDownload){loadDownloadTasks();}
+        }
+        function closeAllFloatPanels(){
+            document.getElementById('floatDownloadPanel').classList.remove('show');
+            document.getElementById('floatCreatePanel').classList.remove('show');
+            document.getElementById('floatBackdrop').classList.remove('show');
+        }
+
         async function loadThemes(){const r=await authFetch('/api/cover/themes');if(!r)return;allThemes=(await r.json()).themes||[];renderThemeButtons()}
         loadThemes();
         function renderThemeButtons(){const el=document.getElementById('cmThemeButtons');if(!el)return;el.innerHTML=`<button class="theme-btn ${selectedTheme===''?'active':''}" onclick="selectTheme('')">自动匹配</button>`;allThemes.forEach(t=>{el.innerHTML+=`<button class="theme-btn ${selectedTheme===t?'active':''}" onclick="selectTheme('${t}')">${t}</button>`})}
@@ -617,6 +700,11 @@
                 btn.disabled=true;btn.className=onCls+'bg-gray-700 text-gray-500 cursor-not-allowed';btn.textContent='✅ 创建歌单';
                 addBtn.disabled=true;addBtn.className=onCls+'bg-gray-700 text-gray-500 cursor-not-allowed';addBtn.textContent='➕ 加入歌单';
             }
+            // 同步悬浮球角标
+            const ball=document.getElementById('floatCreateBall');
+            const badge=document.getElementById('floatCreateBadge');
+            if(ball){ball.classList.toggle('disabled',n===0);}
+            if(badge){badge.textContent=n;badge.style.display=n>0?'flex':'none';}
         }
         // ===== 加入已有歌单 =====
         let addToPlaylistSongs=[];
@@ -740,6 +828,8 @@
         function renderDownloadTasks(tasks){
             const el=document.getElementById('dlTaskList');
             document.getElementById('dlTaskCount').textContent=tasks.length;
+            const dlBadge=document.getElementById('floatDlBadge');
+            if(dlBadge){dlBadge.textContent=tasks.length;dlBadge.style.display=tasks.length>0?'flex':'none';}
             if(!tasks.length){el.innerHTML='<div class="text-xs text-gray-600 text-center py-2">暂无下载任务</div>';return}
             el.innerHTML=tasks.map(t=>{
                 const rid=t.rid||'';
@@ -1295,6 +1385,8 @@
                 if(push!==false) history.pushState({url},'',url);
                 runPageInit(active);
                 window.scrollTo(0,0);
+                closeMobileSidebar(); // 移动端导航后关闭抽屉
+                closeAllFloatPanels(); // 导航后关闭悬浮面板
             }catch(e){ window.location.href=url; }
         }
         // 拦截内部链接
