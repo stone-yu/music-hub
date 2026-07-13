@@ -4,6 +4,7 @@
 """
 import re
 import json
+import time
 import logging
 from typing import List, Optional, Tuple
 import requests
@@ -178,22 +179,42 @@ def fetch_kuwo_playlist(playlist_id: str) -> Tuple[str, List[Song]]:
 
 
 def fetch_kugou_playlist(playlist_id: str) -> Tuple[str, List[Song]]:
-    """获取酷狗音乐歌单"""
+    """获取酷狗音乐歌单。special/song 接口对无 cookie 请求限流（返回"参数不合法"），
+    故用带 cookie 的 session（先访问 www.kugou.com 取 cookie）。"""
     try:
+        sess = requests.Session()
+        sess.headers.update({**HEADERS, 'Referer': 'http://www.kugou.com/'})
+        try:
+            sess.get('http://www.kugou.com/', timeout=10)  # 取 cookie
+        except Exception:
+            pass
         url = "http://mobilecdn.kugou.com/api/v3/special/song"
-        params = {'specialid': playlist_id, 'page': 1, 'pagesize': 100, 'plat': 2, 'version': 8970}
-        resp = requests.get(url, headers=HEADERS, timeout=15)
-        data = resp.json()
-        info = data.get('data', {}).get('info', [])
-
         songs = []
-        for item in info:
-            title = item.get('songname', '')
-            artist = item.get('singername', '')
-            if ' - ' in title:
-                title = title.split(' - ')[0]
-            if title and artist:
-                songs.append(Song(title=title, artist=artist, source='酷狗'))
+        for page in range(1, 5):  # 最多 4 页 × 30 = 120 首
+            params = {'specialid': playlist_id, 'page': page, 'pagesize': 30, 'version': 9108}
+            info = []
+            for attempt in range(3):  # 限流时重试
+                resp = sess.get(url, params=params, timeout=15)
+                data = resp.json()
+                if data.get('error'):  # "参数不合法" 等限流响应
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                info = data.get('data', {}).get('info', [])
+                break
+            if not info:
+                break
+            for item in info:
+                title = item.get('songname', '')
+                artist = item.get('singername', '')
+                # songname/singername 为空时，从 filename "歌手 - 歌名" 提取
+                if (not title or not artist) and item.get('filename') and ' - ' in item['filename']:
+                    parts = item['filename'].split(' - ', 1)
+                    artist = artist or parts[0].strip()
+                    title = title or parts[1].strip()
+                if title and artist:
+                    songs.append(Song(title=title, artist=artist, source='酷狗'))
+            if len(info) < 30:
+                break
 
         logger.info(f"酷狗歌单: {len(songs)} 首歌曲")
         return ('酷狗歌单', songs)

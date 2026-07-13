@@ -74,6 +74,18 @@ class NavidromeClient:
         result = self._get('ping')
         return result is not None
 
+    def start_scan(self) -> bool:
+        """触发 Navidrome 扫描音乐文件夹（索引新增文件）"""
+        result = self._get('startScan')
+        return result is not None
+
+    def get_scan_status(self) -> dict:
+        """查询扫描状态，返回 {scanning, count, folderCount, lastScan}"""
+        result = self._get('getScanStatus')
+        if not result:
+            return {}
+        return result.get('scanStatus', {})
+
     def get_all_artists(self) -> List[dict]:
         """获取所有艺术家"""
         result = self._get('getArtists')

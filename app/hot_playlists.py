@@ -9,7 +9,7 @@ parse_playlist_url 能识别的规范 URL。
 import json
 import logging
 from dataclasses import dataclass, asdict
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import requests
 
@@ -108,17 +108,57 @@ def fetch_qq_hot(limit: int = 24) -> List[HotPlaylist]:
     return playlists
 
 
+# ==================== 酷狗音乐 ====================
+def fetch_kugou_hot(limit: int = 24) -> List[HotPlaylist]:
+    """酷狗热门歌单广场（m.kugou.com/plist/index，列表+详情链路均已验证可用）"""
+    playlists = []
+    pagesize = min(limit, 30)
+    resp = _safe_get(
+        'http://m.kugou.com/plist/index',
+        headers={**HEADERS, 'Referer': 'http://www.kugou.com/'},
+        params={'json': True, 'page': 1, 'pagesize': pagesize},
+        timeout=15,
+    )
+    if not resp:
+        return playlists
+    try:
+        info = resp.json().get('plist', {}).get('list', {}).get('info', [])
+        for item in info:
+            pid = str(item.get('specialid', ''))
+            if not pid:
+                continue
+            # 酷狗封面 URL 含 {size} 占位符，替换为实际尺寸
+            cover = item.get('imgurl', '').replace('http://', 'https://')
+            cover = cover.replace('{size}', '480')
+            playlists.append(HotPlaylist(
+                id=pid,
+                name=item.get('specialname', '').strip(),
+                cover_url=cover,
+                source='酷狗',
+                url=f'https://www.kugou.com/yy/html/special/{pid}.html',
+                play_count=item.get('playcount', 0) or 0,
+                track_count=item.get('songcount', 0) or 0,
+            ))
+    except Exception as e:
+        logger.warning(f"酷狗热门歌单解析失败: {e}")
+    logger.info(f"酷狗热门歌单: {len(playlists)} 个")
+    return playlists[:limit]
+
+
 # ==================== 注册表 ====================
 # 只注册「列表+详情」整条链路验证可用的平台。新增平台：实现 fetch_xxx_hot 并加到这里。
 HOT_PLAYLIST_FETCHERS = [
     ("网易云", fetch_netease_hot),
+    ("酷狗", fetch_kugou_hot),
 ]
 
 
-def fetch_all_hot(limit_per_source: int = 24) -> Dict[str, List[HotPlaylist]]:
-    """获取所有已注册平台的热门歌单，按平台分组返回"""
+def fetch_all_hot(limit_per_source: int = 24, sources: Optional[List[str]] = None) -> Dict[str, List[HotPlaylist]]:
+    """获取所有(或指定)平台的热门歌单，按平台分组返回"""
     results = {}
     for name, fetcher in HOT_PLAYLIST_FETCHERS:
+        if sources and name not in sources:
+            continue
         try:
             results[name] = fetcher(limit_per_source)
         except Exception as e:

@@ -25,7 +25,8 @@ from searchers import search_all, search_all_merged, Song, HEADERS
 from app.navidrome_client import NavidromeClient
 from app.cover_generator import generate_cover, THEME_COLORS
 from app.playlist_parser import fetch_playlist_from_url, parse_playlist_url
-from app.hot_playlists import fetch_all_hot
+from app.hot_playlists import fetch_all_hot, HOT_PLAYLIST_FETCHERS
+from app.playlist_search import search_all_playlists
 from app.hot_songs import get_all_ranks, fetch_rank_songs, RANK_PROVIDERS
 from app.downloader import download_manager, DOWNLOAD_SOURCES, kuwo_search_candidates, MAX_TASKS
 from app.scraper import scrape_manager, METADATA_SOURCES as SCRAPE_SOURCES
@@ -49,6 +50,28 @@ navidrome = NavidromeClient(config.NAVIDROME_URL, config.NAVIDROME_USER, config.
 # 歌曲库缓存
 library_cache = {"songs": [], "last_update": 0, "loading": False}
 CACHE_TTL = 600  # 10分钟刷新一次
+
+# 聚合接口缓存：外部音乐接口(网易云/酷狗/QQ)慢变，列表类结果短 TTL 缓存，
+# 避免每次切页都重新串行抓取。key=接口路径，value=(过期时间戳, 数据)。
+_api_cache = {}
+_api_cache_lock = threading.Lock()
+HOT_API_TTL = 60  # 榜单/热门歌单 60s
+
+
+def _cache_get(key):
+    """返回缓存数据(未过期)或 None"""
+    with _api_cache_lock:
+        item = _api_cache.get(key)
+        if item and item[0] > time.time():
+            return item[1]
+        if item:
+            _api_cache.pop(key, None)  # 过期清理
+    return None
+
+
+def _cache_set(key, value, ttl=HOT_API_TTL):
+    with _api_cache_lock:
+        _api_cache[key] = (time.time() + ttl, value)
 
 
 # ==================== 中间件 ====================
@@ -75,17 +98,17 @@ def _render_app(request: Request, active: str = "home"):
     return templates.TemplateResponse("app.html", {"request": request, "active": active})
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+def index(request: Request):
     if is_authenticated(request):
         return RedirectResponse(url="/home")
     return RedirectResponse(url="/login")
 
 @app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request, error: str = ""):
+def login_page(request: Request, error: str = ""):
     return templates.TemplateResponse("login.html", {"request": request, "error": error})
 
 @app.post("/login")
-async def do_login(request: Request, password: str = Form(...)):
+def do_login(request: Request, password: str = Form(...)):
     if password == config.LOGIN_PASSWORD:
         token = secrets.token_hex(32)
         active_sessions[token] = time.time()
@@ -104,57 +127,57 @@ def _require_login(request: Request):
     return None
 
 @app.get("/home", response_class=HTMLResponse)
-async def page_home(request: Request):
+def page_home(request: Request):
     r = _require_login(request);
     if r: return r
     return _render_app(request, "home")
 
 @app.get("/hot-songs", response_class=HTMLResponse)
-async def page_hot_songs(request: Request):
+def page_hot_songs(request: Request):
     r = _require_login(request)
     if r: return r
     return _render_app(request, "hot-songs")
 
 @app.get("/hot-playlists", response_class=HTMLResponse)
-async def page_hot_playlists(request: Request):
+def page_hot_playlists(request: Request):
     r = _require_login(request)
     if r: return r
     return _render_app(request, "hot-playlists")
 
 @app.get("/search", response_class=HTMLResponse)
-async def page_search(request: Request):
+def page_search(request: Request):
     r = _require_login(request)
     if r: return r
     return _render_app(request, "search")
 
 @app.get("/import", response_class=HTMLResponse)
-async def page_import(request: Request):
+def page_import(request: Request):
     r = _require_login(request)
     if r: return r
     return _render_app(request, "import")
 
 @app.get("/mine", response_class=HTMLResponse)
-async def page_mine(request: Request):
+def page_mine(request: Request):
     r = _require_login(request)
     if r: return r
     return _render_app(request, "mine")
 
 @app.get("/playlist", response_class=HTMLResponse)
-async def page_playlist(request: Request):
+def page_playlist(request: Request):
     """歌单详情页：query 参数 url= 或 source=&rank_id= 标识来源"""
     r = _require_login(request)
     if r: return r
     return _render_app(request, "detail")
 
 @app.get("/app", response_class=HTMLResponse)
-async def app_page_legacy(request: Request):
+def app_page_legacy(request: Request):
     """旧链接兼容，重定向到首页"""
     if not is_authenticated(request):
         return RedirectResponse(url="/login")
     return RedirectResponse(url="/home")
 
 @app.get("/logout")
-async def logout(request: Request):
+def logout(request: Request):
     token = get_session_token(request)
     if token and token in active_sessions:
         del active_sessions[token]
@@ -183,7 +206,7 @@ class PlaylistUrlRequest(BaseModel):
     url: str
 
 @app.get("/api/status")
-async def api_status(request: Request):
+def api_status(request: Request):
     require_auth(request)
     connected = navidrome.ping()
     return {
@@ -193,7 +216,7 @@ async def api_status(request: Request):
     }
 
 @app.post("/api/search")
-async def api_search(req: SearchRequest, request: Request):
+def api_search(req: SearchRequest, request: Request):
     require_auth(request)
     if not req.query.strip():
         raise HTTPException(400, "搜索关键词不能为空")
@@ -229,7 +252,7 @@ async def api_search(req: SearchRequest, request: Request):
         return {"results": results, "total": total, "query": req.query}
 
 @app.post("/api/match")
-async def api_match(req: MatchRequest, request: Request):
+def api_match(req: MatchRequest, request: Request):
     require_auth(request)
     if not req.query.strip():
         raise HTTPException(400, "搜索关键词不能为空")
@@ -276,7 +299,7 @@ async def api_match(req: MatchRequest, request: Request):
     }
 
 @app.post("/api/playlist/from-url")
-async def api_playlist_from_url(req: PlaylistUrlRequest, request: Request):
+def api_playlist_from_url(req: PlaylistUrlRequest, request: Request):
     """从歌单链接获取歌曲并匹配曲库"""
     require_auth(request)
     if not req.url.strip():
@@ -318,8 +341,26 @@ async def api_playlist_from_url(req: PlaylistUrlRequest, request: Request):
         "unmatched_count": len(unmatched),
     }
 
+
+class PlaylistSearchRequest(BaseModel):
+    query: str
+    sources: list = []
+
+
+@app.post("/api/playlist/search")
+def api_playlist_search(req: PlaylistSearchRequest, request: Request):
+    """按关键词搜各平台歌单，返回歌单列表(含规范 url，点击走 /api/playlist/from-url 导入)"""
+    require_auth(request)
+    if not req.query.strip():
+        raise HTTPException(400, "搜索关键词不能为空")
+    grouped = search_all_playlists(req.query, req.sources or None)
+    return {
+        "playlists": {name: [p.to_dict() for p in items] for name, items in grouped.items()}
+    }
+
+
 @app.post("/api/playlist/create")
-async def api_create_playlist(req: CreatePlaylistRequest, request: Request):
+def api_create_playlist(req: CreatePlaylistRequest, request: Request):
     require_auth(request)
     if not req.name.strip():
         raise HTTPException(400, "歌单名称不能为空")
@@ -372,7 +413,7 @@ class AddToPlaylistRequest(BaseModel):
     song_ids: list
 
 @app.post("/api/playlist/add")
-async def api_add_to_playlist(req: AddToPlaylistRequest, request: Request):
+def api_add_to_playlist(req: AddToPlaylistRequest, request: Request):
     """将歌曲加入已有 Navidrome 歌单，自动去重"""
     require_auth(request)
     if not req.song_ids:
@@ -388,7 +429,7 @@ class DownloadStatusRequest(BaseModel):
     songs: list  # [{title, artist}]
 
 @app.post("/api/download")
-async def api_download(req: DownloadRequest, request: Request):
+def api_download(req: DownloadRequest, request: Request):
     """下载一首未匹配的歌曲到 DOWNLOAD_DIR（后台执行）"""
     require_auth(request)
     if not req.title.strip():
@@ -405,7 +446,7 @@ class DownloadByRidRequest(BaseModel):
     rid: str
 
 @app.post("/api/download/by-rid")
-async def api_download_by_rid(req: DownloadByRidRequest, request: Request):
+def api_download_by_rid(req: DownloadByRidRequest, request: Request):
     """用户从候选列表选定 rid 后下载"""
     require_auth(request)
     if not req.rid.strip():
@@ -418,7 +459,7 @@ async def api_download_by_rid(req: DownloadByRidRequest, request: Request):
     return {"status": task.get('status', 'downloading'), "title": req.title, "artist": req.artist}
 
 @app.get("/api/download/search")
-async def api_download_search(request: Request, keyword: str = ""):
+def api_download_search(request: Request, keyword: str = ""):
     """搜索下载候选列表（含大小，用于前端选择）"""
     require_auth(request)
     if not keyword.strip():
@@ -427,7 +468,7 @@ async def api_download_search(request: Request, keyword: str = ""):
     return {"candidates": candidates}
 
 @app.get("/api/download/preview")
-async def api_download_preview(request: Request, rid: str = ""):
+def api_download_preview(request: Request, rid: str = ""):
     """试听代理：转发酷我音频流（带 Referer，支持 Range 分段播放）"""
     require_auth(request)
     if not rid.strip():
@@ -453,7 +494,7 @@ async def api_download_preview(request: Request, rid: str = ""):
         raise HTTPException(502, "试听失败")
 
 @app.get("/api/download/play")
-async def api_download_play(request: Request, title: str = "", artist: str = ""):
+def api_download_play(request: Request, title: str = "", artist: str = ""):
     """试听本地文件：优先刮削后路径，其次下载文件路径（支持 Range）"""
     require_auth(request)
     if not title.strip():
@@ -488,20 +529,20 @@ async def api_download_play(request: Request, title: str = "", artist: str = "")
                     headers={'Accept-Ranges': 'bytes', 'Content-Length': str(file_size)})
 
 @app.post("/api/download/status")
-async def api_download_status(req: DownloadStatusRequest, request: Request):
+def api_download_status(req: DownloadStatusRequest, request: Request):
     """批量查询下载状态"""
     require_auth(request)
     return {"statuses": download_manager.get_all_status(req.songs or [])}
 
 @app.get("/api/download/sources")
-async def api_download_sources(request: Request):
+def api_download_sources(request: Request):
     """可用下载源"""
     require_auth(request)
     return {"sources": list(DOWNLOAD_SOURCES.keys()), "current": config.DOWNLOAD_SOURCE,
             "download_dir": config.DOWNLOAD_DIR}
 
 @app.get("/api/download/tasks")
-async def api_download_tasks(request: Request):
+def api_download_tasks(request: Request):
     """获取所有下载任务列表（合并刮削状态，供展开弹框展示）"""
     require_auth(request)
     tasks = download_manager.list_all()
@@ -524,7 +565,7 @@ class DownloadRemoveRequest(BaseModel):
     delete_file: bool = False
 
 @app.post("/api/download/remove")
-async def api_download_remove(req: DownloadRemoveRequest, request: Request):
+def api_download_remove(req: DownloadRemoveRequest, request: Request):
     """删除一个下载任务记录，可选删除已下载文件"""
     require_auth(request)
     ok = download_manager.remove(req.title.strip(), req.artist.strip(), req.delete_file)
@@ -542,7 +583,7 @@ class ScrapeStatusRequest(BaseModel):
     songs: list  # [{title, artist}]
 
 @app.post("/api/download/scrape")
-async def api_scrape(req: ScrapeRequest, request: Request):
+def api_scrape(req: ScrapeRequest, request: Request):
     """触发单首歌曲刮削（后台执行：搜元数据→写标签→整理）"""
     require_auth(request)
     if not req.title.strip():
@@ -558,7 +599,7 @@ async def api_scrape(req: ScrapeRequest, request: Request):
     return {"status": task.get('status', 'scraping'), "title": req.title, "artist": req.artist}
 
 @app.post("/api/download/scrape/batch")
-async def api_scrape_batch(req: ScrapeBatchRequest, request: Request):
+def api_scrape_batch(req: ScrapeBatchRequest, request: Request):
     """批量刮削"""
     require_auth(request)
     submitted = 0
@@ -577,13 +618,13 @@ async def api_scrape_batch(req: ScrapeBatchRequest, request: Request):
     return {"submitted": submitted}
 
 @app.post("/api/download/scrape/status")
-async def api_scrape_status(req: ScrapeStatusRequest, request: Request):
+def api_scrape_status(req: ScrapeStatusRequest, request: Request):
     """批量查询刮削状态"""
     require_auth(request)
     return {"statuses": scrape_manager.get_all_status(req.songs or [])}
 
 @app.get("/api/download/scrape/sources")
-async def api_scrape_sources(request: Request):
+def api_scrape_sources(request: Request):
     """可用刮削数据源"""
     require_auth(request)
     return {"sources": list(SCRAPE_SOURCES.keys()), "scraped_dir": config.SCRAPED_DIR}
@@ -605,26 +646,26 @@ async def api_cover_preview(request: Request):
         raise HTTPException(500, "封面生成失败")
 
 @app.get("/api/cover/themes")
-async def api_cover_themes(request: Request):
+def api_cover_themes(request: Request):
     """获取可用的封面主题列表"""
     require_auth(request)
     return {"themes": list(THEME_COLORS.keys())}
 
 @app.get("/api/playlists")
-async def api_playlists(request: Request):
+def api_playlists(request: Request):
     require_auth(request)
     playlists = navidrome.get_playlists()
     return {"playlists": playlists}
 
 @app.get("/api/playlists/{playlist_id}/songs")
-async def api_playlist_songs(playlist_id: str, request: Request):
+def api_playlist_songs(playlist_id: str, request: Request):
     """获取某 Navidrome 歌单内的歌曲（只读查看）"""
     require_auth(request)
     songs = navidrome.get_playlist_songs(playlist_id)
     return {"songs": [s.__dict__ for s in songs]}
 
 @app.get("/api/cover/navidrome/{cover_id}")
-async def api_navidrome_cover(cover_id: str, request: Request):
+def api_navidrome_cover(cover_id: str, request: Request):
     """代理 Navidrome 歌单封面（需要 Subsonic 认证，前端无法直接拼 URL）"""
     require_auth(request)
     data = navidrome.get_cover_art(cover_id)
@@ -633,25 +674,44 @@ async def api_navidrome_cover(cover_id: str, request: Request):
     return Response(content=data, media_type="image/jpeg")
 
 @app.get("/api/hot-playlists")
-async def api_hot_playlists(request: Request):
+def api_hot_playlists(request: Request, refresh: str = ""):
     """获取各平台热门歌单列表，点击后用其中的 url 走 /api/playlist/from-url 导入"""
     require_auth(request)
+    if refresh:
+        _api_cache.pop('hot_playlists', None)
+    else:
+        cached = _cache_get('hot_playlists')
+        if cached is not None:
+            return cached
     grouped = fetch_all_hot()
-    return {
+    data = {
         "playlists": {
             name: [p.to_dict() for p in items]
             for name, items in grouped.items()
         }
     }
+    # 完整性校验：平台数不达标(有平台抓取失败)则不缓存，下次自动重试
+    if sum(1 for v in data["playlists"].values() if v) >= len(HOT_PLAYLIST_FETCHERS):
+        _cache_set('hot_playlists', data)
+    return data
 
 @app.get("/api/ranks")
-async def api_ranks(request: Request):
+def api_ranks(request: Request, refresh: str = ""):
     """获取各平台排行榜列表，按平台分组"""
     require_auth(request)
-    return {"ranks": get_all_ranks()}
+    if refresh:
+        _api_cache.pop('ranks', None)
+    else:
+        cached = _cache_get('ranks')
+        if cached is not None:
+            return cached
+    data = {"ranks": get_all_ranks()}
+    if sum(1 for v in data["ranks"].values() if v) >= len(RANK_PROVIDERS):
+        _cache_set('ranks', data)
+    return data
 
 @app.get("/api/rank/songs")
-async def api_rank_songs(request: Request, source: str = "", rank_id: str = "", limit: int = 100):
+def api_rank_songs(request: Request, source: str = "", rank_id: str = "", limit: int = 100):
     """取某平台某榜单的歌曲，并标注每首是否已在曲库"""
     require_auth(request)
     if not source or not rank_id:
@@ -665,37 +725,110 @@ async def api_rank_songs(request: Request, source: str = "", rank_id: str = "", 
         "songs": annotated,
     }
 
+def _build_home_songs_source(source):
+    """取某平台第一个榜单的前5首。返回原始歌曲 list(不含曲库匹配)。"""
+    try:
+        ranks = RANK_PROVIDERS[source]["ranks"]()
+        if ranks:
+            songs = fetch_rank_songs(source, ranks[0].id, 5)
+            return [{"title": s.title, "artist": s.artist, "album": s.album, "source": s.source} for s in songs]
+    except Exception as e:
+        logger.error(f"首页[{source}]榜单失败: {e}")
+    return []
+
+
+def _annotate_home_songs(raw):
+    """对缓存的原始歌曲按当前曲库实时匹配，返回带 in_library 的结果。"""
+    result = {}
+    for source, items in raw.items():
+        songs = [Song(title=i["title"], artist=i["artist"], album=i.get("album", ""), source=i.get("source", "")) for i in items]
+        result[source] = _annotate_songs(songs)
+    return result
+
+
+def _build_home_playlists_source(name):
+    """取某平台 top5 热门歌单"""
+    for pname, fetcher in HOT_PLAYLIST_FETCHERS:
+        if pname == name:
+            try:
+                return [p.to_dict() for p in fetcher(5)]
+            except Exception as e:
+                logger.error(f"[{name}] 获取热门歌单失败: {e}")
+                return []
+    return []
+
+
 @app.get("/api/home")
-async def api_home(request: Request):
-    """首页聚合：各平台 top5 热门歌曲 + top5 热门歌单"""
+def api_home(request: Request, refresh: str = "", song_platforms: str = "", playlist_platforms: str = ""):
+    """首页聚合：各平台 top5 热门歌曲 + top5 热门歌单。
+    song_platforms/playlist_platforms: 逗号分隔的平台名，只请求这些平台(为空则取全部已注册平台)。
+    refresh: songs|playlists|all，强制刷新对应部分并清其缓存。
+    注：按平台独立缓存外部抓取的原始数据；曲库匹配(in_library)每次请求按当前曲库实时计算，不缓存。"""
     require_auth(request)
-    # 各平台取第一个榜单的前5首
-    top_songs = {}
-    for source in RANK_PROVIDERS:
-        try:
-            ranks = RANK_PROVIDERS[source]["ranks"]()
-            if ranks:
-                songs = fetch_rank_songs(source, ranks[0].id, 5)
-                top_songs[source] = _annotate_songs(songs)
-        except Exception as e:
-            logger.error(f"首页[{source}]榜单失败: {e}")
-            top_songs[source] = []
-    # 各平台 top5 热门歌单
-    hot = fetch_all_hot(limit_per_source=5)
-    top_playlists = {name: [p.to_dict() for p in items] for name, items in hot.items()}
+    def parse(s, all_names):
+        ps = [x.strip() for x in s.split(',') if x.strip()]
+        return [p for p in ps if p in all_names] or list(all_names)
+    song_sources = parse(song_platforms, RANK_PROVIDERS.keys())
+    playlist_sources = parse(playlist_platforms, [n for n, _ in HOT_PLAYLIST_FETCHERS])
+
+    # 热门歌曲：按平台独立缓存
+    raw_songs = {}
+    for source in song_sources:
+        key = f'home_songs:{source}'
+        if refresh in ('songs', 'all'):
+            _api_cache.pop(key, None)
+        cached = _cache_get(key)
+        if cached is not None:
+            raw_songs[source] = cached
+        else:
+            data = _build_home_songs_source(source)
+            if data:  # 只缓存非空结果，失败不缓存以便下次重试
+                _cache_set(key, data)
+            raw_songs[source] = data
+    top_songs = _annotate_home_songs(raw_songs)
+
+    # 热门歌单：按平台独立缓存
+    top_playlists = {}
+    for name in playlist_sources:
+        key = f'home_playlists:{name}'
+        if refresh in ('playlists', 'all'):
+            _api_cache.pop(key, None)
+        cached = _cache_get(key)
+        if cached is not None:
+            top_playlists[name] = cached
+        else:
+            data = _build_home_playlists_source(name)
+            if data:
+                _cache_set(key, data)
+            top_playlists[name] = data
     return {"top_songs": top_songs, "top_playlists": top_playlists}
 
 # 允许代理的封面图域名白名单，避免被当作开放 SSRF
 _COVER_HOST_WHITELIST = (
     'music.126.net',      # 网易云封面 CDN
     'qpic.y.qq.com',      # QQ音乐封面
+    'p.qpic.cn',          # QQ音乐封面 CDN（搜索结果）
     'y.gtimg.cn',
     'mobilecdn.kugou.com',
+    'imgessl.kugou.com',  # 酷狗封面 CDN
+    'imge.kugou.com',     # 酷狗封面 CDN（备用域名）
     'kuwo.cn',
+    'kwcdn.kuwo.cn',      # 酷我封面 CDN
+    'img1.kuwo.cn',       # 酷我封面 CDN（备用域名）
 )
 
+@app.get("/api/home/platforms")
+def api_home_platforms(request: Request):
+    """返回首页可用的歌曲平台与歌单平台列表(供设置页勾选)"""
+    require_auth(request)
+    return {
+        "song_platforms": list(RANK_PROVIDERS.keys()),
+        "playlist_platforms": [name for name, _ in HOT_PLAYLIST_FETCHERS],
+    }
+
+
 @app.get("/api/cover/proxy")
-async def api_cover_proxy(request: Request, url: str = ""):
+def api_cover_proxy(request: Request, url: str = ""):
     """代理封面图：规避热链 Referer 限制与 http/https 混合内容问题"""
     require_auth(request)
     url = (url or "").strip()
@@ -718,10 +851,10 @@ async def api_cover_proxy(request: Request, url: str = ""):
         raise HTTPException(502, "封面获取失败")
 
 @app.post("/api/library/refresh")
-async def api_refresh_library(request: Request):
+def api_refresh_library(request: Request):
     require_auth(request)
-    _refresh_library()
-    return {"status": "ok", "count": len(library_cache.get("songs", []))}
+    _refresh_library(scan_first=True)
+    return {"status": "ok", "scanning": library_cache.get("loading", False)}
 
 
 # ==================== 辅助函数 ====================
@@ -803,13 +936,26 @@ def _annotate_songs(songs):
         result.append(item)
     return result
 
-def _refresh_library():
-    """刷新歌曲库（后台线程）"""
+def _refresh_library(scan_first=False):
+    """刷新歌曲库（后台线程）。scan_first=True 时先触发 Navidrome 扫描文件夹，扫描完成后再重载缓存。"""
     if library_cache.get("loading"):
         return
     library_cache["loading"] = True
     def _do_refresh():
         try:
+            if scan_first:
+                try:
+                    logger.info("触发 Navidrome 扫描...")
+                    navidrome.start_scan()
+                    # 轮询扫描状态，最多等 120 秒
+                    for _ in range(120):
+                        time.sleep(1)
+                        st = navidrome.get_scan_status()
+                        if not st or not st.get("scanning"):
+                            break
+                    logger.info("Navidrome 扫描完成，开始重载缓存")
+                except Exception as e:
+                    logger.warning(f"触发扫描失败，直接重载缓存: {e}")
             logger.info("正在刷新歌曲库...")
             songs = navidrome.get_all_songs()
             library_cache["songs"] = songs

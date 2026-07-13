@@ -5,6 +5,7 @@
 """
 import json
 import logging
+import time
 from dataclasses import dataclass, asdict
 from typing import List
 
@@ -39,25 +40,36 @@ def netease_ranks() -> List[Rank]:
     return list(NETEASE_RANKS)
 
 def fetch_netease_rank_songs(rank_id: str, limit: int = 100) -> List[Song]:
-    resp = _safe_get(
-        f'http://music.163.com/api/playlist/detail?id={rank_id}',
-        headers={**HEADERS, 'Referer': 'https://music.163.com/'},
-        timeout=15,
-    )
-    if not resp:
-        return []
-    songs = []
-    try:
-        result = resp.json().get('result', resp.json().get('playlist', {}))
-        for track in result.get('tracks', [])[:limit]:
-            title = track.get('name', '')
-            artists = '/'.join([a.get('name', '') for a in track.get('artists', track.get('ar', []))])
-            album = track.get('album', track.get('al', {})).get('name', '')
-            if title and artists:
-                songs.append(Song(title=title, artist=artists, album=album, source='网易'))
-    except Exception as e:
-        logger.warning(f"网易云榜单歌曲解析失败: {e}")
-    return songs
+    # 网易云 playlist/detail 首次请求偶发返回空 tracks，重试一次
+    for attempt in range(2):
+        resp = _safe_get(
+            f'http://music.163.com/api/playlist/detail?id={rank_id}',
+            headers={**HEADERS, 'Referer': 'https://music.163.com/'},
+            timeout=15,
+        )
+        if not resp:
+            return []
+        songs = []
+        try:
+            data = resp.json()
+            result = data.get('result', data.get('playlist', {}))
+            tracks = result.get('tracks', [])
+            for track in tracks[:limit]:
+                title = track.get('name', '')
+                artists = '/'.join([a.get('name', '') for a in track.get('artists', track.get('ar', []))])
+                album = track.get('album', track.get('al', {})).get('name', '')
+                if title and artists:
+                    songs.append(Song(title=title, artist=artists, album=album, source='网易'))
+            if songs:
+                return songs
+        except Exception as e:
+            logger.warning(f"网易云榜单歌曲解析失败: {e}")
+            return []
+        # 空结果重试一次（网易云偶发空响应）
+        if attempt == 0:
+            logger.info(f"网易云榜单 {rank_id} 首次返回空，重试")
+            time.sleep(0.5)
+    return []
 
 
 # ==================== QQ音乐 ====================

@@ -63,6 +63,22 @@
         .ptab:hover{color:var(--text);border-color:var(--border-strong)}
         .ptab.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 8px var(--accent-glow)}
         .topbar{position:sticky;top:0;z-index:50;background:var(--bg);backdrop-filter:blur(12px);padding:14px 20px;margin:-16px -20px 18px;border-bottom:1px solid var(--border)}
+        .profile-menu{position:absolute;right:0;top:calc(100% + 8px);min-width:160px;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.4);padding:6px;z-index:60;display:none}
+        .profile-menu.show{display:block}
+        .profile-menu-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--text);transition:background .15s}
+        .profile-menu-item:hover{background:var(--border)}
+        .profile-menu-danger{color:#f87171}
+        .profile-menu-danger:hover{background:rgba(248,113,113,0.12)}
+        .profile-menu-divider{height:1px;background:var(--border);margin:4px 0}
+        .setting-switch{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0;cursor:pointer}
+        .setting-switch input{opacity:0;width:0;height:0}
+        .setting-slider{position:absolute;inset:0;background:#475569;border-radius:999px;transition:.2s}
+        .setting-slider:before{content:"";position:absolute;height:18px;width:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+        .setting-switch input:checked+.setting-slider{background:#6366f1}
+        .setting-switch input:checked+.setting-slider:before{transform:translateX(20px)}
+        .spin{animation:spin 1s linear infinite}
+        @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+        .refresh-spin-btn.spinning svg{animation:spin .8s linear infinite}
         .brand{display:flex;align-items:center;gap:10px;cursor:pointer;border:none;background:transparent;padding:0;flex-shrink:0}
         @media(min-width:769px){
             .brand{position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:1}
@@ -206,17 +222,39 @@
                 <span class="brand-title">MusicHub</span>
             </button>
             <button onclick="toggleSidebar()" class="brand-expand" id="brandExpand" title="展开菜单">☰</button>
-            <div class="flex-1 max-w-xl mx-auto">
+            <div class="flex-1 max-w-xl mx-auto flex items-center gap-1.5">
+                <div class="flex items-center card rounded-lg p-0.5 shrink-0">
+                    <button id="topModeSong" onclick="setTopSearchMode('song')" class="px-2.5 py-1 rounded-md text-xs font-medium transition">单曲</button>
+                    <button id="topModePlaylist" onclick="setTopSearchMode('playlist')" class="px-2.5 py-1 rounded-md text-xs font-medium transition">歌单</button>
+                </div>
                 <input type="text" id="topSearchInput"
-                    placeholder="🔍 搜索歌单主题：周杰伦、深夜emo、80后经典..."
-                    class="w-full px-4 py-2 rounded-lg card text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50"
+                    placeholder="🔍 搜索歌曲：周杰伦、深夜emo、80后经典..."
+                    class="flex-1 px-4 py-2 rounded-lg card text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50"
                     style="color:var(--text)"
                     onkeydown="if(event.key==='Enter') topSearch()">
             </div>
             <div class="flex items-center gap-3 ml-auto whitespace-nowrap">
+                <button onclick="refreshLibrary()" id="libraryRefreshBtn" class="text-sm w-8 h-8 rounded-lg card flex items-center justify-center transition hover:bg-white/10" title="刷新曲库（扫描新歌曲）">
+                    <svg id="libraryRefreshIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted)"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                </button>
                 <span id="status-indicator" class="text-sm" style="color:var(--text-muted)">检查连接中...</span>
                 <button onclick="toggleTheme()" id="themeToggle" class="text-sm w-8 h-8 rounded-lg card flex items-center justify-center transition" title="切换主题">🌙</button>
-                <a href="/logout" class="text-sm hover:opacity-70 transition" style="color:var(--text-muted)">退出</a>
+                <div class="relative" id="profileWrap">
+                    <button onclick="toggleProfileMenu(event)" id="profileBtn" class="text-sm w-8 h-8 rounded-lg card flex items-center justify-center transition hover:bg-white/10" title="个人中心">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted)"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+                    </button>
+                    <div id="profileMenu" class="profile-menu">
+                        <div class="profile-menu-item" onclick="openSettings()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.62.78 1.05 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                            <span>设置</span>
+                        </div>
+                        <div class="profile-menu-divider"></div>
+                        <div class="profile-menu-item profile-menu-danger" onclick="window.location.href='/logout'">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                            <span>退出</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -277,15 +315,25 @@
         <div id="view-home">
             <div class="card rounded-2xl p-5 mb-5">
                 <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-white font-semibold">🔥 各平台热歌 Top5</h2>
-                    <span class="text-xs text-gray-500">绿色✓已在曲库 · 左右滑动查看各平台</span>
+                    <h2 class="text-white font-semibold">🔥 热歌 Top5</h2>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-gray-500 hidden sm:inline">绿色✓已在曲库 · 左右滑动查看各平台</span>
+                        <button id="refreshHomeSongsBtn" onclick="loadHome('songs')" title="强制刷新" class="text-gray-400 hover:text-white transition refresh-spin-btn">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114.93-3M20 15a8 8 0 01-14.93 3"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div id="homeTopSongs" class="space-y-4"><div class="text-center text-gray-500 text-sm py-8">加载中...</div></div>
             </div>
             <div class="card rounded-2xl p-5">
                 <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-white font-semibold">🎶 各平台热榜歌单 Top5</h2>
-                    <span class="text-xs text-gray-500">点击查看并导入</span>
+                    <h2 class="text-white font-semibold">🎶 热榜歌单 Top5</h2>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-gray-500">点击查看并导入</span>
+                        <button id="refreshHomePlaylistsBtn" onclick="loadHome('playlists')" title="强制刷新" class="text-gray-400 hover:text-white transition refresh-spin-btn">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114.93-3M20 15a8 8 0 01-14.93 3"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div id="homeTopPlaylists" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"><div class="text-center text-gray-500 text-sm py-8 w-full">加载中...</div></div>
             </div>
@@ -296,7 +344,7 @@
         <!-- ========== 热门歌曲 ========== -->
         <div id="view-hot-songs">
             <div class="card rounded-2xl p-5 mb-5">
-                <h2 class="text-white font-semibold mb-4">🔥 各平台歌曲排行榜</h2>
+                <h2 class="text-white font-semibold mb-4">🔥 歌曲排行榜</h2>
                 <div id="rankTabs" class="flex flex-wrap gap-2 mb-3"></div>
                 <div id="rankList" class="flex flex-wrap gap-2"></div>
             </div>
@@ -329,7 +377,7 @@
         <div id="view-hot-playlists">
             <div class="card rounded-2xl p-5">
                 <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-white font-semibold">🎶 各平台热门歌单</h2>
+                    <h2 class="text-white font-semibold">🎶 热门歌单</h2>
                 </div>
                 <div id="hotPlaylistsTabs" class="flex flex-wrap gap-2 mb-4"></div>
                 <div id="hotPlaylistsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -340,16 +388,20 @@
         {% endif %}
 
         {% if active == 'search' %}
-        <!-- ========== 搜索歌单 ========== -->
+        <!-- ========== 搜索 ========== -->
         <div id="view-search">
             <div class="card rounded-2xl p-5 mb-5">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="flex items-center card rounded-lg p-0.5 shrink-0">
+                        <button id="pageModeSong" onclick="setSearchMode('song')" class="px-2.5 py-1 rounded-md text-xs font-medium transition bg-indigo-600 text-white">单曲</button>
+                        <button id="pageModePlaylist" onclick="setSearchMode('playlist')" class="px-2.5 py-1 rounded-md text-xs font-medium transition text-gray-400">歌单</button>
+                    </div>
+                </div>
                 <div class="flex flex-col md:flex-row gap-3">
-                    <input type="text" id="searchInput" placeholder="输入歌单主题，如：民谣、周杰伦精选、深夜emo..."
+                    <input type="text" id="searchInput" placeholder="输入关键词搜歌曲，如：周杰伦、民谣、深夜emo..."
                         class="flex-1 px-4 py-2.5 rounded-lg card text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50"
                         onkeydown="if(event.key==='Enter') startSearch()">
-                    <input type="text" id="playlistName" placeholder="歌单名称（可选）"
-                        class="w-48 px-4 py-2.5 rounded-lg card text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50">
-                    <button onclick="startSearch()" id="searchBtn" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition whitespace-nowrap">🔍 搜索匹配</button>
+                    <button onclick="startSearch()" id="searchBtn" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition whitespace-nowrap">🔍 搜索</button>
                 </div>
                 <div class="mt-3 flex flex-wrap gap-3 items-center text-sm">
                     <span class="text-gray-400">来源：</span>
@@ -527,11 +579,15 @@
                 <h2 class="text-lg font-bold text-white">下载任务</h2>
                 <button onclick="closeDownloadTaskModal()" class="text-gray-400 hover:text-white text-xl leading-none">×</button>
             </div>
-            <div id="taskModalInfo" class="text-sm text-gray-300 mb-1"></div>
-            <div id="taskModalStatus" class="text-xs text-gray-500 mb-4"></div>
+            <div id="taskModalInfo" class="text-sm text-gray-300 mb-2"></div>
+            <div class="text-xs space-y-1 mb-4">
+                <div class="flex items-center gap-2"><span class="text-gray-500 w-10 flex-shrink-0">下载</span><span id="taskModalDlStatus" class="text-gray-300"></span></div>
+                <div class="flex items-center gap-2"><span class="text-gray-500 w-10 flex-shrink-0">刮削</span><span id="taskModalScStatus" class="text-gray-300"></span></div>
+            </div>
             <div class="flex flex-col gap-2">
-                <button id="taskRedownloadBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">🔄 重新下载</button>
                 <button id="taskPreviewBtn" class="px-4 py-2 rounded-lg bg-indigo-600/60 hover:bg-indigo-500 text-white text-sm font-medium transition">▶ 试听</button>
+                <button id="taskScrapeBtn" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition">🏷 刮削整理</button>
+                <button id="taskRedownloadBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">🔄 重新下载</button>
                 <button id="taskRemoveRecordBtn" class="px-4 py-2 rounded-lg card hover:bg-white/10 text-gray-300 text-sm font-medium transition">🗑 删除任务记录</button>
                 <button id="taskRemoveFileBtn" class="px-4 py-2 rounded-lg bg-red-600/80 hover:bg-red-500 text-white text-sm font-medium transition">🗑 删除任务及文件</button>
             </div>
@@ -574,11 +630,53 @@
         </div>
     </div>
 
+    <!-- 设置弹窗 -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden p-4">
+        <div class="rounded-2xl p-6 max-w-md w-full" style="background:#1e293b;border:1px solid rgba(255,255,255,0.1)">
+            <div class="flex items-center justify-between mb-5">
+                <h2 class="text-lg font-bold text-white">⚙️ 设置</h2>
+                <button onclick="closeSettings()" class="text-gray-400 hover:text-white text-xl leading-none">×</button>
+            </div>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between gap-4 p-3 rounded-lg" style="background:rgba(255,255,255,0.03)">
+                    <div>
+                        <div class="text-sm text-gray-200 font-medium">自动刮削</div>
+                        <div class="text-xs text-gray-500 mt-0.5">下载完成后自动刮削元数据并整理到曲库目录</div>
+                    </div>
+                    <label class="setting-switch">
+                        <input type="checkbox" id="autoScrapeToggle" onchange="onAutoScrapeChange()">
+                        <span class="setting-slider"></span>
+                    </label>
+                </div>
+                <div class="p-3 rounded-lg" style="background:rgba(255,255,255,0.03)">
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm text-gray-200 font-medium">首页热歌平台</div>
+                        <span class="text-xs text-gray-500">最多3个</span>
+                    </div>
+                    <div class="text-xs text-gray-500 mt-0.5 mb-2.5">勾选的平台展示在首页热歌 Top5</div>
+                    <div id="homeSongPlatforms" class="flex flex-wrap gap-2"></div>
+                </div>
+                <div class="p-3 rounded-lg" style="background:rgba(255,255,255,0.03)">
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm text-gray-200 font-medium">首页歌单平台</div>
+                        <span class="text-xs text-gray-500">最多3个</span>
+                    </div>
+                    <div class="text-xs text-gray-500 mt-0.5 mb-2.5">勾选的平台展示在首页热榜歌单 Top5</div>
+                    <div id="homePlaylistPlatforms" class="flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let allThemes=[], selectedTheme='', selectedIds=new Set(), detailMode='create';
         let currentView='{{ active }}';
         let allRanks={}, rankActiveSource='', rankActiveId='', rankActiveName='';
         let allHotPlaylists={}, hotPlaylistActiveTab='';
+        // 搜索结果缓存：进入歌单详情后返回时恢复，避免重新搜索
+        let lastSearch={query:'',mode:'',sources:[],html:''};
+        // 搜索模式：song | playlist，顶部栏与搜索页共享
+        let searchMode='song';
         let homeData=null, rankSelected=new Set();
         let myLoaded=false;
         let dlPollTimer=null, dlTaskPollTimer=null;
@@ -591,8 +689,22 @@
         // 多页模式下视图切换由真实页面跳转完成，此处仅保留 currentView 标识
         function showDetail(mode){detailMode=mode}
 
-        async function checkStatus(){try{const r=await fetch('/api/status');const d=await r.json();const el=document.getElementById('status-indicator');el.innerHTML=d.navidrome_connected?`<span class="text-green-400">● 已连接</span> · 曲库 ${d.library_size} 首${d.library_loading?' ·加载中':''}`:`<span class="text-red-400">● 连接失败</span>`}catch(e){document.getElementById('status-indicator').innerHTML=`<span class="text-red-400">● 网络错误</span>`}}
+        async function checkStatus(){try{const r=await fetch('/api/status');const d=await r.json();const el=document.getElementById('status-indicator');el.innerHTML=d.navidrome_connected?`<span class="text-green-400">● 已连接</span> · 曲库 ${d.library_size} 首${d.library_loading?' ·加载中':''}`:`<span class="text-red-400">● 连接失败</span>`;const ico=document.getElementById('libraryRefreshIcon');if(ico)ico.classList.toggle('spin',!!d.library_loading)}catch(e){document.getElementById('status-indicator').innerHTML=`<span class="text-red-400">● 网络错误</span>`}}
         checkStatus();setInterval(checkStatus,15000);
+        // 曲库刷新：触发扫描+重载，加载中加速轮询状态
+        let _libFastPoll=null;
+        async function refreshLibrary(){
+            const ico=document.getElementById('libraryRefreshIcon');
+            if(ico)ico.classList.add('spin');
+            try{await authFetch('/api/library/refresh',{method:'POST'})}catch(e){}
+            checkStatus();
+            if(_libFastPoll)clearInterval(_libFastPoll);
+            _libFastPoll=setInterval(()=>{
+                checkStatus();
+                const ico2=document.getElementById('libraryRefreshIcon');
+                if(ico2&&!ico2.classList.contains('spin')){clearInterval(_libFastPoll);_libFastPoll=null}
+            },2500);
+        }
         // 主题切换
         function toggleTheme(){
             const cur=document.documentElement.getAttribute('data-theme')||'dark';
@@ -603,6 +715,78 @@
         }
         // 初始化按钮图标
         (function(){const t=localStorage.getItem('theme')||'dark';const btn=document.getElementById('themeToggle');if(btn)btn.textContent=t==='dark'?'🌙':'☀️';})();
+        // 个人中心下拉菜单
+        function toggleProfileMenu(e){
+            if(e)e.stopPropagation();
+            document.getElementById('profileMenu').classList.toggle('show');
+        }
+        document.addEventListener('click',e=>{
+            const wrap=document.getElementById('profileWrap');
+            if(wrap&&!wrap.contains(e.target)){
+                document.getElementById('profileMenu').classList.remove('show');
+            }
+        });
+        // 设置弹窗 + 自动刮削开关
+        let homePlatformsDirty=false;
+        function openSettings(){
+            document.getElementById('profileMenu').classList.remove('show');
+            const t=document.getElementById('autoScrapeToggle');
+            if(t)t.checked=localStorage.getItem('autoScrape')==='1';
+            homePlatformsDirty=false;
+            loadHomePlatformSettings();
+            document.getElementById('settingsModal').classList.remove('hidden');
+        }
+        function closeSettings(){
+            document.getElementById('settingsModal').classList.add('hidden');
+            if(homePlatformsDirty && document.querySelector('.nav-item.active')?.dataset?.page==='home'){
+                loadHome();
+            }
+            homePlatformsDirty=false;
+        }
+        const HOME_SONG_DEFAULTS=['网易云','QQ音乐','酷狗'];
+        const HOME_PLAYLIST_DEFAULTS=['网易云','酷狗'];
+        function getHomePlatforms(key,defaults){
+            let v=localStorage.getItem(key);
+            if(v){try{const a=JSON.parse(v);if(Array.isArray(a))return a;}catch(e){}}
+            return defaults.slice();
+        }
+        function homePlatformChip(name,checked){
+            const c=checked?'bg-indigo-600 border-indigo-500 text-white':'border-white/10 text-gray-300';
+            return `<button type="button" class="hp-chip px-3 py-1.5 rounded-lg border text-sm transition ${c} ${checked?'':'hover:border-white/30'}" data-name="${escapeHtml(name)}">${escapeHtml(name)}</button>`;
+        }
+        async function loadHomePlatformSettings(){
+            try{
+                const r=await authFetch('/api/home/platforms');if(!r)return;
+                const d=await r.json();
+                renderHomePlatformChips('homeSongPlatforms',d.song_platforms||[],'homeSongPlatforms',HOME_SONG_DEFAULTS);
+                renderHomePlatformChips('homePlaylistPlatforms',d.playlist_platforms||[],'homePlaylistPlatforms',HOME_PLAYLIST_DEFAULTS);
+            }catch(e){console.warn('loadHomePlatformSettings failed',e)}
+        }
+        function renderHomePlatformChips(elId,all,storageKey,defaults){
+            const el=document.getElementById(elId);if(!el)return;
+            const selected=getHomePlatforms(storageKey,defaults);
+            el.innerHTML=all.map(n=>homePlatformChip(n,selected.includes(n))).join('');
+            el.querySelectorAll('.hp-chip').forEach(btn=>{
+                btn.onclick=()=>{
+                    let cur=getHomePlatforms(storageKey,defaults);
+                    const name=btn.dataset.name;
+                    const on=cur.includes(name);
+                    if(on){cur=cur.filter(x=>x!==name);}
+                    else{if(cur.length>=3){return;}cur.push(name);}
+                    localStorage.setItem(storageKey,JSON.stringify(cur));
+                    homePlatformsDirty=true;
+                    renderHomePlatformChips(elId,all,storageKey,defaults);
+                };
+            });
+        }
+        function onAutoScrapeChange(){
+            const v=document.getElementById('autoScrapeToggle').checked?'1':'0';
+            localStorage.setItem('autoScrape',v);
+        }
+        document.addEventListener('click',e=>{
+            const modal=document.getElementById('settingsModal');
+            if(!modal.classList.contains('hidden')&&e.target===modal)closeSettings();
+        });
         startTaskPolling();
 
         // ===== 侧栏：桌面端图标轨展开/折叠，移动端抽屉 =====
@@ -653,12 +837,24 @@
         async function refreshCoverPreview(){const name=document.getElementById('playlistName').value.trim()||'歌单';try{const r=await fetch('/api/cover/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:name,theme:selectedTheme,song_count:selectedIds.size})});if(r.ok){const b=await r.blob();const img=document.getElementById('coverPreview');img.src=URL.createObjectURL(b);img.style.display='block';document.getElementById('coverPlaceholder').style.display='none'}}catch(e){}}
 
         // ===== 首页：Top5歌曲各平台横向并列 =====
-        async function loadHome(){
-            document.getElementById('homeTopSongs').innerHTML='<div class="text-center text-gray-500 text-sm py-8">加载中...</div>';
-            document.getElementById('homeTopPlaylists').innerHTML='<div class="text-center text-gray-500 text-sm py-8 w-full">加载中...</div>';
+        async function loadHome(refresh){
+            const spinBtn = refresh ? document.getElementById(refresh==='songs'?'refreshHomeSongsBtn':'refreshHomePlaylistsBtn') : null;
+            if(spinBtn) spinBtn.classList.add('spinning');
+            const songEl=document.getElementById('homeTopSongs');
+            const plEl=document.getElementById('homeTopPlaylists');
+            const loading=(w)=>`<div class="text-center text-gray-500 text-sm py-8${w?' w-full':''}">加载中...</div>`;
+            if(refresh==='songs') songEl.innerHTML=loading(false);
+            else if(refresh==='playlists') plEl.innerHTML=loading(true);
+            else { songEl.innerHTML=loading(false); plEl.innerHTML=loading(true); }
             try{
-                const r=await authFetch('/api/home');if(!r)return;homeData=await r.json();renderHomeSongs();renderHomePlaylists();
-            }catch(e){document.getElementById('homeTopSongs').innerHTML='加载失败'}
+                const sp=getHomePlatforms('homeSongPlatforms',HOME_SONG_DEFAULTS).join(',');
+                const pp=getHomePlatforms('homePlaylistPlatforms',HOME_PLAYLIST_DEFAULTS).join(',');
+                const params=new URLSearchParams({song_platforms:sp,playlist_platforms:pp});
+                if(refresh)params.set('refresh',refresh);
+                const r=await authFetch('/api/home?'+params.toString());if(!r)return;
+                homeData=await r.json();renderHomeSongs();renderHomePlaylists();
+            }catch(e){songEl.innerHTML='加载失败'}
+            finally{ if(spinBtn) spinBtn.classList.remove('spinning'); }
         }
         function renderHomeSongs(){
             const el=document.getElementById('homeTopSongs');el.innerHTML='';
@@ -688,20 +884,24 @@
             if(s.in_library){
                 const id=s.lib_id||'';
                 return `<div class="home-song flex items-center gap-3 px-3 py-2 border-b border-white/5 last:border-0 cursor-pointer hover:bg-white/5" data-col="${colIdx}" data-id="${escapeHtml(id)}" data-title="${escapeHtml(s.lib_title||s.title)}" data-artist="${escapeHtml(s.lib_artist||s.artist)}" onclick="toggleHomeSong(this)">
-                    <input type="checkbox" checked class="rounded home-check" onclick="event.stopPropagation()">
+                    <input type="checkbox" checked class="rounded home-check" onclick="event.stopPropagation(); syncHomeSong(this.closest('.home-song'))">
                     <span class="text-gray-500 text-sm w-6">${i+1}</span>
                     <div class="flex-1 min-w-0"><div class="text-white truncate text-sm">${escapeHtml(s.title)}</div><div class="text-gray-500 text-xs truncate">${escapeHtml(s.artist)}</div></div>
                     <span class="text-green-400 text-xs">✓ 已在曲库</span></div>`;
             }
-            return `<div class="flex items-center gap-3 px-3 py-2 border-b border-white/5 last:border-0 opacity-50">
+            return `<div class="flex items-center gap-3 px-3 py-2 border-b border-white/5 last:border-0">
                 <span class="w-4"></span>
                 <span class="text-gray-500 text-sm w-6">${i+1}</span>
                 <div class="flex-1 min-w-0"><div class="text-gray-400 truncate text-sm">${escapeHtml(s.title)}</div><div class="text-gray-600 text-xs truncate">${escapeHtml(s.artist)}</div></div>
                 <span class="text-gray-600 text-xs">未收录</span>
-                <button class="home-dl-btn text-xs px-2 py-1 rounded bg-indigo-600/60 hover:bg-indigo-500 text-white transition flex-shrink-0" data-title="${escapeHtml(s.title)}" data-artist="${escapeHtml(s.artist)}">⬇下载</button></div>`;
+                <button class="home-dl-btn text-xs px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white transition flex-shrink-0" data-title="${escapeHtml(s.title)}" data-artist="${escapeHtml(s.artist)}">⬇下载</button></div>`;
         }
         function toggleHomeSong(el){
             const cb=el.querySelector('.home-check');cb.checked=!cb.checked;
+            syncHomeSong(el);
+        }
+        function syncHomeSong(el){
+            const cb=el.querySelector('.home-check');
             el.style.opacity=cb.checked?'1':'0.4';
             const id=el.dataset.id;
             if(cb.checked) selectedIds.add(id); else selectedIds.delete(id);
@@ -718,12 +918,21 @@
             openCreateModalRaw(pname,'gen','',songs);
         }
         function renderHomePlaylists(){
-            const el=document.getElementById('homeTopPlaylists');el.innerHTML='';
-            const items=[];
-            for(const [src,ps] of Object.entries(homeData.top_playlists||{})) ps.forEach(p=>items.push(p));
-            if(!items.length){el.innerHTML='<div class="text-center text-gray-500 text-sm py-4 w-full">暂无数据</div>';return}
-            el.className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4';
-            el.innerHTML=items.map(p=>playlistCard(p)).join('');
+            const el=document.getElementById('homeTopPlaylists');
+            const groups=Object.entries(homeData.top_playlists||{}).filter(([_,ps])=>ps&&ps.length);
+            if(!groups.length){el.innerHTML='<div class="text-center text-gray-500 text-sm py-4 w-full">暂无数据</div>';return}
+            el.className='space-y-5';
+            el.innerHTML=groups.map(([src,ps])=>`
+                <div>
+                    <div class="flex items-center gap-2 mb-2.5">
+                        <span class="inline-block w-1 h-4 bg-indigo-500 rounded"></span>
+                        <h3 class="text-gray-200 text-sm font-medium">${escapeHtml(src)}</h3>
+                        <span class="text-gray-600 text-xs">${ps.length}个</span>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        ${ps.map(p=>playlistCard(p)).join('')}
+                    </div>
+                </div>`).join('');
         }
         function playlistCard(p){
             const cover=coverProxy(p.cover_url);
@@ -743,6 +952,7 @@
                 const sources=Object.keys(allRanks);
                 if(!sources.length){document.getElementById('rankTabs').innerHTML='暂无榜单';return}
                 if(!sources.includes(rankActiveSource)) rankActiveSource=sources[0];
+                rankActiveId='';  // 进入页面重置，触发首榜自动加载
                 renderRankTabs();renderRankList();
             }catch(e){}
         }
@@ -794,7 +1004,7 @@
                 <div class="text-gray-500 text-xs truncate mb-1">${escapeHtml(s.artist)}</div>
                 <div class="flex items-center justify-between gap-2">
                     <span class="text-gray-600 text-xs dl-status">未收录</span>
-                    <button onclick="downloadSong(this)" class="text-xs px-2 py-1 rounded bg-indigo-600/60 hover:bg-indigo-500 text-white transition whitespace-nowrap dl-btn">⬇下载</button>
+                    <button onclick="downloadSong(this)" class="text-xs px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white transition whitespace-nowrap dl-btn">⬇下载</button>
                 </div>
             </div>`;
         }
@@ -962,11 +1172,32 @@
             tick();dlPollTimer=setInterval(tick,2000);
         }
         // ===== 左侧下载任务列表 =====
+        const _prevDlStatus={}; // 记录上次轮询状态，用于检测「下载完成」转换
         async function loadDownloadTasks(){
             try{
                 const r=await authFetch('/api/download/tasks');if(!r)return;
                 const tasks=(await r.json()).tasks||[];
                 renderDownloadTasks(tasks);
+                maybeAutoScrape(tasks);
+            }catch(e){}
+        }
+        // 自动刮削：检测下载刚完成且未刮削的任务，若开关开启则自动刮削
+        function maybeAutoScrape(tasks){
+            if(localStorage.getItem('autoScrape')!=='1')return;
+            for(const t of tasks){
+                const key=`${t.title}|${t.artist}`;
+                const prev=_prevDlStatus[key];
+                _prevDlStatus[key]=t.status;
+                // 仅在本次轮询内由「非成功」转为「成功」时触发，避免对历史任务重复刮削
+                if(prev && prev!=='success' && t.status==='success'
+                   && t.filepath && t.scrape_status!=='success' && t.scrape_status!=='scraping'){
+                    autoScrapeOne(t.title,t.artist,t.filepath);
+                }
+            }
+        }
+        async function autoScrapeOne(title,artist,filepath){
+            try{
+                await authFetch('/api/download/scrape',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,artist,filepath})});
             }catch(e){}
         }
         function renderDownloadTasks(tasks){
@@ -993,6 +1224,7 @@
                     </div>
                     ${pvBtn}
                     <span class="${cls} whitespace-nowrap">${label}</span>
+                    ${t.scrape_status&&t.scrape_status!=='idle'?`<span class="${scStCls[t.scrape_status]||'text-gray-500'} whitespace-nowrap">${({scraping:'⏳刮削',success:'✓整理',failed:'✗刮削'})[t.scrape_status]||''}</span>`:''}
                 </div>`;
             }).join('');
         }
@@ -1002,16 +1234,56 @@
         }
         // ===== 下载任务操作弹窗 =====
         let currentTask=null;
-        function openDownloadTaskModal(task){
+        const dlStMap={'downloading':'下载中...','success':'✓ 已完成','failed':'下载失败','notfound':'未找到'};
+        const dlStCls={'downloading':'text-yellow-400','success':'text-green-400','failed':'text-red-400','notfound':'text-gray-500'};
+        const scStMap={'scraping':'刮削中...','success':'✓ 已整理','failed':'刮削失败','idle':'未刮削'};
+        const scStCls={'scraping':'text-yellow-400','success':'text-green-400','failed':'text-red-400','idle':'text-gray-500'};
+        async function openDownloadTaskModal(task){
             currentTask=task;
             document.getElementById('taskModalInfo').textContent=`${task.title} - ${task.artist}`;
-            const stMap={'downloading':'下载中','success':'✓ 已完成','failed':'下载失败','notfound':'未找到'};
-            document.getElementById('taskModalStatus').textContent='状态：'+(stMap[task.status]||task.status);
-            // 试听按钮：无 rid 则隐藏
-            document.getElementById('taskPreviewBtn').style.display=task.rid?'block':'none';
+            _renderTaskModal(task);
             document.getElementById('downloadTaskModal').classList.remove('hidden');
+            // 拉取最新状态（含 filepath/scrape_status）补全
+            try{
+                const r=await authFetch('/api/download/tasks');if(!r)return;
+                const tasks=(await r.json()).tasks||[];
+                const full=tasks.find(t=>t.title===task.title&&t.artist===task.artist);
+                if(full){currentTask=full;_renderTaskModal(full);}
+            }catch(e){}
+        }
+        function _renderTaskModal(t){
+            const dlEl=document.getElementById('taskModalDlStatus');
+            dlEl.textContent=dlStMap[t.status]||t.status;
+            dlEl.className=dlStCls[t.status]||'text-gray-400';
+            const scEl=document.getElementById('taskModalScStatus');
+            const ss=t.scrape_status||'idle';
+            scEl.textContent=scStMap[ss]||ss;
+            scEl.className=scStCls[ss]||'text-gray-500';
+            if(ss==='success'&&t.scrape_album){scEl.textContent+=` → ${t.scrape_album}`;}
+            // 试听：成功（有本地文件）或有 rid 均可
+            document.getElementById('taskPreviewBtn').style.display=(t.status==='success'||t.rid)?'block':'none';
+            // 刮削按钮：仅下载成功且未刮削成功时可用
+            const scBtn=document.getElementById('taskScrapeBtn');
+            const canScrape=t.status==='success'&&ss!=='success'&&ss!=='scraping';
+            scBtn.style.display=canScrape?'block':'none';
+            scBtn.disabled=false;
+            scBtn.textContent=ss==='scraping'?'刮削中...':'🏷 刮削整理';
         }
         function closeDownloadTaskModal(){document.getElementById('downloadTaskModal').classList.add('hidden')}
+        // 轮询单任务刮削状态（操作弹窗打开期间）
+        async function _pollTaskScrape(task){
+            const modal=document.getElementById('downloadTaskModal');
+            for(let i=0;i<40;i++){
+                if(modal.classList.contains('hidden'))return;
+                await new Promise(r=>setTimeout(r,2000));
+                try{
+                    const r=await authFetch('/api/download/tasks');if(!r)continue;
+                    const tasks=(await r.json()).tasks||[];
+                    const t=tasks.find(x=>x.title===task.title&&x.artist===task.artist);
+                    if(t){currentTask=t;_renderTaskModal(t);if(t.scrape_status!=='scraping'){loadDownloadTasks();return;}}
+                }catch(e){}
+            }
+        }
         document.getElementById('taskRedownloadBtn').onclick=async()=>{
             if(!currentTask)return;
             const t=currentTask;
@@ -1019,8 +1291,23 @@
             closeDownloadTaskModal();loadDownloadTasks();
         };
         document.getElementById('taskPreviewBtn').onclick=()=>{
-            if(!currentTask||!currentTask.rid)return;
-            previewSong(currentTask.rid,`${currentTask.title} - ${currentTask.artist}`,null);
+            if(!currentTask)return;
+            if(currentTask.status==='success'){
+                modalPlayLocal(null,currentTask.title,currentTask.artist,`${currentTask.title} - ${currentTask.artist}`);
+            }else if(currentTask.rid){
+                previewSong(currentTask.rid,`${currentTask.title} - ${currentTask.artist}`,null);
+            }
+        };
+        document.getElementById('taskScrapeBtn').onclick=async()=>{
+            if(!currentTask||!currentTask.filepath)return;
+            const btn=document.getElementById('taskScrapeBtn');
+            btn.disabled=true;btn.textContent='刮削中...';
+            currentTask.scrape_status='scraping';
+            _renderTaskModal(currentTask);
+            try{
+                await authFetch('/api/download/scrape',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:currentTask.title,artist:currentTask.artist,filepath:currentTask.filepath})});
+                await _pollTaskScrape(currentTask);
+            }catch(e){btn.textContent='刮削失败';}
         };
         document.getElementById('taskRemoveRecordBtn').onclick=async()=>{
             if(!currentTask)return;
@@ -1231,19 +1518,69 @@
         function topSearch(){
             const v=document.getElementById('topSearchInput').value.trim();
             if(!v)return;
-            ajaxNavigate('/search?q='+encodeURIComponent(v));
+            ajaxNavigate('/search?q='+encodeURIComponent(v)+'&mode='+searchMode);
         }
+        function applySearchMode(mode){
+            searchMode=mode;
+            const base='px-2.5 py-1 rounded-md text-xs font-medium transition', on='bg-indigo-600 text-white', off='text-gray-400';
+            // 顶栏切换
+            const ts=document.getElementById('topModeSong'),tp=document.getElementById('topModePlaylist');
+            if(ts&&tp){ts.className=base+' '+(mode==='playlist'?off:on);tp.className=base+' '+(mode==='playlist'?on:off);}
+            const ti=document.getElementById('topSearchInput');
+            if(ti) ti.placeholder = mode==='playlist'
+                ? '🔍 搜索歌单：周杰伦、深夜emo、80后经典...'
+                : '🔍 搜索歌曲：周杰伦、深夜emo、80后经典...';
+            // 搜索页切换
+            const ps=document.getElementById('pageModeSong'),pp=document.getElementById('pageModePlaylist');
+            if(ps&&pp){ps.className=base+' '+(mode==='playlist'?off:on);pp.className=base+' '+(mode==='playlist'?on:off);}
+            const pi=document.getElementById('searchInput');
+            if(pi) pi.placeholder = mode==='playlist'
+                ? '输入关键词搜歌单，如：周杰伦、民谣、深夜emo...'
+                : '输入关键词搜歌曲，如：周杰伦、民谣、深夜emo...';
+        }
+        function setTopSearchMode(mode){applySearchMode(mode);}
+        function setSearchMode(mode){applySearchMode(mode);}
         function getSelectedSources(){return Array.from(document.querySelectorAll('.source-check:checked')).map(cb=>cb.value)}
+        function getSearchMode(){return searchMode}
         async function startSearch(){
             const query=document.getElementById('searchInput').value.trim();
-            if(!query){alert('请输入歌单主题');return}
-            const sources=getSelectedSources();const pname=document.getElementById('playlistName').value.trim()||`${query} - AI生成`;
+            if(!query){alert('请输入关键词');return}
+            const sources=getSelectedSources();
+            const mode=getSearchMode();
+            if(mode==='playlist'){await searchPlaylists(query,sources);return}
+            const pname=`${query} - AI生成`;
             showLoading('搜索各平台并匹配曲库...');document.getElementById('searchBtn').disabled=true;
             try{
                 const r=await authFetch('/api/match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,sources})});if(!r)return;
                 const d=await r.json();
                 renderDetailInto(d,pname,{},'search','searchResults');
+                lastSearch={query,mode:'song',sources,html:document.getElementById('searchResults').innerHTML};
             }catch(e){alert('搜索失败: '+e.message)}finally{hideLoading();document.getElementById('searchBtn').disabled=false}
+        }
+        async function searchPlaylists(query,sources){
+            showLoading('搜索各平台歌单...');document.getElementById('searchBtn').disabled=true;
+            try{
+                const r=await authFetch('/api/playlist/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,sources})});if(!r)return;
+                const d=await r.json();
+                renderPlaylistSearchResults(d.playlists||{});
+                lastSearch={query,mode:'playlist',sources,html:document.getElementById('searchResults').innerHTML};
+            }catch(e){alert('搜索失败: '+e.message)}finally{hideLoading();document.getElementById('searchBtn').disabled=false}
+        }
+        function renderPlaylistSearchResults(grouped){
+            const el=document.getElementById('searchResults');
+            const groups=Object.entries(grouped).filter(([_,ps])=>ps&&ps.length);
+            if(!groups.length){el.innerHTML='<div class="card rounded-2xl p-8 text-center text-gray-500">未找到歌单</div>';return}
+            el.innerHTML=groups.map(([src,ps])=>`
+                <div class="card rounded-2xl p-5 mb-5">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="inline-block w-1 h-4 bg-indigo-500 rounded"></span>
+                        <h3 class="text-gray-200 text-sm font-medium">${escapeHtml(src)}</h3>
+                        <span class="text-gray-600 text-xs">${ps.length}个</span>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        ${ps.map(p=>playlistCard(p)).join('')}
+                    </div>
+                </div>`).join('');
         }
 
         // ===== 导入：跳转到歌单详情页 =====
@@ -1460,8 +1797,20 @@
             else if(active==='hot-playlists') loadHotPlaylists();
             else if(active==='mine') loadMyPlaylists();
             else if(active==='search'){
-                const q=new URLSearchParams(location.search).get('q');
-                if(q){document.getElementById('searchInput').value=q;startSearch();}
+                const params=new URLSearchParams(location.search);
+                const q=params.get('q');
+                if(q){
+                    const m=params.get('mode');
+                    if(m) setSearchMode(m);
+                    document.getElementById('searchInput').value=q;startSearch();
+                }
+                else if(lastSearch.html){
+                    // 从歌单详情返回：恢复上次搜索结果，不重新请求
+                    document.getElementById('searchInput').value=lastSearch.query;
+                    setSearchMode(lastSearch.mode);
+                    document.querySelectorAll('.source-check').forEach(cb=>{cb.checked=lastSearch.sources.includes(cb.value)});
+                    document.getElementById('searchResults').innerHTML=lastSearch.html;
+                }
             }
             else if(active==='detail'){ initDetailPage(); }
         }
@@ -1551,6 +1900,7 @@
         });
         // 初始加载
         runPageInit('{{ active }}');
+        setTopSearchMode(searchMode); // 初始化顶栏模式切换高亮
     </script>
 </body>
 </html>
