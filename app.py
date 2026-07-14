@@ -254,6 +254,9 @@ def api_status(request: Request):
         "navidrome_connected": connected,
         "library_size": len(library_cache.get("songs", [])),
         "library_loading": library_cache.get("loading", False),
+        # 曲库是否曾经成功加载过（依据持久化的 last_update）。前端据此判断是否首次启动、
+        # 是否需要弹出"曲库初始化中"提示：只有从未加载过才提示，避免每次重启都弹。
+        "library_ever_loaded": library_cache.get("last_update", 0) > 0,
     }
 
 @app.post("/api/search")
@@ -595,7 +598,8 @@ def api_download_tasks(request: Request):
         for t in tasks:
             key = f"{t['title']}|{t['artist']}"
             ss = scrape_statuses.get(key, {})
-            t["scrape_status"] = ss.get("status", "idle")
+            t["scrape_status"] = ss.get("scrape_status", ss.get("status", "idle"))
+            t["organize_status"] = ss.get("organize_status", "idle")
             t["scrape_album"] = ss.get("album", "")
             t["scrape_path"] = ss.get("scraped_path", "")
     return {"tasks": tasks}
@@ -1009,6 +1013,11 @@ def _refresh_library(scan_first=False):
         finally:
             library_cache["loading"] = False
     threading.Thread(target=_do_refresh, daemon=True).start()
+
+
+# 刮削完成后触发曲库刷新（scan_first=True 先扫描再重载）。
+# _refresh_library 内部有 loading 守卫：若已有刷新在进行中则直接返回，不重复触发。
+scrape_manager.on_scrape_complete = lambda: _refresh_library(scan_first=True)
 
 
 # ==================== 启动 ====================

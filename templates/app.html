@@ -228,7 +228,7 @@
                     <button id="topModePlaylist" onclick="setTopSearchMode('playlist')" class="px-2.5 py-1 rounded-md text-xs font-medium transition">歌单</button>
                 </div>
                 <input type="text" id="topSearchInput"
-                    placeholder="🔍 搜索歌曲：周杰伦、深夜emo、80后经典..."
+                    placeholder="🔍 搜索单曲：成都、周杰伦、太阳"
                     class="flex-1 px-4 py-2 rounded-lg card text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50"
                     style="color:var(--text)"
                     onkeydown="if(event.key==='Enter') topSearch()">
@@ -398,7 +398,7 @@
                     </div>
                 </div>
                 <div class="flex flex-col md:flex-row gap-3">
-                    <input type="text" id="searchInput" placeholder="输入关键词搜歌曲，如：周杰伦、民谣、深夜emo..."
+                    <input type="text" id="searchInput" placeholder="搜索单曲：成都、周杰伦、太阳"
                         class="flex-1 px-4 py-2.5 rounded-lg card text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50"
                         onkeydown="if(event.key==='Enter') startSearch()">
                     <button onclick="startSearch()" id="searchBtn" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition whitespace-nowrap">🔍 搜索</button>
@@ -467,7 +467,8 @@
                             </label>
                         </div>
                         <div class="mt-3 pt-3 border-t border-white/5 text-xs text-gray-400 leading-relaxed">
-                            <span class="text-gray-300">当前刮削模式：</span>按 <span class="text-indigo-300">艺术家 / 专辑</span> 二级目录整理（<span class="text-gray-500">曲库根目录/艺术家/专辑/曲目</span>），并补全内嵌封面、歌词与元数据标签。
+                            <span class="text-gray-300">当前刮削模式：</span>按 <span class="text-indigo-300">艺术家 / 专辑</span> 二级目录整理（<span class="text-gray-500">曲库根目录/艺术家/专辑/曲目</span>），并补全内嵌封面、歌词与元数据标签。<br>
+                            <span class="text-gray-300">刮削信息来源：</span>元数据（标题/艺术家/专辑/封面）优先取自 <span class="text-indigo-300">网易云</span>，歌词同样取自网易云（带时间轴的 lrc，写入 ID3 USLT 帧，Navidrome 可显示）；酷我作为下载源，暂不提供歌词与专辑详情。
                         </div>
                     </div>
                     <!-- 首页热歌平台 -->
@@ -622,22 +623,23 @@
 
     <!-- 下载任务操作弹窗 -->
     <div id="downloadTaskModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden p-4">
-        <div class="rounded-2xl p-6 max-w-sm w-full" style="background:#1e293b;border:1px solid rgba(255,255,255,0.1)">
+        <div class="rounded-2xl p-6 max-w-md w-full" style="background:#1e293b;border:1px solid rgba(255,255,255,0.1)">
             <div class="flex items-center justify-between mb-3">
                 <h2 class="text-lg font-bold text-white">下载任务</h2>
                 <button onclick="closeDownloadTaskModal()" class="text-gray-400 hover:text-white text-xl leading-none">×</button>
             </div>
-            <div id="taskModalInfo" class="text-sm text-gray-300 mb-2"></div>
-            <div class="text-xs space-y-1 mb-4">
-                <div class="flex items-center gap-2"><span class="text-gray-500 w-10 flex-shrink-0">下载</span><span id="taskModalDlStatus" class="text-gray-300"></span></div>
-                <div class="flex items-center gap-2"><span class="text-gray-500 w-10 flex-shrink-0">刮削</span><span id="taskModalScStatus" class="text-gray-300"></span></div>
+            <div id="taskModalInfo" class="text-sm text-gray-300 mb-2 truncate"></div>
+            <div class="text-xs flex items-center gap-1 flex-wrap mb-4">
+                <span id="taskModalDlStatus" class="text-gray-300"></span><span class="text-gray-600">/</span>
+                <span id="taskModalScStatus" class="text-gray-300"></span><span class="text-gray-600">/</span>
+                <span id="taskModalOgStatus" class="text-gray-300"></span>
             </div>
-            <div class="flex flex-col gap-2">
-                <button id="taskPreviewBtn" class="px-4 py-2 rounded-lg bg-indigo-600/60 hover:bg-indigo-500 text-white text-sm font-medium transition">▶ 试听</button>
-                <button id="taskScrapeBtn" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition">🏷 刮削整理</button>
-                <button id="taskRedownloadBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition">🔄 重新下载</button>
-                <button id="taskRemoveRecordBtn" class="px-4 py-2 rounded-lg card hover:bg-white/10 text-gray-300 text-sm font-medium transition">🗑 删除任务记录</button>
-                <button id="taskRemoveFileBtn" class="px-4 py-2 rounded-lg bg-red-600/80 hover:bg-red-500 text-white text-sm font-medium transition">🗑 删除任务及文件</button>
+            <div class="flex items-center justify-center flex-wrap gap-x-4 gap-y-2 pt-3 border-t border-white/10 text-sm">
+                <button id="taskPreviewBtn" class="text-indigo-400 hover:text-indigo-300 transition">▶ 试听</button>
+                <button id="taskScrapeBtn" class="text-purple-400 hover:text-purple-300 transition">🏷 刮削</button>
+                <button id="taskRedownloadBtn" class="text-blue-400 hover:text-blue-300 transition">🔄 重下</button>
+                <button id="taskRemoveRecordBtn" class="text-gray-400 hover:text-gray-200 transition">🗑 删记录</button>
+                <button id="taskRemoveFileBtn" class="text-red-400 hover:text-red-300 transition">🗑 删文件</button>
             </div>
         </div>
     </div>
@@ -678,14 +680,14 @@
         </div>
     </div>
 
-    <!-- 曲库加载中提示弹框 -->
+    <!-- 曲库状态提示弹框（加载中 / 连接失败） -->
     <div id="libLoadingModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden p-4">
         <div class="rounded-2xl p-6 max-w-md w-full" style="background:#1e293b;border:1px solid rgba(255,255,255,0.1)">
             <div class="flex items-center gap-3 mb-3">
-                <div class="text-3xl">⏳</div>
-                <h2 class="text-lg font-bold text-white">曲库正在加载中</h2>
+                <div class="text-3xl" id="libLoadingIcon">⏳</div>
+                <h2 class="text-lg font-bold text-white" id="libLoadingTitle">曲库正在加载中</h2>
             </div>
-            <div class="text-sm text-gray-300 space-y-2 mb-5 leading-relaxed">
+            <div class="text-sm text-gray-300 space-y-2 mb-5 leading-relaxed" id="libLoadingBody">
                 <p>系统正在连接 Navidrome 并初始化曲库索引，<span class="text-indigo-300">首次启动通常需要 1～3 分钟</span>（曲库越大耗时越久，每百位艺术家约半分钟）。</p>
                 <p>在曲库加载完成前，页面上的「已收录 / 未收录」匹配数据可能<span class="text-yellow-300">不准确</span>。</p>
                 <p>请耐心等待右上角状态指示变为 <span class="text-green-400">● 已连接</span> 后再进行匹配与歌单操作。</p>
@@ -722,7 +724,11 @@
         async function refreshLibrary(){
             const ico=document.getElementById('libraryRefreshIcon');
             if(ico)ico.classList.add('spin');
+            // 即时反馈：点下去立刻显示“检查中…”，避免后端 ping 卡住时看似无反应
+            const el=document.getElementById('status-indicator');
+            if(el)el.innerHTML=`<span class="text-yellow-400">● 检查中…</span>`;
             try{await authFetch('/api/library/refresh',{method:'POST'})}catch(e){}
+            // 无论刷新接口结果如何，都立即拉一次状态更新指示灯
             checkStatus();
             if(_libFastPoll)clearInterval(_libFastPoll);
             _libFastPoll=setInterval(()=>{
@@ -757,7 +763,8 @@
         function autoScrapeEnabled(){ return localStorage.getItem('autoScrape')!=='0'; }
         function openSettings(){
             document.getElementById('profileMenu').classList.remove('show');
-            window.location.href='/settings';
+            // 走 AJAX 导航（与其他页面一致），避免整页刷新导致底部全局播放条中断
+            ajaxNavigate('/settings');
         }
         function initSettingsPage(){
             const t=document.getElementById('autoScrapeToggle');
@@ -1158,6 +1165,7 @@
             // 标记下载中
             const card=document.querySelector(`[data-dl-title="${cssEscape(t)}"][data-dl-artist="${cssEscape(a)}"]`);
             if(card){const status=card.querySelector('.dl-status'),b=card.querySelector('.dl-btn');status.textContent='下载中...';status.className='text-yellow-400 text-xs dl-status';b.disabled=true;b.textContent='⏳'}
+            markAutoScrapePending(t,a);
             try{
                 await authFetch('/api/download/by-rid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,artist:a,rid})});
                 pollDownloadStatus();
@@ -1190,7 +1198,14 @@
             tick();dlPollTimer=setInterval(tick,2000);
         }
         // ===== 左侧下载任务列表 =====
-        const _prevDlStatus={}; // 记录上次轮询状态，用于检测「下载完成」转换
+        // 自动刮削：下载提交时把 key 登记到 _autoScrapePending；
+        // 轮询发现该任务「下载成功 + 有文件 + 未刮削」时触发刮削，并移入 _autoScrapedDone 防止重复。
+        // 这样即便下载极快（首轮轮询已是 success）也能触发，且不会对历史已成功任务重复刮削。
+        const _autoScrapePending=new Set(), _autoScrapedDone=new Set();
+        function markAutoScrapePending(title,artist){
+            if(!autoScrapeEnabled())return;
+            _autoScrapePending.add(`${title}|${artist}`);
+        }
         async function loadDownloadTasks(){
             try{
                 const r=await authFetch('/api/download/tasks');if(!r)return;
@@ -1199,16 +1214,16 @@
                 maybeAutoScrape(tasks);
             }catch(e){}
         }
-        // 自动刮削：检测下载刚完成且未刮削的任务，若开关开启则自动刮削
         function maybeAutoScrape(tasks){
             if(!autoScrapeEnabled())return;
             for(const t of tasks){
                 const key=`${t.title}|${t.artist}`;
-                const prev=_prevDlStatus[key];
-                _prevDlStatus[key]=t.status;
-                // 仅在本次轮询内由「非成功」转为「成功」时触发，避免对历史任务重复刮削
-                if(prev && prev!=='success' && t.status==='success'
-                   && t.filepath && t.scrape_status!=='success' && t.scrape_status!=='scraping'){
+                const sc=t.scrape_status||'idle', og=t.organize_status||'idle';
+                const alreadyDone=sc==='scraped'||og==='success'||og==='organizing'||sc==='scraping';
+                if(t.status==='success' && t.filepath && !alreadyDone
+                   && _autoScrapePending.has(key) && !_autoScrapedDone.has(key)){
+                    _autoScrapedDone.add(key);
+                    _autoScrapePending.delete(key);
                     autoScrapeOne(t.title,t.artist,t.filepath);
                 }
             }
@@ -1218,16 +1233,43 @@
                 await authFetch('/api/download/scrape',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,artist,filepath})});
             }catch(e){}
         }
+        // 三段流水线状态：下载 / 刮削 / 整理。每段返回 {label,cls}。
+        // 下载中→下载中/待刮削/待整理；下载完成→已下载/待刮削/待整理；
+        // 刮削中→已下载/刮削中/待整理；刮削完成→已下载/已刮削/待整理；整理完成→已下载/已刮削/已整理。
+        function pipelineStages(t){
+            const dl=t.status;
+            let s1,s1c;
+            if(dl==='downloading'){s1='下载中';s1c='text-yellow-400';}
+            else if(dl==='success'){s1='已下载';s1c='text-green-400';}
+            else if(dl==='failed'){s1='下载失败';s1c='text-red-400';}
+            else if(dl==='notfound'){s1='未找到';s1c='text-gray-500';}
+            else{s1=dl||'-';s1c='text-gray-400';}
+            const sc=t.scrape_status||'idle';
+            let s2,s2c;
+            if(dl!=='success'){s2='待刮削';s2c='text-gray-500';}
+            else if(sc==='scraping'){s2='刮削中';s2c='text-yellow-400';}
+            else if(sc==='scraped'){s2='已刮削';s2c='text-green-400';}
+            else if(sc==='failed'){s2='刮削失败';s2c='text-red-400';}
+            else{s2='待刮削';s2c='text-gray-500';}
+            const og=t.organize_status||'idle';
+            let s3,s3c;
+            if(sc!=='scraped'){s3='待整理';s3c='text-gray-500';}
+            else if(og==='organizing'){s3='整理中';s3c='text-yellow-400';}
+            else if(og==='success'){s3='已整理';s3c='text-green-400';}
+            else if(og==='failed'){s3='整理失败';s3c='text-red-400';}
+            else{s3='待整理';s3c='text-gray-500';}
+            return {s1,s1c,s2,s2c,s3,s3c};
+        }
         function renderDownloadTasks(tasks){
             const el=document.getElementById('dlTaskList');
             document.getElementById('dlTaskCount').textContent=tasks.length;
+            // 悬浮球角标只数「下载中」的任务
+            const downloadingCnt=tasks.filter(t=>t.status==='downloading').length;
             const dlBadge=document.getElementById('floatDlBadge');
-            if(dlBadge){dlBadge.textContent=tasks.length;dlBadge.style.display=tasks.length>0?'flex':'none';}
+            if(dlBadge){dlBadge.textContent=downloadingCnt;dlBadge.style.display=downloadingCnt>0?'flex':'none';}
             if(!tasks.length){el.innerHTML='<div class="text-xs text-gray-600 text-center py-2">暂无下载任务</div>';return}
             el.innerHTML=tasks.map(t=>{
                 const rid=t.rid||'';
-                const stMap={'downloading':['下载中','text-yellow-400'],'success':['✓完成','text-green-400'],'failed':['失败','text-red-400'],'notfound':['未找到','text-gray-500']};
-                const [label,cls]=stMap[t.status]||[t.status,'text-gray-400'];
                 const lbl=escapeHtml(t.title+' - '+t.artist);
                 let pvBtn='';
                 if(t.status==='success'){
@@ -1236,20 +1278,27 @@
                     pvBtn=`<button class="task-preview-btn text-xs px-2 py-0.5 rounded bg-indigo-600/60 hover:bg-indigo-500 text-white transition" data-rid="${escapeHtml(rid)}" data-label="${lbl}">试听</button>`;
                 }
                 const ss=t.scrape_status||'idle';
+                const og=t.organize_status||'idle';
                 let scBtn='';
-                if(t.status==='success'&&ss!=='success'&&ss!=='scraping'){
+                if(t.status==='success'&&ss!=='scraping'&&ss!=='scraped'&&og!=='organizing'&&og!=='success'){
                     scBtn=`<button class="task-scrape-btn text-xs px-2 py-0.5 rounded bg-emerald-600/60 hover:bg-emerald-500 text-white transition whitespace-nowrap" data-title="${escapeHtml(t.title)}" data-artist="${escapeHtml(t.artist)}" data-filepath="${escapeHtml(t.filepath||'')}">刮削</button>`;
                 }
+                const st=pipelineStages(t);
                 return `<div class="flex items-center gap-1.5 text-xs">
                     <div class="task-row flex-1 min-w-0 cursor-pointer hover:bg-white/5 rounded px-1 py-0.5 -mx-1" data-title="${escapeHtml(t.title)}" data-artist="${escapeHtml(t.artist)}" data-rid="${escapeHtml(rid)}" data-status="${escapeHtml(t.status)}">
                         <div class="text-gray-200 truncate">${escapeHtml(t.title)}</div>
-                        <div class="text-gray-500 truncate">${escapeHtml(t.artist)}</div>
+                        <div class="flex items-center gap-1.5 min-w-0">
+                            <span class="text-gray-500 truncate">${escapeHtml(t.artist)}</span>
+                            <span class="flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
+                                <span class="${st.s1c}">${st.s1}</span><span class="text-gray-600">/</span>
+                                <span class="${st.s2c}">${st.s2}</span><span class="text-gray-600">/</span>
+                                <span class="${st.s3c}">${st.s3}</span>
+                            </span>
+                        </div>
                         ${(t.status==='failed'||t.status==='notfound')&&t.error?`<div class="text-red-400/80 truncate">⚠ ${escapeHtml(t.error)}</div>`:''}
                     </div>
                     ${pvBtn}
                     ${scBtn}
-                    <span class="${cls} whitespace-nowrap">${label}</span>
-                    ${ss!=='idle'?`<span class="${scStCls[ss]||'text-gray-500'} whitespace-nowrap">${({scraping:'⏳刮削',success:'✓整理',failed:'✗刮削'})[ss]||''}</span>`:''}
                 </div>`;
             }).join('');
         }
@@ -1259,10 +1308,12 @@
         }
         // ===== 下载任务操作弹窗 =====
         let currentTask=null;
-        const dlStMap={'downloading':'下载中...','success':'✓ 已完成','failed':'下载失败','notfound':'未找到'};
+        const dlStMap={'downloading':'下载中...','success':'✓ 已下载','failed':'下载失败','notfound':'未找到'};
         const dlStCls={'downloading':'text-yellow-400','success':'text-green-400','failed':'text-red-400','notfound':'text-gray-500'};
-        const scStMap={'scraping':'刮削中...','success':'✓ 已整理','failed':'刮削失败','idle':'未刮削'};
-        const scStCls={'scraping':'text-yellow-400','success':'text-green-400','failed':'text-red-400','idle':'text-gray-500'};
+        const scStMap={'scraping':'刮削中...','scraped':'✓ 已刮削','failed':'刮削失败','idle':'待刮削'};
+        const scStCls={'scraping':'text-yellow-400','scraped':'text-green-400','failed':'text-red-400','idle':'text-gray-500'};
+        const ogStMap={'organizing':'整理中...','success':'✓ 已整理','failed':'整理失败','idle':'待整理'};
+        const ogStCls={'organizing':'text-yellow-400','success':'text-green-400','failed':'text-red-400','idle':'text-gray-500'};
         async function openDownloadTaskModal(task){
             currentTask=task;
             document.getElementById('taskModalInfo').textContent=`${task.title} - ${task.artist}`;
@@ -1281,19 +1332,25 @@
             dlEl.textContent=dlStMap[t.status]||t.status;
             if((t.status==='failed'||t.status==='notfound')&&t.error){dlEl.textContent+=`（${t.error}）`;}
             dlEl.className=dlStCls[t.status]||'text-gray-400';
-            const scEl=document.getElementById('taskModalScStatus');
             const ss=t.scrape_status||'idle';
+            const scEl=document.getElementById('taskModalScStatus');
             scEl.textContent=scStMap[ss]||ss;
             scEl.className=scStCls[ss]||'text-gray-500';
-            if(ss==='success'&&t.scrape_album){scEl.textContent+=` → ${t.scrape_album}`;}
+            const og=t.organize_status||'idle';
+            const ogEl=document.getElementById('taskModalOgStatus');
+            ogEl.textContent=ogStMap[og]||og;
+            ogEl.className=ogStCls[og]||'text-gray-500';
+            if(og==='success'&&t.scrape_album){ogEl.textContent+=` → ${t.scrape_album}`;}
             // 试听：成功（有本地文件）或有 rid 均可
             document.getElementById('taskPreviewBtn').style.display=(t.status==='success'||t.rid)?'block':'none';
-            // 刮削按钮：仅下载成功且未刮削成功时可用
+            // 刮削按钮：仅下载成功且未进入刮削/整理流程时可用
             const scBtn=document.getElementById('taskScrapeBtn');
-            const canScrape=t.status==='success'&&ss!=='success'&&ss!=='scraping';
+            const inProgress=(ss==='scraping'||og==='organizing');
+            const done=(ss==='scraped'&&og==='success');
+            const canScrape=t.status==='success'&&!inProgress&&!done;
             scBtn.style.display=canScrape?'block':'none';
             scBtn.disabled=false;
-            scBtn.textContent=ss==='scraping'?'刮削中...':'🏷 刮削整理';
+            scBtn.textContent=inProgress?'处理中...':'🏷 刮削';
         }
         function closeDownloadTaskModal(){document.getElementById('downloadTaskModal').classList.add('hidden')}
         // 轮询单任务刮削状态（操作弹窗打开期间）
@@ -1306,13 +1363,19 @@
                     const r=await authFetch('/api/download/tasks');if(!r)continue;
                     const tasks=(await r.json()).tasks||[];
                     const t=tasks.find(x=>x.title===task.title&&x.artist===task.artist);
-                    if(t){currentTask=t;_renderTaskModal(t);if(t.scrape_status!=='scraping'){loadDownloadTasks();return;}}
+                    if(t){
+                        currentTask=t;_renderTaskModal(t);
+                        // 刮削与整理都结束（非进行中）才停止轮询
+                        const busy=(t.scrape_status==='scraping'||t.organize_status==='organizing');
+                        if(!busy){loadDownloadTasks();return;}
+                    }
                 }catch(e){}
             }
         }
         document.getElementById('taskRedownloadBtn').onclick=async()=>{
             if(!currentTask)return;
             const t=currentTask;
+            markAutoScrapePending(t.title,t.artist);
             await authFetch('/api/download/by-rid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t.title,artist:t.artist,rid:t.rid})});
             closeDownloadTaskModal();loadDownloadTasks();
         };
@@ -1329,6 +1392,7 @@
             const btn=document.getElementById('taskScrapeBtn');
             btn.disabled=true;btn.textContent='刮削中...';
             currentTask.scrape_status='scraping';
+            currentTask.organize_status='idle';
             _renderTaskModal(currentTask);
             try{
                 await authFetch('/api/download/scrape',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:currentTask.title,artist:currentTask.artist,filepath:currentTask.filepath})});
@@ -1367,27 +1431,32 @@
         function renderTasksModal(){
             const el=document.getElementById('dlTasksModalList');
             if(!dlModalTasks.length){el.innerHTML='<div class="text-center text-gray-500 text-sm py-8">暂无下载任务</div>';return}
-            const stMap={'downloading':['下载中','text-yellow-400'],'success':['✓完成','text-green-400'],'failed':['失败','text-red-400'],'notfound':['未找到','text-gray-500']};
-            const scrapeStMap={'scraping':'刮削中...','success':'✓已整理','failed':'刮削失败','idle':''};
             el.innerHTML=dlModalTasks.map((t,idx)=>{
-                const [label,cls]=stMap[t.status]||[t.status,'text-gray-400'];
                 const rid=t.rid||'';
-                const scraped=t.scrape_status==='success';
-                const canScrape=t.status==='success';
-                const hasFile=t.status==='success'&&t.filepath&&!scraped;
-                const scrapeLabel=scrapeStMap[t.scrape_status]||'';
-                const scrapeCls={'scraping':'text-yellow-400','success':'text-green-400','failed':'text-red-400','idle':'text-gray-500'}[t.scrape_status]||'text-gray-500';
+                const ss=t.scrape_status||'idle';
+                const og=t.organize_status||'idle';
+                const organized=og==='success';
+                const inProgress=(ss==='scraping'||og==='organizing');
+                const canScrape=t.status==='success'&&!inProgress&&!organized;
+                const hasFile=t.status==='success'&&t.filepath&&!organized;
                 // 刮削按钮：已整理则置灰禁用
-                const scrapeBtn = scraped
+                const scrapeBtn = organized
                     ? `<span class="text-xs px-2 py-1 text-gray-600 cursor-not-allowed">刮削</span>`
                     : (canScrape ? `<button onclick="modalScrape(this,'${escapeHtml(t.title)}','${escapeHtml(t.artist)}','${escapeHtml(t.filepath||'')}')" class="text-xs px-2 py-1 text-purple-400 hover:text-purple-300 transition">刮削</button>` : '');
                 // 整理后路径提示
-                const pathTip = scraped && t.scrape_path ? ` → ${escapeHtml(t.scrape_album||'')} ` : '';
-                return `<div class="card rounded-lg p-3 flex items-center gap-3 flex-wrap" data-mtitle="${escapeHtml(t.title)}" data-martist="${escapeHtml(t.artist)}" data-mrid="${escapeHtml(rid)}" data-mfilepath="${escapeHtml(t.filepath||'')}">
+                const pathTip = organized && t.scrape_path ? ` → ${escapeHtml(t.scrape_album||'')}` : '';
+                const st=pipelineStages(t);
+                return `<div class="card rounded-lg p-3 flex items-center gap-3" data-mtitle="${escapeHtml(t.title)}" data-martist="${escapeHtml(t.artist)}" data-mrid="${escapeHtml(rid)}" data-mfilepath="${escapeHtml(t.filepath||'')}">
                     <span class="text-gray-500 text-sm w-6 flex-shrink-0">${idx+1}</span>
                     <div class="flex-1 min-w-0">
-                        <div class="text-white text-sm truncate">${escapeHtml(t.title)} - ${escapeHtml(t.artist)}</div>
-                        <div class="text-xs mt-0.5"><span class="${cls}">${label}</span>${scrapeLabel||t.scrape_status?` <span class="scrape-status ${scrapeCls} ml-2">${scrapeLabel}${pathTip}</span>`:''}</div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-white text-sm truncate">${escapeHtml(t.title)} - ${escapeHtml(t.artist)}</span>
+                            <span class="text-xs flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
+                                <span class="pipe-dl ${st.s1c}">${st.s1}</span><span class="text-gray-600">/</span>
+                                <span class="pipe-sc ${st.s2c}">${st.s2}</span><span class="text-gray-600">/</span>
+                                <span class="pipe-og ${st.s3c}">${st.s3}${pathTip}</span>
+                            </span>
+                        </div>
                         ${(t.status==='failed'||t.status==='notfound')&&t.error?`<div class="text-xs text-red-400/80 mt-0.5 truncate">⚠ ${escapeHtml(t.error)}</div>`:''}
                     </div>
                     <div class="flex items-center gap-3 flex-shrink-0 text-xs">
@@ -1395,7 +1464,7 @@
                         ${t.rid?`<button onclick="modalRedownload(this,'${escapeHtml(t.title)}','${escapeHtml(t.artist)}','${escapeHtml(t.rid)}')" class="text-blue-400 hover:text-blue-300 transition">重下</button>`:''}
                         ${scrapeBtn}
                         <button onclick="modalRemove(this,'${escapeHtml(t.title)}','${escapeHtml(t.artist)}',false)" class="text-gray-400 hover:text-gray-200 transition">删记录</button>
-                        ${hasFile?`<button onclick="modalRemove(this,'${escapeHtml(t.title)}','${escapeHtml(t.artist)}',true)" class="text-red-400 hover:text-red-300 transition">删文件</button>`:(scraped?`<span class="text-gray-600 cursor-not-allowed">删文件</span>`:'')}
+                        ${hasFile?`<button onclick="modalRemove(this,'${escapeHtml(t.title)}','${escapeHtml(t.artist)}',true)" class="text-red-400 hover:text-red-300 transition">删文件</button>`:(organized?`<span class="text-gray-600 cursor-not-allowed">删文件</span>`:'')}
                     </div>
                 </div>`;
             }).join('');
@@ -1413,17 +1482,18 @@
             audio.play().catch(()=>{});
         }
         async function modalRedownload(btn,title,artist,rid){
+            markAutoScrapePending(title,artist);
             await authFetch('/api/download/by-rid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,artist,rid})});
             loadDownloadTasksModal();loadDownloadTasks();
         }
         async function modalScrape(btn,title,artist,filepath){
             const row=btn.closest('[data-mtitle]');
-            const st=row.querySelector('.scrape-status');
-            if(st){st.textContent='刮削中...';st.className='scrape-status text-yellow-400 ml-2';}
+            const st=row.querySelector('.pipe-sc');
+            if(st){st.textContent='刮削中';st.className='pipe-sc text-yellow-400';}
             try{
                 await authFetch('/api/download/scrape',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,artist,filepath})});
                 pollScrapeStatus();
-            }catch(e){if(st){st.textContent='刮削失败';st.className='scrape-status text-red-400 ml-2';}}
+            }catch(e){if(st){st.textContent='刮削失败';st.className='pipe-sc text-red-400';}}
         }
         async function modalRemove(btn,title,artist,delFile){
             if(delFile&&!confirm('确定删除任务记录及已下载的文件？'))return;
@@ -1451,8 +1521,9 @@
                     const r=await authFetch('/api/download/scrape/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({songs})});if(!r)return;
                     const st=(await r.json()).statuses||[];
                     const pending=st.some(s=>s.status==='scraping');
-                    // 有状态变化（success/failed）则重新加载列表刷新按钮与状态
-                    const changed=st.some(s=>s.status==='success'||s.status==='failed');
+                    // 状态变化（刮削完成/整理完成/失败）则重新加载列表刷新按钮与状态
+                    const changed=st.some(s=>s.status==='success'||s.status==='failed'
+                        ||s.scrape_status==='scraped'||s.organize_status==='organizing');
                     if(changed){await loadDownloadTasksModal();}
                     if(!pending){clearInterval(scrapePollTimer);scrapePollTimer=null}
                 }catch(e){}
@@ -1555,15 +1626,15 @@
             if(ts&&tp){ts.className=base+' '+(mode==='playlist'?off:on);tp.className=base+' '+(mode==='playlist'?on:off);}
             const ti=document.getElementById('topSearchInput');
             if(ti) ti.placeholder = mode==='playlist'
-                ? '🔍 搜索歌单：周杰伦、深夜emo、80后经典...'
-                : '🔍 搜索歌曲：周杰伦、深夜emo、80后经典...';
+                ? '🔍 搜索歌单：那些年、记忆、经典、轻音乐'
+                : '🔍 搜索单曲：成都、周杰伦、太阳';
             // 搜索页切换
             const ps=document.getElementById('pageModeSong'),pp=document.getElementById('pageModePlaylist');
             if(ps&&pp){ps.className=base+' '+(mode==='playlist'?off:on);pp.className=base+' '+(mode==='playlist'?on:off);}
             const pi=document.getElementById('searchInput');
             if(pi) pi.placeholder = mode==='playlist'
-                ? '输入关键词搜歌单，如：周杰伦、民谣、深夜emo...'
-                : '输入关键词搜歌曲，如：周杰伦、民谣、深夜emo...';
+                ? '搜索歌单：那些年、记忆、经典、轻音乐'
+                : '搜索单曲：成都、周杰伦、太阳';
         }
         function setTopSearchMode(mode){applySearchMode(mode);}
         function setSearchMode(mode){applySearchMode(mode);}
@@ -1793,12 +1864,31 @@
         }
         function closeModal(){document.getElementById('successModal').classList.add('hidden')}
         function closeLibLoadingModal(){document.getElementById('libLoadingModal').classList.add('hidden')}
-        // 进入首页时检查曲库是否仍在加载，若是则弹出提示
+        // 进入首页时检查曲库状态并按需弹框提示：
+        // 1) Navidrome 连接失败 → 弹“连接失败”提示（每次进首页都弹，提醒用户排查）
+        // 2) 已连接但从未加载过曲库（首次启动无快照）→ 弹“加载中”提示
         async function checkLibLoadingOnHome(){
             try{
                 const r=await fetch('/api/status');if(!r)return;
                 const d=await r.json();
-                if(!d.navidrome_connected || d.library_loading){
+                const icon=document.getElementById('libLoadingIcon');
+                const title=document.getElementById('libLoadingTitle');
+                const body=document.getElementById('libLoadingBody');
+                if(!d.navidrome_connected){
+                    icon.textContent='⚠️';
+                    title.textContent='曲库连接失败';
+                    title.classList.add('text-red-400');title.classList.remove('text-white');
+                    body.innerHTML=`<p>无法连接到 Navidrome 服务器（<span class="text-gray-400">${location.origin}</span> → Navidrome）。</p>
+                        <p>可能原因：Navidrome 服务未运行、端口/地址不对、或防火墙未放行。</p>
+                        <p>请检查后点击右上角 🔄 刷新按钮重试，状态变为 <span class="text-green-400">● 已连接</span> 后即可正常使用。</p>`;
+                    document.getElementById('libLoadingModal').classList.remove('hidden');
+                }else if(!d.library_ever_loaded){
+                    icon.textContent='⏳';
+                    title.textContent='曲库正在加载中';
+                    title.classList.remove('text-red-400');title.classList.add('text-white');
+                    body.innerHTML=`<p>系统正在连接 Navidrome 并初始化曲库索引，<span class="text-indigo-300">首次启动通常需要 1～3 分钟</span>（曲库越大耗时越久，每百位艺术家约半分钟）。</p>
+                        <p>在曲库加载完成前，页面上的「已收录 / 未收录」匹配数据可能<span class="text-yellow-300">不准确</span>。</p>
+                        <p>请耐心等待右上角状态指示变为 <span class="text-green-400">● 已连接</span> 后再进行匹配与歌单操作。</p>`;
                     document.getElementById('libLoadingModal').classList.remove('hidden');
                 }
             }catch(e){}

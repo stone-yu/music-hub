@@ -71,8 +71,18 @@ class NavidromeClient:
             return None
 
     def ping(self) -> bool:
-        result = self._get('ping')
-        return result is not None
+        # 用短超时（5s）单独请求，避免 /api/status 在 Navidrome 不可达时卡 30s，
+        # 让顶部连接状态指示灯能快速反馈“连接失败”。
+        url = f"{self._api_base}/ping"
+        params = self._make_params()
+        try:
+            resp = requests.get(url, params=params, timeout=5, verify=False)
+            resp.raise_for_status()
+            data = resp.json().get('subsonic-response', {})
+            return data.get('status') == 'ok'
+        except Exception as e:
+            logger.warning(f"Navidrome ping 失败: {e}")
+            return False
 
     def start_scan(self) -> bool:
         """触发 Navidrome 扫描音乐文件夹（索引新增文件）"""

@@ -25,6 +25,7 @@ class TrackMeta:
     duration: int = 0          # 秒
     source: str = ""           # 平台名：网易/酷我/QQ
     source_id: str = ""        # 平台内歌曲ID（网易 song id / 酷我 rid）
+    lyrics: str = ""           # 歌词文本（带时间轴的 lrc 格式），网易云可获取，酷我暂无
 
     def to_dict(self):
         return asdict(self)
@@ -44,6 +45,25 @@ class MetadataSource:
 
 
 # ==================== 网易云音乐 ====================
+def _fetch_netease_lyrics(song_id: str) -> str:
+    """抓网易歌词（lrc 带时间轴格式）。失败返回空串，不影响其他元数据。"""
+    if not song_id:
+        return ''
+    try:
+        resp = _safe_post(
+            'http://music.163.com/api/song/lyric',
+            headers={**HEADERS, 'Referer': 'https://music.163.com/'},
+            data={'id': song_id, 'lv': -1, 'kv': -1, 'tv': -1},
+        )
+        if not resp:
+            return ''
+        lyric = resp.json().get('lrc', {}).get('lyric', '')
+        return lyric or ''
+    except Exception as e:
+        logger.warning(f"网易歌词获取失败 song_id={song_id}: {e}")
+        return ''
+
+
 class NeteaseSource(MetadataSource):
     name = "网易"
 
@@ -70,7 +90,7 @@ class NeteaseSource(MetadataSource):
         return results
 
     def get_detail(self, source_id: str) -> Optional[TrackMeta]:
-        """网易 v3/song/detail 拿完整元数据（含封面/专辑）"""
+        """网易 v3/song/detail 拿完整元数据（含封面/专辑），并补抓歌词"""
         try:
             resp = _safe_post(
                 'http://music.163.com/api/v3/song/detail',
@@ -92,6 +112,7 @@ class NeteaseSource(MetadataSource):
                 duration=int(s.get('dt', 0) / 1000) if s.get('dt') else 0,
                 source=self.name,
                 source_id=source_id,
+                lyrics=_fetch_netease_lyrics(source_id),
             )
         except Exception as e:
             logger.warning(f"网易详情获取失败: {e}")

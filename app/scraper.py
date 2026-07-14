@@ -13,7 +13,7 @@ from typing import List, Optional, Dict
 
 import requests
 from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC, TYER
+from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC, TYER, USLT
 
 from app.metadata_sources import METADATA_SOURCES, TrackMeta
 
@@ -92,7 +92,7 @@ def scrape_meta(title: str, artist: str) -> Optional[TrackMeta]:
 
 
 def write_tags(filepath: str, meta: TrackMeta) -> bool:
-    """用 mutagen 写入 MP3 ID3 标签（标题/艺术家/专辑/封面/年份）"""
+    """用 mutagen 写入 MP3 ID3 标签（标题/艺术家/专辑/封面/年份/歌词）"""
     try:
         audio = MP3(filepath)
         if audio.tags is None:
@@ -112,6 +112,10 @@ def write_tags(filepath: str, meta: TrackMeta) -> bool:
                                   desc='Cover', data=resp.content))
             except Exception as e:
                 logger.warning(f"封面下载失败: {e}")
+        # 歌词（USLT 非同步歌词帧，Navidrome 可读取展示）
+        if meta.lyrics:
+            tags.delall('USLT')
+            tags.add(USLT(encoding=3, lang='chi', desc='', text=meta.lyrics))
         audio.save()
         return True
     except Exception as e:
@@ -162,12 +166,26 @@ def scrape_and_organize(filepath: str, title: str, artist: str, dest_dir: str) -
                             error=f'整理失败: {e}', album=meta.album, source=meta.source)
 
 
+def scrape_metadata_only(filepath: str, title: str, artist: str):
+    """刮削阶段一：搜元数据 + 写标签（不移动文件）。
+    返回 (meta, error)；meta 为 None 表示失败。"""
+    if not os.path.exists(filepath):
+        return None, '文件不存在'
+    meta = scrape_meta(title, artist)
+    if not meta:
+        return None, '未找到元数据'
+    write_tags(filepath, meta)
+    return meta, ''
+
+
 # ==================== 刮削任务管理器 ====================
 class ScrapeManager:
     """后台执行刮削任务，维护状态供前端轮询"""
     def __init__(self):
         self._tasks: Dict[str, dict] = {}   # key(原title|artist) → task
         self._lock = threading.Lock()
+        # 刮削完成回调（由 app.py 注入，用于触发曲库刷新）；为 None 时不触发
+        self.on_scrape_complete = None
 
     def _key(self, title, artist):
         return f"{title}|{artist}"
@@ -176,26 +194,59 @@ class ScrapeManager:
         key = self._key(title, artist)
         with self._lock:
             existing = self._tasks.get(key)
-            if existing and existing.get('status') == 'scraping':
+            # 刮削中或整理中则跳过，避免重复触发
+            if existing and (existing.get('scrape_status') == 'scraping'
+                             or existing.get('organize_status') == 'organizing'):
                 return existing
             self._tasks[key] = {'title': title, 'artist': artist, 'filepath': filepath,
-                                'status': 'scraping', 'scraped_path': '', 'album': '',
-                                'source': '', 'error': '', 'updated': time.time()}
+                                'status': 'scraping',
+                                'scrape_status': 'scraping', 'organize_status': 'idle',
+                                'scraped_path': '', 'album': '', 'source': '',
+                                'error': '', 'updated': time.time()}
 
         def _do():
-            res = scrape_and_organize(filepath, title, artist, dest_dir)
+            # 阶段一：刮削元数据 + 写标签
+            meta, err = scrape_metadata_only(filepath, title, artist)
+            if not meta:
+                with self._lock:
+                    t = self._tasks.get(key, {})
+                    t.update({'scrape_status': 'failed', 'organize_status': 'idle',
+                              'status': 'failed', 'error': err, 'updated': time.time()})
+                return
             with self._lock:
                 t = self._tasks.get(key, {})
-                t.update({'status': res.status, 'scraped_path': res.scraped_path,
-                          'album': res.album, 'source': res.source, 'error': res.error,
-                          'updated': time.time()})
+                t.update({'scrape_status': 'scraped', 'organize_status': 'idle',
+                          'album': meta.album, 'source': meta.source,
+                          'error': '', 'updated': time.time()})
+            # 阶段二：整理归档
+            with self._lock:
+                t = self._tasks.get(key, {})
+                t.update({'organize_status': 'organizing', 'updated': time.time()})
+            try:
+                new_path = organize_file(filepath, meta, dest_dir)
+            except Exception as e:
+                with self._lock:
+                    t = self._tasks.get(key, {})
+                    t.update({'organize_status': 'failed', 'status': 'failed',
+                              'error': f'整理失败: {e}', 'updated': time.time()})
+                return
+            with self._lock:
+                t = self._tasks.get(key, {})
+                t.update({'organize_status': 'success', 'scraped_path': new_path,
+                          'status': 'success', 'updated': time.time()})
             # 回写到下载任务记录，试听时用刮削后路径
-            if res.status == 'success' and res.scraped_path:
+            try:
+                from app.downloader import download_manager
+                download_manager.update_scrape_path(title, artist, new_path)
+            except Exception:
+                pass
+            # 触发曲库刷新（让新整理入库的歌曲即时可见）。
+            # 回调内部有 loading 守卫：若已有刷新在进行中则直接返回，不重复触发。
+            if self.on_scrape_complete:
                 try:
-                    from app.downloader import download_manager
-                    download_manager.update_scrape_path(title, artist, res.scraped_path)
-                except Exception:
-                    pass
+                    self.on_scrape_complete()
+                except Exception as e:
+                    logger.warning(f"刮削完成后触发曲库刷新失败: {e}")
         threading.Thread(target=_do, daemon=True).start()
         return self._tasks[key]
 
@@ -206,7 +257,9 @@ class ScrapeManager:
                 key = self._key(s.get('title', ''), s.get('artist', ''))
                 t = self._tasks.get(key)
                 result.append({'title': s.get('title', ''), 'artist': s.get('artist', ''),
-                               'status': t['status'] if t else 'idle',
+                               'status': t.get('status', 'idle') if t else 'idle',
+                               'scrape_status': t.get('scrape_status', 'idle') if t else 'idle',
+                               'organize_status': t.get('organize_status', 'idle') if t else 'idle',
                                'scraped_path': t.get('scraped_path', '') if t else '',
                                'album': t.get('album', '') if t else ''})
         return result
