@@ -180,7 +180,8 @@ def fetch_kuwo_playlist(playlist_id: str) -> Tuple[str, List[Song]]:
 
 def fetch_kugou_playlist(playlist_id: str) -> Tuple[str, List[Song]]:
     """获取酷狗音乐歌单。special/song 接口对无 cookie 请求限流（返回"参数不合法"），
-    故用带 cookie 的 session（先访问 www.kugou.com 取 cookie）。"""
+    故用带 cookie 的 session（先访问 www.kugou.com 取 cookie）。
+    歌单名走 special/info 接口取 specialname，取不到才回退占位。"""
     try:
         sess = requests.Session()
         sess.headers.update({**HEADERS, 'Referer': 'http://www.kugou.com/'})
@@ -188,6 +189,18 @@ def fetch_kugou_playlist(playlist_id: str) -> Tuple[str, List[Song]]:
             sess.get('http://www.kugou.com/', timeout=10)  # 取 cookie
         except Exception:
             pass
+        # 取歌单真实名称
+        playlist_name = '酷狗歌单'
+        try:
+            info_resp = sess.get(
+                'http://mobilecdn.kugou.com/api/v3/special/info',
+                params={'specialid': playlist_id}, timeout=10)
+            name = info_resp.json().get('data', {}).get('specialname', '')
+            if name:
+                playlist_name = name.strip()
+        except Exception as e:
+            logger.warning(f"取酷狗歌单名失败: {e}")
+
         url = "http://mobilecdn.kugou.com/api/v3/special/song"
         songs = []
         for page in range(1, 5):  # 最多 4 页 × 30 = 120 首
@@ -216,8 +229,8 @@ def fetch_kugou_playlist(playlist_id: str) -> Tuple[str, List[Song]]:
             if len(info) < 30:
                 break
 
-        logger.info(f"酷狗歌单: {len(songs)} 首歌曲")
-        return ('酷狗歌单', songs)
+        logger.info(f"酷狗歌单 '{playlist_name}': {len(songs)} 首歌曲")
+        return (playlist_name, songs)
 
     except Exception as e:
         logger.error(f"获取酷狗歌单失败: {e}")

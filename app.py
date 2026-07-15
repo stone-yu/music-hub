@@ -25,7 +25,7 @@ from searchers import search_all, search_all_merged, Song, HEADERS
 from app.navidrome_client import NavidromeClient, NavidromeSong
 from app.cover_generator import generate_cover, THEME_COLORS
 from app.playlist_parser import fetch_playlist_from_url, parse_playlist_url
-from app.hot_playlists import fetch_all_hot, HOT_PLAYLIST_FETCHERS
+from app.hot_playlists import fetch_all_hot, HOT_PLAYLIST_FETCHERS, fetch_netease_by_category, NETEASE_CATEGORIES
 from app.playlist_search import search_all_playlists
 from app.hot_songs import get_all_ranks, fetch_rank_songs, RANK_PROVIDERS
 from app.downloader import download_manager, DOWNLOAD_SOURCES, kuwo_search_candidates, MAX_TASKS
@@ -488,6 +488,7 @@ class DownloadByRidRequest(BaseModel):
     title: str
     artist: str
     rid: str
+    quality: str = "standard"   # standard(128k) / high(320k) / lossless(flac)
 
 @app.post("/api/download/by-rid")
 def api_download_by_rid(req: DownloadByRidRequest, request: Request):
@@ -499,7 +500,7 @@ def api_download_by_rid(req: DownloadByRidRequest, request: Request):
         raise HTTPException(400, f"下载任务已达上限 {MAX_TASKS} 个，请先清理历史任务")
     task = download_manager.submit_by_rid(req.title.strip(), req.artist.strip(),
                                           req.rid.strip(), config.DOWNLOAD_SOURCE,
-                                          config.DOWNLOAD_DIR)
+                                          config.DOWNLOAD_DIR, req.quality.strip())
     return {"status": task.get('status', 'downloading'), "title": req.title, "artist": req.artist}
 
 @app.get("/api/download/search")
@@ -739,6 +740,29 @@ def api_hot_playlists(request: Request, refresh: str = ""):
     if sum(1 for v in data["playlists"].values() if v) >= len(HOT_PLAYLIST_FETCHERS):
         _cache_set('hot_playlists', data)
     return data
+
+@app.get("/api/playlist/categories")
+def api_playlist_categories(request: Request):
+    """返回各平台可用的歌单分类标签。仅网易云有官方分类浏览接口，
+    其他平台(酷狗/QQ/酷我)无稳定分类页，只有"热门"。"""
+    require_auth(request)
+    return {"categories": {"网易云": [c[0] for c in NETEASE_CATEGORIES]}}
+
+
+@app.get("/api/playlist/by-category")
+def api_playlist_by_category(request: Request, source: str = "", cat: str = ""):
+    """按平台+分类拉歌单。目前仅网易云支持分类；其他平台忽略 cat 返回热门。"""
+    require_auth(request)
+    source = source.strip()
+    cat = cat.strip()
+    if source == '网易云':
+        items = fetch_netease_by_category(cat or '热门')
+        return {"playlists": [p.to_dict() for p in items]}
+    # 非网易平台：无分类接口，回退热门
+    grouped = fetch_all_hot(sources=[source] if source else None)
+    items = grouped.get(source, []) if source else []
+    return {"playlists": [p.to_dict() for p in items]}
+
 
 @app.get("/api/ranks")
 def api_ranks(request: Request, refresh: str = ""):

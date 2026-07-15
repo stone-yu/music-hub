@@ -62,6 +62,9 @@
         .ptab{padding:6px 15px;border-radius:999px;font-size:.78rem;cursor:pointer;transition:all .2s;border:1px solid var(--border);color:var(--text-muted);white-space:nowrap;background:transparent}
         .ptab:hover{color:var(--text);border-color:var(--border-strong)}
         .ptab.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 8px var(--accent-glow)}
+        .pcat{padding:3px 11px;border-radius:999px;font-size:.72rem;cursor:pointer;transition:all .2s;border:1px solid var(--border);color:var(--text-muted);white-space:nowrap;background:transparent}
+        .pcat:hover{color:var(--text);border-color:var(--border-strong)}
+        .pcat.active{background:var(--accent);border-color:var(--accent);color:#fff}
         .topbar{position:sticky;top:0;z-index:50;background:var(--bg);backdrop-filter:blur(12px);padding:14px 20px;margin:-16px -20px 18px;border-bottom:1px solid var(--border)}
         .profile-menu{position:absolute;right:0;top:calc(100% + 8px);min-width:160px;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.4);padding:6px;z-index:60;display:none}
         .profile-menu.show{display:block}
@@ -379,7 +382,8 @@
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-white font-semibold">🎶 热门歌单</h2>
                 </div>
-                <div id="hotPlaylistsTabs" class="flex flex-wrap gap-2 mb-4"></div>
+                <div id="hotPlaylistsTabs" class="flex flex-wrap gap-2 mb-3"></div>
+                <div id="hotPlaylistsCats" class="flex flex-wrap gap-1.5 mb-4 hidden"></div>
                 <div id="hotPlaylistsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     <div class="col-span-full text-center text-gray-500 text-sm py-8">加载中...</div>
                 </div>
@@ -651,7 +655,16 @@
                 <h2 class="text-lg font-bold text-white">⬇ 选择下载版本</h2>
                 <button onclick="closeDownloadSearchModal()" class="text-gray-400 hover:text-white text-xl leading-none">×</button>
             </div>
-            <p id="downloadSearchInfo" class="text-sm text-gray-400 mb-4"></p>
+            <p id="downloadSearchInfo" class="text-sm text-gray-400 mb-3"></p>
+            <div class="flex items-center gap-2 mb-3 text-xs">
+                <span class="text-gray-400 flex-shrink-0">音质</span>
+                <div class="flex items-center gap-1" id="dlQualityPicker">
+                    <button data-q="standard" class="dl-q-btn px-2.5 py-1 rounded-md bg-indigo-600 text-white">标准 128k</button>
+                    <button data-q="high" class="dl-q-btn px-2.5 py-1 rounded-md card text-gray-300">高品 320k</button>
+                    <button data-q="lossless" class="dl-q-btn px-2.5 py-1 rounded-md card text-gray-300">无损 FLAC</button>
+                </div>
+                <span class="text-gray-500" id="dlQualityHint"></span>
+            </div>
             <div id="downloadSearchList" class="space-y-2"></div>
         </div>
     </div>
@@ -1129,6 +1142,20 @@
             }catch(e){document.getElementById('downloadSearchList').innerHTML='搜索失败'}
         }
         let downloadTarget={};
+        let downloadQuality='standard';
+        (function(){
+            document.addEventListener('click',function(e){
+                const b=e.target.closest('.dl-q-btn');
+                if(!b)return;
+                downloadQuality=b.dataset.q;
+                document.querySelectorAll('.dl-q-btn').forEach(x=>{
+                    if(x.dataset.q===downloadQuality){x.className='dl-q-btn px-2.5 py-1 rounded-md bg-indigo-600 text-white'}
+                    else{x.className='dl-q-btn px-2.5 py-1 rounded-md card text-gray-300'}
+                });
+                const hint=document.getElementById('dlQualityHint');
+                if(hint) hint.textContent = downloadQuality==='standard'?'':(downloadQuality==='high'?'酷我免费接口暂无320k，将降级标准':'酷我免费接口暂无无损，将降级标准');
+            });
+        })();
         function closeDownloadSearchModal(){document.getElementById('downloadSearchModal').classList.add('hidden')}
         function previewSong(rid,label,btn){
             const audio=document.getElementById('globalAudio');
@@ -1167,7 +1194,7 @@
             if(card){const status=card.querySelector('.dl-status'),b=card.querySelector('.dl-btn');status.textContent='下载中...';status.className='text-yellow-400 text-xs dl-status';b.disabled=true;b.textContent='⏳'}
             markAutoScrapePending(t,a);
             try{
-                await authFetch('/api/download/by-rid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,artist:a,rid})});
+                await authFetch('/api/download/by-rid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,artist:a,rid,quality:downloadQuality})});
                 pollDownloadStatus();
             }catch(e){if(card){const status=card.querySelector('.dl-status'),b=card.querySelector('.dl-btn');status.textContent='下载失败';status.className='text-red-400 text-xs dl-status';b.disabled=false;b.textContent='⬇重试'}}
         }
@@ -1187,7 +1214,7 @@
                         if(!card)return;
                         const status=card.querySelector('.dl-status'),b=card.querySelector('.dl-btn');
                         if(s.status==='downloading'){status.textContent='下载中...';status.className='text-yellow-400 text-xs dl-status';b.disabled=true;b.textContent='⏳';pending=true}
-                        else if(s.status==='success'){status.textContent='✓已下载';status.className='text-green-400 text-xs dl-status';b.disabled=true;b.textContent='✓完成'}
+                        else if(s.status==='success'){status.textContent=s.downgraded?'✓已下载(降级标准)':'✓已下载';status.className='text-green-400 text-xs dl-status';b.disabled=true;b.textContent='✓完成'}
                         else if(s.status==='failed'){status.textContent='失败';status.className='text-red-400 text-xs dl-status';b.disabled=false;b.textContent='⬇重试'}
                         else if(s.status==='notfound'){status.textContent='未找到';status.className='text-gray-500 text-xs dl-status';b.disabled=true;b.textContent='无'}
                     });
@@ -1570,6 +1597,7 @@
         }
 
         // ===== 热门歌单 =====
+        let neteaseCategories=[], hotPlaylistActiveCat='热门';
         async function loadHotPlaylists(){
             const grid=document.getElementById('hotPlaylistsGrid');
             grid.innerHTML='<div class="col-span-full text-center text-gray-500 text-sm py-8">加载中...</div>';
@@ -1579,13 +1607,54 @@
                 const tabs=Object.keys(allHotPlaylists);
                 if(!tabs.length){grid.innerHTML='<div class="col-span-full text-center text-gray-500 text-sm py-8">暂无歌单</div>';return}
                 if(!tabs.includes(hotPlaylistActiveTab)) hotPlaylistActiveTab=tabs[0];
-                renderHotPlaylistTabs();renderHotPlaylistGrid();
+                renderHotPlaylistTabs();
+                await loadPlaylistCategories();
+                await renderHotPlaylistGrid();
             }catch(e){grid.innerHTML='加载失败'}
         }
+        async function loadPlaylistCategories(){
+            try{
+                const r=await authFetch('/api/playlist/categories');if(!r)return;
+                const d=await r.json();
+                neteaseCategories=d.categories?.['网易云']||[];
+            }catch(e){neteaseCategories=[]}
+            renderHotPlaylistCats();
+        }
+        function renderHotPlaylistCats(){
+            const el=document.getElementById('hotPlaylistsCats');
+            if(!el)return;
+            // 仅网易云平台显示分类标签条
+            if(hotPlaylistActiveTab!=='网易云'||!neteaseCategories.length){el.classList.add('hidden');el.innerHTML='';return}
+            el.classList.remove('hidden');
+            el.innerHTML=neteaseCategories.map(c=>`<span class="pcat ${c===hotPlaylistActiveCat?'active':''}" onclick="switchHotPlaylistCat('${c.replace(/'/g,"\\'")}')">${c}</span>`).join('');
+        }
         function renderHotPlaylistTabs(){const el=document.getElementById('hotPlaylistsTabs');el.innerHTML='';Object.keys(allHotPlaylists).forEach(s=>{el.innerHTML+=`<span class="ptab ${s===hotPlaylistActiveTab?'active':''}" onclick="switchHotPlaylistTab('${s}')">${s}</span>`})}
-        function switchHotPlaylistTab(s){hotPlaylistActiveTab=s;renderHotPlaylistTabs();renderHotPlaylistGrid()}
-        function renderHotPlaylistGrid(){
+        async function switchHotPlaylistTab(s){
+            hotPlaylistActiveTab=s;
+            hotPlaylistActiveCat='热门';
+            renderHotPlaylistTabs();
+            renderHotPlaylistCats();
+            await renderHotPlaylistGrid();
+        }
+        async function switchHotPlaylistCat(c){
+            hotPlaylistActiveCat=c;
+            renderHotPlaylistCats();
+            await renderHotPlaylistGrid();
+        }
+        async function renderHotPlaylistGrid(){
             const grid=document.getElementById('hotPlaylistsGrid');
+            grid.innerHTML='<div class="col-span-full text-center text-gray-500 text-sm py-8">加载中...</div>';
+            // 网易云平台且选了分类：按分类拉取
+            if(hotPlaylistActiveTab==='网易云'&&hotPlaylistActiveCat){
+                try{
+                    const r=await authFetch('/api/playlist/by-category?source=网易云&cat='+encodeURIComponent(hotPlaylistActiveCat));if(!r)return;
+                    const items=(await r.json()).playlists||[];
+                    if(!items.length){grid.innerHTML='<div class="col-span-full text-center text-gray-500 text-sm py-8">无歌单</div>';return}
+                    grid.innerHTML=items.map(p=>playlistCard(p)).join('');
+                    return;
+                }catch(e){grid.innerHTML='加载失败';return}
+            }
+            // 其他平台：用已加载的热门列表
             const items=allHotPlaylists[hotPlaylistActiveTab]||[];
             if(!items.length){grid.innerHTML='<div class="col-span-full text-center text-gray-500 text-sm py-8">无歌单</div>';return}
             grid.innerHTML=items.map(p=>playlistCard(p)).join('');

@@ -29,6 +29,8 @@ class DownloadResult:
     status: str          # success | failed | downloading | notfound
     filepath: str = ""
     error: str = ""
+    quality: str = ""        # 实际下载音质 standard/lossless
+    downgraded: bool = False  # 请求高品/无损但降级为标准
 
     def to_dict(self):
         return asdict(self)
@@ -68,12 +70,27 @@ def kuwo_search(keyword: str, limit: int = 10) -> List[dict]:
     return songs
 
 
-def kuwo_get_url(rid: str) -> Optional[str]:
-    """酷我 rid → mp3 播放URL"""
+def kuwo_get_url(rid: str, quality: str = 'standard') -> Optional[str]:
+    """酷我 rid → 播放URL。quality: standard(128k)/high(320k)/lossless(flac)。
+    高品/无损走带 br 的 playUrl 接口，失败自动降级为标准 mp3。"""
+    # 标准：老接口稳定可下
+    if quality == 'standard':
+        return _kuwo_url_antiserver(rid, 'mp3')
+    # 高品/无损：试新接口（需 cookie/token，常失败），失败降级标准
+    br = '320kmp3' if quality == 'high' else 'flac'
+    url = _kuwo_url_playurl(rid, br)
+    if url:
+        return url
+    logger.info(f"酷我 {quality} 不可用，降级标准 mp3 rid={rid}")
+    return _kuwo_url_antiserver(rid, 'mp3')
+
+
+def _kuwo_url_antiserver(rid: str, fmt: str = 'mp3') -> Optional[str]:
+    """老接口：标准 128k mp3，稳定"""
     try:
         resp = requests.get(
             'http://antiserver.kuwo.cn/anti.s',
-            params={'type': 'convert_url', 'format': 'mp3', 'response': 'url',
+            params={'type': 'convert_url', 'format': fmt, 'response': 'url',
                     'rid': f'MUSIC_{rid}'},
             headers=HEADERS, timeout=10,
         )
@@ -82,6 +99,34 @@ def kuwo_get_url(rid: str) -> Optional[str]:
             return url
     except Exception as e:
         logger.warning(f"酷我获取URL失败: {e}")
+    return None
+
+
+def _kuwo_url_playurl(rid: str, br: str) -> Optional[str]:
+    """新接口：支持 br=320kmp3/flac，但需合法 csrf token，裸请求常被拒"""
+    try:
+        sess = requests.Session()
+        sess.headers.update(HEADERS)
+        try:
+            sess.get('http://www.kuwo.cn/', timeout=10)
+        except Exception:
+            pass
+        tok = ''
+        for c in sess.cookies:
+            if c.name == 'kw_token':
+                tok = c.value
+        resp = sess.get(
+            'http://www.kuwo.cn/api/v1/www/music/playUrl',
+            params={'rid': rid, 'type': 'music', 'br': br},
+            headers={'Referer': 'http://www.kuwo.cn/', 'csrf': tok}, timeout=12)
+        data = resp.json()
+        if data.get('success') is False:
+            return None
+        url = (data.get('data') or {}).get('url') if isinstance(data.get('data'), dict) else None
+        if url and url.startswith('http'):
+            return url
+    except Exception as e:
+        logger.warning(f"酷我 playUrl 获取失败 br={br}: {e}")
     return None
 
 
@@ -110,19 +155,27 @@ def kuwo_search_candidates(keyword: str, limit: int = 8) -> List[dict]:
     return candidates
 
 
-def kuwo_download_by_rid(rid: str, save_dir: str, title: str = '', artist: str = '') -> DownloadResult:
-    """按 rid 下载（用户从候选列表选定后调用）。优先用 title/artist 命名文件"""
-    url = kuwo_get_url(rid)
+def kuwo_download_by_rid(rid: str, save_dir: str, title: str = '', artist: str = '',
+                         quality: str = 'standard') -> DownloadResult:
+    """按 rid 下载（用户从候选列表选定后调用）。优先用 title/artist 命名文件。
+    quality: standard(128k)/high(320k)/lossless(flac)，高品/无损不可用时自动降级标准。"""
+    # 先按请求音质取 url；若返回的是 mp3（降级了），记录实际音质
+    requested = quality
+    url = kuwo_get_url(rid, quality)
     if not url:
         return DownloadResult(title=title, artist=artist, source='酷我',
                               status='failed', error='获取下载URL失败')
+    # 判定实际音质：flac 链接为无损，否则标准 mp3（酷我免费接口无真正 320k）
+    actual = 'lossless' if '.flac' in url.lower() else 'standard'
+    downgrade = requested in ('high', 'lossless') and actual == 'standard'
     os.makedirs(save_dir, exist_ok=True)
     try:
         resp = requests.get(url, headers=HEADERS, timeout=60, stream=True)
         resp.raise_for_status()
+        ext = '.flac' if actual == 'lossless' else '.mp3'
         # 文件名：优先用候选的 title/artist，否则从 Content-Disposition 解析，兜底 rid
         if title or artist:
-            fname = f"{_safe_filename(title)} - {_safe_filename(artist)}.mp3"
+            fname = f"{_safe_filename(title)} - {_safe_filename(artist)}{ext}"
         else:
             cd = resp.headers.get('Content-Disposition', '')
             fname = ''
@@ -132,19 +185,22 @@ def kuwo_download_by_rid(rid: str, save_dir: str, title: str = '', artist: str =
                 if m:
                     fname = m.group(1)
             if not fname:
-                fname = f"{rid}.mp3"
+                fname = f"{rid}{ext}"
         filepath = os.path.join(save_dir, _safe_filename(fname))
         # 避免重名覆盖：若已存在则加 rid 后缀
         if os.path.exists(filepath):
-            base, ext = os.path.splitext(filepath)
-            filepath = f"{base}_{rid}{ext}"
+            base, e2 = os.path.splitext(filepath)
+            filepath = f"{base}_{rid}{e2}"
         with open(filepath, 'wb') as f:
             for chunk in resp.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
-        logger.info(f"下载成功: {fname} ({os.path.getsize(filepath)} bytes)")
-        return DownloadResult(title=fname, artist='', source='酷我',
-                              status='success', filepath=filepath)
+        logger.info(f"下载成功: {fname} ({os.path.getsize(filepath)} bytes) 实际音质={actual}")
+        res = DownloadResult(title=fname, artist='', source='酷我',
+                             status='success', filepath=filepath)
+        res.quality = actual  # 记录实际音质供前端提示
+        res.downgraded = downgrade
+        return res
     except Exception as e:
         logger.warning(f"下载失败 rid={rid}: {e}")
         return DownloadResult(title='', artist='', source='酷我',
@@ -251,25 +307,28 @@ class DownloadManager:
         threading.Thread(target=_do, daemon=True).start()
         return self._tasks[key]
 
-    def submit_by_rid(self, title: str, artist: str, rid: str, source: str, save_dir: str) -> dict:
-        """用户从候选列表选定 rid 后提交下载"""
+    def submit_by_rid(self, title: str, artist: str, rid: str, source: str, save_dir: str,
+                      quality: str = 'standard') -> dict:
+        """用户从候选列表选定 rid 后提交下载。quality: standard/high/lossless"""
         key = self._key(title, artist)
         with self._lock:
             self._tasks[key] = {'title': title, 'artist': artist, 'source': source, 'rid': rid,
                                 'status': 'downloading', 'filepath': '', 'error': '',
+                                'quality_requested': quality, 'quality': '', 'downgraded': False,
                                 'updated': time.time()}
             self._save()
         def _do():
             res = None
             try:
-                res = kuwo_download_by_rid(rid, save_dir, title, artist)
+                res = kuwo_download_by_rid(rid, save_dir, title, artist, quality)
             except Exception as e:
                 logger.warning(f"下载异常 rid={rid} title={title}: {e}")
                 res = DownloadResult(title, artist, source, 'failed', error=str(e))
             with self._lock:
                 t = self._tasks.get(key, {})
                 t.update({'status': res.status, 'filepath': res.filepath,
-                          'error': res.error, 'updated': time.time()})
+                          'error': res.error, 'quality': res.quality,
+                          'downgraded': res.downgraded, 'updated': time.time()})
                 self._save()
         threading.Thread(target=_do, daemon=True).start()
         return self._tasks[key]
@@ -297,7 +356,9 @@ class DownloadManager:
                 key = self._key(s.get('title', ''), s.get('artist', ''))
                 t = self._tasks.get(key)
                 result.append({'title': s.get('title', ''), 'artist': s.get('artist', ''),
-                               'status': t['status'] if t else 'idle'})
+                               'status': t['status'] if t else 'idle',
+                               'downgraded': bool(t.get('downgraded')) if t else False,
+                               'quality': t.get('quality', '') if t else ''})
         return result
 
     def list_all(self) -> List[dict]:

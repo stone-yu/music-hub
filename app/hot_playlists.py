@@ -74,6 +74,49 @@ def fetch_netease_hot(limit: int = 24) -> List[HotPlaylist]:
     return playlists
 
 
+# 网易云歌单分类：精简后的常用分类（从 catalogue 接口的 70 个里挑高频的，
+# 避免标签条过长。"热门"作为首项，走 personalized 推荐接口）。
+NETEASE_CATEGORIES = [
+    ("热门", "热门"), ("华语", "华语"), ("流行", "流行"), ("摇滚", "摇滚"),
+    ("民谣", "民谣"), ("电子", "电子"), ("说唱", "说唱"), ("轻音乐", "轻音乐"),
+    ("怀旧", "怀旧"), ("影视原声", "影视原声"), ("ACG", "ACG"), ("经典", "经典"),
+]
+
+
+def fetch_netease_by_category(cat: str, limit: int = 24) -> List[HotPlaylist]:
+    """网易云按分类拉歌单。cat="热门" 走推荐接口，其余走 /api/playlist/list?cat=xxx。
+    已验证：华语/流行/摇滚/民谣 等分类均返回完整歌单(含播放数/歌曲数)。"""
+    if cat == '热门' or not cat:
+        return fetch_netease_hot(limit)
+    playlists = []
+    resp = _safe_get(
+        'https://music.163.com/api/playlist/list',
+        headers={**HEADERS, 'Referer': 'https://music.163.com/'},
+        params={'cat': cat, 'order': 'hot', 'limit': limit, 'offset': 0},
+        timeout=15,
+    )
+    if not resp:
+        return playlists
+    try:
+        for item in resp.json().get('playlists', []):
+            pid = str(item.get('id', ''))
+            if not pid:
+                continue
+            playlists.append(HotPlaylist(
+                id=pid,
+                name=item.get('name', '').strip(),
+                cover_url=item.get('coverImgUrl', ''),
+                source='网易云',
+                url=f'https://music.163.com/#/playlist?id={pid}',
+                play_count=item.get('playCount', 0) or 0,
+                track_count=item.get('trackCount', 0) or 0,
+            ))
+    except Exception as e:
+        logger.warning(f"网易云分类歌单解析失败 cat={cat}: {e}")
+    logger.info(f"网易云[{cat}]歌单: {len(playlists)} 个")
+    return playlists
+
+
 # ==================== QQ音乐（列表可用，详情需签名，暂未启用）====================
 def fetch_qq_hot(limit: int = 24) -> List[HotPlaylist]:
     """QQ音乐热门歌单广场。列表可获取，但歌单详情接口需签名/登录，点击导入会失败，
