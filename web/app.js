@@ -90,6 +90,22 @@ function initSidebar() {
   })
 }
 
+// ---------- 主题切换（亮色/暗色）----------
+function initTheme() {
+  const saved = localStorage.getItem('theme') || 'light'
+  applyTheme(saved)
+  $('#theme-toggle').addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme') || 'light'
+    applyTheme(cur === 'light' ? 'dark' : 'light')
+  })
+}
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light')
+  localStorage.setItem('theme', t)
+  const btn = $('#theme-toggle')
+  if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙'
+}
+
 // ---------- 顶部条：曲库状态 + 个人中心 ----------
 async function checkTopStatus() {
   const el = $('#status-indicator')
@@ -1361,5 +1377,6 @@ function switchSettingsSub(sub) {
 }
 $$('#settings-tabs .ptab').forEach((t) => t.addEventListener('click', () => switchSettingsSub(t.dataset.sub)))
 initSidebar()
+initTheme()
 // 初始加载热榜歌曲（默认 active 的 view 是 search）
 loadSearchSquare()
