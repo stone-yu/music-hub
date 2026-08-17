@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MusicHub</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238b9cff'/%3E%3Cstop offset='1' stop-color='%236b7cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='48' height='48' rx='12' fill='url(%23g)'/%3E%3Cpath d='M20 13v15.5a4.5 4.5 0 1 1-2.4-3.98V13z' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linejoin='round'/%3E%3Cpath d='M20 13l11-2.6v3.4L20 17z' fill='%23fff'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <a href="#" class="menu-item active" data-tab="search"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1 3 4 5 4 9a4 4 0 0 1-8 0c0-2 1-3 2-4-1-2-1-4 2-5z"/><path d="M12 15a2 2 0 0 0 2 2"/></svg><span class="menu-text">热榜歌曲</span></a>
+    <a href="#" class="menu-item" data-tab="playlists"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><span class="menu-text">热榜歌单</span></a>
+    <a href="#" class="menu-item" data-tab="library"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg><span class="menu-text">我的曲库</span></a>
+    <a href="#" class="menu-item" data-tab="sources"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6"/><path d="M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/></svg><span class="menu-text">音源管理</span></a>
+  </aside>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <!-- 顶部固定条：汉堡菜单 + 曲库状态 + 刷新 + 个人中心 -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <button id="sidebar-toggle" class="topbar-btn hamburger" title="展开/隐藏菜单">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="topbar-brand"><span class="brand-text">MusicHub</span></div>
+      <span id="status-indicator" class="status-indicator">● 检查中…</span>
+      <button onclick="refreshLibraryTop()" id="topbar-refresh" class="topbar-btn" title="刷新曲库">
+        <svg id="libraryRefreshIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      </button>
+    </div>
+    <div class="topbar-right">
+      <button id="theme-toggle" class="topbar-btn" title="切换主题">🌙</button>
+      <div class="profile-wrap">
+        <button id="profile-btn" class="topbar-btn profile-btn" title="个人中心">👤</button>
+        <div class="profile-menu" id="profile-menu">
+          <div class="profile-menu-item" data-tab="settings"><span>⚙️</span> 设置</div>
+          <div class="profile-menu-divider"></div>
+          <div class="profile-menu-item profile-menu-danger" id="logout-btn" hidden><span>🚪</span> 退出</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="main-inner">
+
+    <!-- 热榜歌曲页 -->
+    <section id="view-search" class="view active">
+      <!-- 热榜歌曲首页 -->
+      <div id="search-home">
+        <div class="page-head">
+          <h2 class="page-title">🔥 热榜歌曲</h2>
+          <button id="rank-refresh">刷新</button>
+          <form id="search-form" class="head-search">
+            <input type="text" id="keyword" placeholder="歌曲名 / 歌手" autocomplete="off" required />
+            <select id="platform">
+              <option value="aggregate">聚合</option>
+              <option value="kw">酷我</option>
+              <option value="kg">酷狗</option>
+              <option value="tx">QQ音乐</option>
+              <option value="wy">网易云</option>
+              <option value="mg">咪咕</option>
+            </select>
+            <button type="submit">搜索</button>
+          </form>
+        </div>
+        <div class="pl-tabs" id="rank-tabs">
+          <span class="ptab active" data-src="wy" data-id="3778678" data-name="网易热歌榜">网易热歌</span>
+          <span class="ptab" data-src="kg" data-id="8888" data-name="酷狗热歌榜">酷狗热歌</span>
+          <span class="ptab" data-src="tx" data-id="62" data-name="QQ热歌榜">QQ热歌</span>
+          <span class="ptab" data-src="wy" data-id="3779629" data-name="网易新歌榜">网易新歌</span>
+        </div>
+        <div id="search-square-list"></div>
+      </div>
+      <!-- 搜索结果页 -->
+      <div id="search-results-page" hidden>
+        <div class="page-head">
+          <button id="search-back" class="back-btn">← 返回热榜</button>
+          <h2 class="page-title">歌曲搜索结果</h2>
+        </div>
+        <div id="search-status" class="status"></div>
+        <div id="results"></div>
+      </div>
+    </section>
+
+    <!-- 热榜歌单页 -->
+    <section id="view-playlists" class="view">
+      <!-- 热榜歌单首页 -->
+      <div id="pl-home">
+        <div class="page-head">
+          <h2 class="page-title">🎶 热榜歌单</h2>
+          <button id="pl-refresh-btn">刷新</button>
+          <div class="head-search">
+            <input type="text" id="pl-keyword" placeholder="搜歌单：民谣、经典、怀旧" class="name-in" />
+            <button id="pl-search-btn">搜歌单</button>
+          </div>
+        </div>
+        <div class="pl-tabs" id="pl-platform-tabs">
+          <span class="ptab active" data-p="">聚合</span>
+          <span class="ptab" data-p="kw">酷我</span>
+          <span class="ptab" data-p="kg">酷狗</span>
+          <span class="ptab" data-p="tx">QQ音乐</span>
+          <span class="ptab" data-p="wy">网易云</span>
+          <span class="ptab" data-p="mg">咪咕</span>
+        </div>
+        <div id="pl-status" class="status"></div>
+        <div id="pl-grid"></div>
+      </div>
+      <!-- 歌单详情页 -->
+      <div id="pl-detail" hidden></div>
+    </section>
+
+    <!-- 曲库页（Navidrome 统计 + 歌单列表只读） -->
+    <section id="view-library" class="view">
+      <div class="toolbar">
+        <button id="lib-stats-refresh">刷新</button>
+        <span id="lib-stats-summary"></span>
+      </div>
+      <div id="library-stats" class="status">加载中…</div>
+    </section>
+
+    <!-- 音源管理页 -->
+    <section id="view-sources" class="view">
+      <div class="import-panel">
+        <div class="import-block">
+          <h4>在线 URL 导入</h4>
+          <div class="import-row">
+            <input type="text" id="src-url" placeholder="https://.../source.js" />
+            <input type="text" id="src-url-name" placeholder="名称(可选)" class="name-in" />
+            <button id="src-url-btn">导入</button>
+          </div>
+        </div>
+        <div class="import-block">
+          <h4>本地文件上传</h4>
+          <div class="import-row">
+            <input type="file" id="src-file" accept=".js" />
+            <button id="src-file-btn">上传</button>
+          </div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <button id="refresh-sources">刷新</button>
+        <span id="sources-summary"></span>
+      </div>
+      <div id="sources"></div>
+    </section>
+
+    <!-- 设置页（步骤8改造为子tab，先保留原结构） -->
+    <section id="view-settings" class="view">
+      <div class="settings-tabs" id="settings-tabs">
+        <span class="ptab active" data-sub="general">常规设置</span>
+        <span class="ptab" data-sub="library">曲库</span>
+        <span class="ptab" data-sub="ai-playlist">AI歌单</span>
+        <span class="ptab" data-sub="scrape">刮削</span>
+        <span class="ptab" data-sub="health">健康</span>
+      </div>
+      <div id="settings-body"></div>
+      <!-- 常规设置（原 settings-body 内容，步骤8搬入） -->
+      <div id="settings-general" class="settings-sub"><div class="empty">加载中…</div></div>
+      <!-- 曲库 -->
+      <div id="settings-library" class="settings-sub" hidden>
+        <div class="toolbar">
+          <button id="lib-refresh">刷新曲库</button>
+          <button id="lib-scan">扫描并刷新</button>
+          <span id="lib-summary"></span>
+        </div>
+        <div id="library-status" class="status"></div>
+      </div>
+      <!-- AI歌单 -->
+      <div id="settings-ai-playlist" class="settings-sub" hidden>
+        <form id="ai-search-form" class="search-bar">
+          <input type="text" id="ai-keyword" placeholder="输入关键词，自动匹配曲库" autocomplete="off" required />
+          <select id="ai-platform">
+            <option value="">聚合(全平台)</option>
+            <option value="kw">酷我</option>
+            <option value="kg">酷狗</option>
+            <option value="tx">QQ音乐</option>
+            <option value="wy">网易云</option>
+            <option value="mg">咪咕</option>
+          </select>
+          <button type="submit">搜索并匹配</button>
+        </form>
+        <div id="ai-status" class="status"></div>
+        <div class="toolbar" id="ai-toolbar" hidden>
+          <input type="text" id="ai-playlist-name" placeholder="歌单名称" class="name-in" />
+          <button id="ai-create-btn" disabled>创建 Navidrome 歌单</button>
+          <span id="ai-selected-count">已选 0 首</span>
+        </div>
+        <div id="ai-results"></div>
+      </div>
+      <!-- 刮削 -->
+      <div id="settings-scrape" class="settings-sub" hidden>
+        <div class="toolbar">
+          <button id="scrape-refresh">刷新</button>
+          <button id="scrape-scan">触发 Navidrome 扫描</button>
+          <span id="scrape-summary"></span>
+        </div>
+        <div id="scrape-status" class="status"></div>
+        <div id="scrape-tasks"></div>
+      </div>
+      <!-- 健康 -->
+      <div id="settings-health" class="settings-sub" hidden>
+        <div class="toolbar">
+          <button id="run-smoke">立即冒烟测试</button>
+          <button id="refresh-health">刷新</button>
+          <span id="health-summary"></span>
+        </div>
+        <div id="health-matrix"></div>
+      </div>
+    </section>
+
+    </div><!-- /.main-inner -->
+  </main>
+
+  <!-- 悬浮球：下载任务 -->
+  <div class="float-ball float-ball-download" id="float-dl-ball" title="下载任务">⬇<span class="float-badge" id="float-dl-badge" hidden>0</span></div>
+  <div class="float-panel" id="float-dl-panel">
+    <div class="float-panel-head"><b>⬇ 下载任务</b><span class="summary" id="float-dl-summary"></span><button class="float-panel-close" data-close>×</button></div>
+    <div id="float-dl-list"></div>
+  </div>
+
+  <!-- 悬浮球：创建歌单 -->
+  <div class="float-ball float-ball-create disabled" id="float-create-ball" title="创建歌单">✅<span class="float-badge green" id="float-create-badge" hidden>0</span></div>
+  <div class="float-panel" id="float-create-panel"></div>
+
+  <div class="float-backdrop" id="float-backdrop"></div>
+
+  <!-- 全局播放器 -->
+  <div id="global-player" class="global-player">
+    <div class="gp-icon">🎵</div>
+    <div class="gp-info"><div id="gp-title" class="gp-title">未播放</div><div class="gp-sub">试听</div></div>
+    <button id="gp-play" class="gp-play" title="播放/暂停">▶</button>
+    <div class="gp-progress-wrap">
+      <span id="gp-current" class="gp-time">0:00</span>
+      <div id="gp-progress" class="gp-progress"><div id="gp-progress-fill" class="gp-progress-fill"></div></div>
+      <span id="gp-duration" class="gp-time">0:00</span>
+    </div>
+    <audio id="global-audio" hidden></audio>
+    <button id="gp-close" class="gp-close">×</button>
+  </div>
+
+  <!-- 下载音质选择弹框 -->
+  <div id="quality-modal" class="quality-modal" hidden>
+    <div class="quality-modal-card">
+      <div class="quality-modal-head">
+        <b>选择下载音质</b>
+        <button id="quality-modal-close" class="float-panel-close">×</button>
+      </div>
+      <div id="quality-modal-list"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
