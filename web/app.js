@@ -36,6 +36,10 @@ $$('.tab').forEach((tab) => {
     else stopTasksPolling()
     if (name === 'sources') loadSources()
     if (name === 'playlists') loadPlaylists()
+    if (name === 'square') loadSquareHot()
+    if (name === 'library') loadLibrary()
+    if (name === 'ai-playlist') loadAiInit()
+    if (name === 'scrape') loadScrape()
     if (name === 'settings') loadSettings()
     if (name === 'health') loadHealth()
   })
@@ -759,4 +763,247 @@ async function fetchJSON(url, opts) {
 
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+}
+
+// ---------- 曲库 ----------
+let libTimer = null
+async function loadLibrary() {
+  await updateLibraryStatus()
+  if (libTimer) clearInterval(libTimer)
+  libTimer = setInterval(updateLibraryStatus, 3000)
+}
+async function updateLibraryStatus() {
+  const el = $('#library-status')
+  const sum = $('#lib-summary')
+  try {
+    const d = await fetchJSON('/api/v1/navidrome/status')
+    const conn = d.connected ? '<span class="ok">● 已连接</span>' : '<span class="err">● 连接失败</span>'
+    const loading = d.libraryLoading ? ' · 加载中…' : ''
+    el.innerHTML = `<div class="status">曲库状态：${conn} · 共 <b>${d.librarySize}</b> 首${loading}</div>`
+    sum.textContent = d.librarySize ? `${d.librarySize} 首` : ''
+    if (!d.libraryLoading && libTimer && !d.connected) { clearInterval(libTimer); libTimer = null }
+  } catch (err) {
+    el.innerHTML = `<div class="status err">查询失败：${escapeHtml(err.message)}</div>`
+  }
+}
+$('#lib-refresh').addEventListener('click', async () => {
+  toast('已触发刷新')
+  try { await fetchJSON('/api/v1/navidrome/library/refresh', { method: 'POST' }) } catch (e) { toast(e.message) }
+  updateLibraryStatus()
+})
+$('#lib-scan').addEventListener('click', async () => {
+  toast('已触发扫描并刷新（大库可能需 1-3 分钟）')
+  try { await fetchJSON('/api/v1/navidrome/library/refresh?scan_first=true', { method: 'POST' }) } catch (e) { toast(e.message) }
+  updateLibraryStatus()
+})
+
+// ---------- AI 歌单 ----------
+const aiState = { matched: [], selected: new Set() }
+function loadAiInit() {
+  // 进入页面时不清空已有结果，仅初始化选择集合
+}
+$('#ai-search-form').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const keyword = $('#ai-keyword').value.trim()
+  const platform = $('#ai-platform').value
+  if (!keyword) return
+  $('#ai-status').innerHTML = '<div class="status">搜索并匹配中…</div>'
+  $('#ai-toolbar').hidden = true
+  try {
+    const body = { keyword }
+    if (platform) body.platforms = [platform]
+    const d = await fetchJSON('/api/v1/navidrome/match', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })
+    aiState.matched = d.matched || []
+    aiState.selected = new Set()
+    renderAiResults(d)
+  } catch (err) {
+    $('#ai-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
+  }
+})
+function renderAiResults(d) {
+  const el = $('#ai-results')
+  const matched = d.matched || []
+  const unmatched = d.unmatched || []
+  const stats = (d.sourceStats || []).map((s) => `${PLATFORM_NAME[s.platform] || s.platform}:${s.total}`).join(' · ')
+  const parts = []
+  parts.push(`<div class="status">搜索 ${d.searchTotal} 首 · 匹配曲库 <b>${d.matchedCount}</b> 首 · 未匹配 ${d.unmatchedCount} 首${stats ? '<br>' + escapeHtml(stats) : ''}</div>`)
+  if (matched.length) {
+    $('#ai-toolbar').hidden = false
+    parts.push('<h3 style="color:var(--text);margin:12px 0 6px">✓ 已在曲库（勾选后可创建 Navidrome 歌单）</h3>')
+    parts.push('<table class="card"><thead><tr><th></th><th>歌曲</th><th>歌手</th><th>专辑</th><th>来源</th></tr></thead><tbody>')
+    for (const m of matched) {
+      const fuzzy = m.source.includes('(模糊)')
+      parts.push(`<tr><td><input type="checkbox" class="ai-chk" data-id="${escapeHtml(m.id)}" ${aiState.selected.has(m.id) ? 'checked' : ''}></td>
+        <td>${escapeHtml(m.title)}</td><td>${escapeHtml(m.artist)}</td><td>${escapeHtml(m.album)}</td>
+        <td>${fuzzy ? '<span class="warn">模糊</span>' : escapeHtml(m.source)}</td></tr>`)
+    }
+    parts.push('</tbody></table>')
+  } else {
+    parts.push('<div class="empty">曲库中未匹配到任何歌曲</div>')
+  }
+  if (unmatched.length) {
+    parts.push(`<details style="margin-top:12px"><summary>未匹配 ${unmatched.length} 首（可下载补库）</summary><table class="card"><tbody>`)
+    for (const u of unmatched) parts.push(`<tr><td>${escapeHtml(u.title)}</td><td>${escapeHtml(u.artist)}</td><td>${escapeHtml(u.source)}</td></tr>`)
+    parts.push('</tbody></table></details>')
+  }
+  el.innerHTML = parts.join('')
+  updateAiSelected()
+  $$('.ai-chk').forEach((chk) => chk.addEventListener('change', () => {
+    const id = chk.dataset.id
+    if (chk.checked) aiState.selected.add(id); else aiState.selected.delete(id)
+    updateAiSelected()
+  }))
+}
+function updateAiSelected() {
+  const n = aiState.selected.size
+  $('#ai-selected-count').textContent = `已选 ${n} 首`
+  $('#ai-create-btn').disabled = n === 0
+}
+$('#ai-create-btn').addEventListener('click', async () => {
+  const name = $('#ai-playlist-name').value.trim()
+  if (!name) { toast('请输入歌单名称'); return }
+  const ids = Array.from(aiState.selected)
+  $('#ai-create-btn').disabled = true
+  try {
+    const d = await fetchJSON('/api/v1/navidrome/playlist/create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, song_ids: ids }),
+    })
+    toast(`歌单「${d.playlistName}」已创建（${d.songCount} 首）`)
+    $('#ai-playlist-name').value = ''
+  } catch (err) {
+    toast(err.message)
+  } finally {
+    updateAiSelected()
+  }
+})
+
+// ---------- 刮削 ----------
+let scrapeTimer = null
+async function loadScrape() {
+  await updateScrape()
+  if (scrapeTimer) clearInterval(scrapeTimer)
+  scrapeTimer = setInterval(updateScrape, 3000)
+}
+async function updateScrape() {
+  const el = $('#scrape-tasks')
+  const sum = $('#scrape-summary')
+  try {
+    const d = await fetchJSON('/api/v1/scrape/tasks')
+    const tasks = d.tasks || []
+    sum.textContent = tasks.length ? `${tasks.length} 条` : ''
+    if (!tasks.length) { el.innerHTML = '<div class="empty">暂无刮削任务</div>'; return }
+    el.innerHTML = '<table class="card"><thead><tr><th>歌曲</th><th>歌手</th><th>状态</th><th>目标路径</th><th>时间</th></tr></thead><tbody>' +
+      tasks.map((t) => {
+        const cls = t.status === 'done' ? 'ok' : t.status === 'failed' ? 'err' : ''
+        return `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.singer)}</td><td class="${cls}">${escapeHtml(t.status)}</td><td class="path">${escapeHtml(t.target_path || t.file_path || '')}</td><td>${new Date(t.updated_at).toLocaleString()}</td></tr>`
+      }).join('') + '</tbody></table>'
+  } catch (err) {
+    el.innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
+  }
+}
+$('#scrape-refresh').addEventListener('click', updateScrape)
+$('#scrape-scan').addEventListener('click', async () => {
+  toast('已触发 Navidrome 扫描')
+  try { await fetchJSON('/api/v1/scrape/scan', { method: 'POST' }) } catch (e) { toast(e.message) }
+})
+
+// ---------- 歌单广场 ----------
+async function loadSquareHot() {
+  $('#square-status').innerHTML = '<div class="status">加载广场推荐…</div>'
+  try {
+    const d = await fetchJSON('/api/v1/square/hot')
+    const groups = d.groups || []
+    const parts = groups.map((g) => {
+      const cards = (g.items || []).map((p) =>
+        `<div class="pl-card" data-id="${escapeHtml(p.id)}" data-src="${escapeHtml(p.source)}" data-name="${escapeHtml(p.name)}">
+          <div class="pl-name">${escapeHtml(p.name)}</div>
+          <div class="pl-meta">${escapeHtml(PLATFORM_NAME[p.source] || p.source)} · ${p.total || 0} 首</div>
+        </div>`).join('')
+      return `<h3 style="color:var(--text);margin:12px 0 6px">${escapeHtml(g.keyword)}</h3><div class="pl-grid">${cards}</div>`
+    })
+    $('#square-status').innerHTML = ''
+    $('#square-results').innerHTML = parts.join('') || '<div class="empty">无结果</div>'
+    bindSquareCards()
+  } catch (err) {
+    $('#square-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
+  }
+}
+$('#square-search-btn').addEventListener('click', async () => {
+  const kw = $('#square-keyword').value.trim()
+  const p = $('#square-platform').value
+  if (!kw) { toast('请输入关键词'); return }
+  $('#square-status').innerHTML = '<div class="status">搜索中…</div>'
+  try {
+    const url = `/api/v1/square/search?keyword=${encodeURIComponent(kw)}` + (p ? `&platforms=${p}` : '')
+    const d = await fetchJSON(url)
+    const results = d.results || []
+    const parts = results.filter((r) => r.ok && r.list.length).map((r) => {
+      const cards = r.list.map((p) =>
+        `<div class="pl-card" data-id="${escapeHtml(p.id)}" data-src="${escapeHtml(p.source)}" data-name="${escapeHtml(p.name)}">
+          <div class="pl-name">${escapeHtml(p.name)}</div>
+          <div class="pl-meta">${escapeHtml(PLATFORM_NAME[p.source] || p.source)} · ${p.total || 0} 首</div>
+        </div>`).join('')
+      return `<h3 style="color:var(--text);margin:12px 0 6px">${escapeHtml(PLATFORM_NAME[r.platform] || r.platform)}</h3><div class="pl-grid">${cards}</div>`
+    })
+    $('#square-status').innerHTML = ''
+    $('#square-results').innerHTML = parts.join('') || '<div class="empty">无结果</div>'
+    bindSquareCards()
+  } catch (err) {
+    $('#square-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
+  }
+})
+$('#square-resolve-btn').addEventListener('click', async () => {
+  const url = $('#square-url').value.trim()
+  if (!url) { toast('请粘贴 URL'); return }
+  $('#square-status').innerHTML = '<div class="status">解析中…</div>'
+  try {
+    const d = await fetchJSON(`/api/v1/square/resolve?url=${encodeURIComponent(url)}`)
+    const det = d.detail || {}
+    $('#square-status').innerHTML = `<div class="status">${escapeHtml(PLATFORM_NAME[d.platform] || d.platform)} 歌单：${escapeHtml(det.info?.name || '')} · ${det.list?.length || 0} 首</div>`
+    renderSquareSongs(d.platform, det.list || [])
+  } catch (err) {
+    $('#square-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
+  }
+})
+$('#square-refresh-btn').addEventListener('click', loadSquareHot)
+function bindSquareCards() {
+  $$('.pl-card').forEach((card) => card.addEventListener('click', async () => {
+    const src = card.dataset.src
+    const id = card.dataset.id
+    if (!src || !id) return
+    $('#square-status').innerHTML = '<div class="status">加载歌单详情…</div>'
+    try {
+      const d = await fetchJSON(`/api/v1/square/detail?platform=${encodeURIComponent(src)}&id=${encodeURIComponent(id)}`)
+      const det = d.detail || {}
+      $('#square-status').innerHTML = `<div class="status">${escapeHtml(card.dataset.name)} · ${det.list?.length || 0} 首</div>`
+      renderSquareSongs(d.platform, det.list || [])
+    } catch (err) {
+      $('#square-status').innerHTML = `<div class="status err">加载详情失败：${escapeHtml(err.message)}</div>`
+    }
+  }))
+}
+function renderSquareSongs(platform, list) {
+  const el = $('#square-results')
+  if (!list.length) { el.innerHTML = '<div class="empty">歌单无歌曲</div>'; return }
+  state.results = list.map((s) => ({ ...s, platform }))
+  state.selected = new Set()
+  el.innerHTML = '<table class="card"><thead><tr><th>歌曲</th><th>歌手</th><th>专辑</th><th></th></tr></thead><tbody>' +
+    list.map((s, i) => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.singer)}</td><td>${escapeHtml(s.albumName || '')}</td>
+      <td><button class="dl-one" data-idx="${i}">下载</button></td></tr>`).join('') + '</tbody></table>'
+  $$('.dl-one').forEach((btn) => btn.addEventListener('click', () => squareDownloadOne(parseInt(btn.dataset.idx))))
+}
+async function squareDownloadOne(idx) {
+  const s = state.results[idx]
+  if (!s) return
+  try {
+    await fetchJSON('/api/v1/download', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform: s.platform, musicInfo: s, quality: state.quality }),
+    })
+    toast(`已提交下载：${s.name}`)
+  } catch (err) {
+    toast(`下载失败: ${err.message}`)
+  }
 }

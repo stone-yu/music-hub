@@ -58,7 +58,7 @@ function renderName(template: string, meta: DownloadMeta): string {
 }
 
 /** 下载封面并用 sharp 缩放为指定尺寸 JPEG */
-async function fetchCover(coverUrl: string, size: number): Promise<Buffer | null> {
+export async function fetchCover(coverUrl: string, size: number): Promise<Buffer | null> {
   try {
     const resp = await needle('get', coverUrl, { response_timeout: 15_000, follow_max: 3 })
     const raw = resp.body as Buffer
@@ -93,7 +93,7 @@ async function streamDownload(url: string, dest: string, onProgress?: DownloadPr
 }
 
 /** MP3 标签嵌入 */
-function embedMp3(filePath: string, meta: DownloadMeta, cover: Buffer | null): void {
+export function embedMp3(filePath: string, meta: DownloadMeta, cover: Buffer | null): void {
   const tags: NodeID3.Tags = {
     title: meta.name,
     artist: meta.singer,
@@ -106,7 +106,7 @@ function embedMp3(filePath: string, meta: DownloadMeta, cover: Buffer | null): v
 }
 
 /** FLAC 标签嵌入（动态 import flac-tagger，避免无 flac 下载时也加载） */
-async function embedFlac(filePath: string, meta: DownloadMeta, cover: Buffer | null): Promise<void> {
+export async function embedFlac(filePath: string, meta: DownloadMeta, cover: Buffer | null): Promise<void> {
   const { writeFlacTags } = await import('flac-tagger')
   const tagMap: Record<string, string> = {
     TITLE: meta.name,

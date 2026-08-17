@@ -5,6 +5,7 @@
 import { EventEmitter } from 'node:events'
 import { downloadQueue } from './download/queue.js'
 import { sourceEngine } from './source-engine/index.js'
+import { scrapeOrchestrator } from './scrape/orchestrator.js'
 
 export interface RoEvent {
   event: string
@@ -40,6 +41,8 @@ export function wireEvents(): void {
     'task:canceled',
   ])
   forward(sourceEngine, ['source:changed', 'source:update-alert'])
+  // 刮削：监听下载完成事件，自动整理入库 + 触发 Navidrome 扫描
+  scrapeOrchestrator.attachToDownloadQueue(downloadQueue)
 }
 
 /** 冒烟测试等其他模块可直接往总线发事件（阶段 6 用） */

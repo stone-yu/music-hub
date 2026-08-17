@@ -103,3 +103,22 @@ td.act button { padding: 4px 12px; font-size: 12px; background: #1f6feb; color: 
 .login-err { color: #c22; font-size: 13px; text-align: center; }
 .login-hint { color: #a86500; background: #fff4e0; border: 1px solid #ffe0a3; padding: 8px 10px; border-radius: 8px; font-size: 12px; }
 .tab.logout { margin-left: 12px; color: #ffd4d4; }
+
+/* ---------- 新增页面（曲库/AI歌单/刮削/歌单广场）---------- */
+.pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.pl-card { padding: 12px; background: #fff; border: 1px solid #e6e8ec; border-radius: 8px; cursor: pointer; transition: border-color .15s; }
+.pl-card:hover { border-color: #1f6feb; }
+.pl-name { font-size: 14px; color: #222; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-meta { font-size: 12px; color: #888; }
+.status.ok { color: #1a7f37; }
+.status.err { color: #c22; }
+.warn { color: #a86500; background: #fff4e0; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+.ok { color: #1a7f37; }
+.err { color: #c22; }
+.path { font-size: 11px; color: #888; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-one { padding: 4px 12px; background: #1f6feb; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.dl-one:hover { background: #1a5fcc; }
+.ai-chk { cursor: pointer; }
+table.card { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.card th, table.card td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #eef0f3; }
+table.card th { color: #666; font-weight: 600; }
