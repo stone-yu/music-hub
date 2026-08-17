@@ -14,6 +14,20 @@ const state = {
 }
 
 const PLATFORM_NAME = { kw: '酷我', kg: '酷狗', tx: 'QQ音乐', wy: '网易云', mg: '咪咕' }
+const QUALITIES = [
+  { v: 'flac24bit', label: 'Hi-Res (flac24bit)' },
+  { v: 'flac', label: '无损 (flac)' },
+  { v: '320k', label: '320k' },
+  { v: '128k', label: '128k' },
+]
+// 下载时选择音质（默认 flac）
+function pickQuality() {
+  const opts = QUALITIES.map((q, i) => `${i + 1}. ${q.label}`).join('\n')
+  const pick = prompt(`选择下载音质：\n${opts}`)
+  const idx = parseInt(pick || '') - 1
+  if (Number.isNaN(idx) || !QUALITIES[idx]) return null
+  return QUALITIES[idx].v
+}
 
 function toast(msg) {
   const el = $('#toast')
@@ -103,26 +117,48 @@ async function loadSearchSquare() {
   if (!grid || grid.dataset.loaded === '1') return
   grid.innerHTML = '<div class="empty">加载中…</div>'
   try {
-    const d = await fetchJSON('/api/v1/square/hot')
-    const groups = d.groups || []
-    const cards = groups.flatMap((g) => g.items || []).slice(0, 12).map((p) => {
-      const cover = p.img ? `<img src="${escapeHtml(p.img)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''
-      const ph = `<div class="pl-cover-ph" style="${p.img ? 'display:none' : 'display:flex'}">🎶</div>`
-      return `<div class="pl-card" data-id="${escapeHtml(p.id)}" data-src="${escapeHtml(p.source)}" data-name="${escapeHtml(p.name)}">
+    const d = await fetchJSON('/api/v1/ranks')
+    const ranks = (d.ranks || []).slice(0, 12)
+    const cards = ranks.map((r) => {
+      const cover = r.cover_url ? `<img src="${escapeHtml(r.cover_url)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''
+      const ph = `<div class="pl-cover-ph" style="${r.cover_url ? 'display:none' : 'display:flex'}">🔥</div>`
+      return `<div class="pl-card" data-id="${escapeHtml(r.id)}" data-src="${escapeHtml(r.source)}" data-name="${escapeHtml(r.name)}">
         <div class="pl-cover">${cover}${ph}</div>
-        <div class="pl-name">${escapeHtml(p.name)}</div>
-        <div class="pl-meta">${escapeHtml(PLATFORM_NAME[p.source] || p.source)} · ${p.total || 0} 首</div>
+        <div class="pl-name">${escapeHtml(r.name)}</div>
+        <div class="pl-meta">${escapeHtml(PLATFORM_NAME[r.source] || r.source)} 热榜</div>
       </div>`
     }).join('')
     grid.innerHTML = cards || '<div class="empty">无推荐</div>'
     grid.dataset.loaded = '1'
-    // 点击歌单卡片跳到歌单页详情
-    $$('#search-square-grid .pl-card').forEach((card) => card.addEventListener('click', () => {
-      const plTab = document.querySelector('.menu-item[data-tab="playlists"]')
-      if (plTab) plTab.click()
-      setTimeout(() => openPlaylistDetail(card.dataset.src, card.dataset.id, card.dataset.name), 100)
-    }))
+    // 点击榜单卡片加载热榜歌曲到搜索结果区
+    $$('#search-square-grid .pl-card').forEach((card) => card.addEventListener('click', () => loadRankSongs(card.dataset.src, card.dataset.id, card.dataset.name)))
   } catch (err) { grid.innerHTML = `<div class="empty">加载失败</div>` }
+}
+
+// 加载某榜单歌曲，渲染到 #results（卡片式 + 曲库匹配）
+async function loadRankSongs(source, id, name) {
+  $('#search-square').style.display = 'none'
+  $('#search-status').textContent = `加载 ${name} …`
+  $('#results').innerHTML = ''
+  state.results = []
+  state.selectedForCreate.clear()
+  state.matchMap = new Map()
+  state.createMap = new Map()
+  state.createCtx = { name: name + ' - 热榜', cover: '' }
+  updateGlobalCreateBtn()
+  try {
+    const d = await fetchJSON(`/api/v1/ranks/${encodeURIComponent(source)}/${encodeURIComponent(id)}?limit=50`)
+    const list = d.list || []
+    const group = renderGroup(source, list, null)
+    // 改标题为榜单名
+    const h3 = group.querySelector('h3')
+    if (h3) h3.textContent = `${name} · ${list.length} 首`
+    $('#results').appendChild(group)
+    finalizeSearch(list.length)
+    matchSearchResults()
+  } catch (err) {
+    $('#search-status').textContent = `加载失败: ${err.message}`
+  }
 }
 
 // ---------- 搜索 ----------
@@ -130,7 +166,6 @@ $('#search-form').addEventListener('submit', async (e) => {
   e.preventDefault()
   const keyword = $('#keyword').value.trim()
   if (!keyword) return
-  state.quality = $('#quality').value
   const platform = $('#platform').value
   $('#search-status').textContent = '搜索中…'
   $('#results').innerHTML = ''
@@ -307,9 +342,11 @@ function bindSongCardEvents(container) {
     if (b.disabled) return
     const it = state.results.find((r) => rowKey(r) === b.dataset.key)
     if (!it) return
+    const quality = pickQuality()
+    if (!quality) return
     try {
       await fetchJSON('/api/v1/download', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform: it.platform, musicInfo: it, quality: state.quality }) })
+        body: JSON.stringify({ platform: it.platform, musicInfo: it, quality }) })
       toast(`已提交下载：${it.name}`)
     } catch (err) { toast(`下载失败: ${err.message}`) }
   }))
@@ -433,7 +470,8 @@ function renderPlaylists(pls) {
   }
   c.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => openPlaylist(b.dataset.open)))
   c.querySelectorAll('[data-dl]').forEach((b) => b.addEventListener('click', async () => {
-    try { const r = await fetchJSON(`/api/v1/playlists/${b.dataset.dl}/download`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quality: $('#quality').value }) }); toast(`已提交 ${r.acceptedCount} 首`) }
+    const quality = pickQuality(); if (!quality) return
+    try { const r = await fetchJSON(`/api/v1/playlists/${b.dataset.dl}/download`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quality }) }); toast(`已提交 ${r.acceptedCount} 首`) }
     catch (err) { toast(err.message) }
   }))
   c.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { if (confirm('确认删除该歌单?')) act(`/api/v1/playlists/${b.dataset.del}`, 'DELETE', '已删除', loadLocalPlaylists) }))
@@ -455,8 +493,9 @@ async function openPlaylist(id) {
       <h3 style="margin:16px 0 10px">${escapeHtml(p.name)} · ${p.items.length} 首</h3>
       ${p.items.length ? `<table><thead><tr><th>歌曲</th><th>歌手</th><th>平台</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="empty">空歌单，去搜索页勾选歌曲「加入歌单」</div>'}`
     detail.querySelectorAll('[data-song]').forEach((b) => b.addEventListener('click', async () => {
+      const quality = pickQuality(); if (!quality) return
       const payload = JSON.parse(decodeURIComponent(b.dataset.song))
-      try { await fetchJSON('/api/v1/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, quality: $('#quality').value }) }); toast('已提交下载') }
+      try { await fetchJSON('/api/v1/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, quality }) }); toast('已提交下载') }
       catch (err) { toast(err.message) }
     }))
     detail.querySelectorAll('[data-rm]').forEach((b) => b.addEventListener('click', () => act(`/api/v1/playlists/${id}/items/${b.dataset.rm}`, 'DELETE', '已移除', () => openPlaylist(id))))
