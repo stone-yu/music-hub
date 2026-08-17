@@ -22,11 +22,11 @@
   <header class="topbar">
     <div class="topbar-left">
       <span id="status-indicator" class="status-indicator">● 检查中…</span>
-    </div>
-    <div class="topbar-right">
       <button onclick="refreshLibraryTop()" id="topbar-refresh" class="topbar-btn" title="刷新曲库">
         <svg id="libraryRefreshIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
       </button>
+    </div>
+    <div class="topbar-right">
       <div class="profile-wrap">
         <button id="profile-btn" class="topbar-btn profile-btn" title="个人中心">👤</button>
         <div class="profile-menu" id="profile-menu">
@@ -223,7 +223,7 @@
   <div class="float-backdrop" id="float-backdrop"></div>
 
   <!-- 全局播放器 -->
-  <div id="global-player" class="global-player" hidden>
+  <div id="global-player" class="global-player">
     <div class="gp-icon">🎵</div>
     <div class="gp-info"><div id="gp-title" class="gp-title">未播放</div><div class="gp-sub">试听</div></div>
     <audio id="global-audio" controls></audio>
