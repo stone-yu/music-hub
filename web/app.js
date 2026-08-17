@@ -21,14 +21,29 @@ const QUALITIES = [
   { v: '128k', label: '标准 128k', desc: '128kbps MP3' },
 ]
 // 下载时选择音质：自定义弹框展示音质+大小，返回 Promise<quality>
-function pickQuality(musicInfo) {
+async function pickQuality(musicInfo) {
+  // 从 musicInfo.types 取各音质大小；为空时（如热榜歌曲）实时搜该平台补全
+  let typeMap = {}
+  if (musicInfo?.types?.length) {
+    musicInfo.types.forEach((t) => { typeMap[t.type] = t.size })
+  } else if (musicInfo?.name && musicInfo?.source) {
+    try {
+      const kw = `${musicInfo.name} ${musicInfo.singer || ''}`.trim()
+      const r = await fetchJSON(`/api/v1/search?keyword=${encodeURIComponent(kw)}&platform=${encodeURIComponent(musicInfo.source)}&page=1`)
+      const first = (r.list || [])[0]
+      if (first?.types?.length) {
+        first.types.forEach((t) => { typeMap[t.type] = t.size })
+        // 回填到 musicInfo 供后续下载用
+        musicInfo.types = first.types
+        musicInfo._types = first._types
+      }
+    } catch { /* 查询失败按未知处理 */ }
+  }
+  if (musicInfo?._types) Object.entries(musicInfo._types).forEach(([k, v]) => { if (v?.size && !typeMap[k]) typeMap[k] = v.size })
+
   return new Promise((resolve) => {
     const modal = $('#quality-modal')
     const list = $('#quality-modal-list')
-    // 从 musicInfo.types 取各音质大小（可能不全）
-    const typeMap = {}
-    if (musicInfo?.types) musicInfo.types.forEach((t) => { typeMap[t.type] = t.size })
-    if (musicInfo?._types) Object.entries(musicInfo._types).forEach(([k, v]) => { if (v?.size && !typeMap[k]) typeMap[k] = v.size })
     list.innerHTML = QUALITIES.map((q) => {
       const size = typeMap[q.v]
       const sizeHtml = size ? `<div class="q-size">${escapeHtml(String(size))}</div>` : `<div class="q-size">未知大小</div>`
