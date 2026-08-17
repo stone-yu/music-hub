@@ -41,6 +41,7 @@ function toTaskView(row: DownloadTaskRow) {
     fileSize: row.file_size,
     warnings: row.warnings ? (JSON.parse(row.warnings) as string[]) : [],
     error: row.error,
+    scrape_status: null as string | null, // 路由层从 scrape_tasks 表填充
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
