@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>登录 · Ro 音乐下载</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="login-body">
+  <form id="login-form" class="login-card">
+    <h1>Ro 音乐下载</h1>
+    <p class="login-sub">请登录以继续</p>
+    <div id="login-hint" class="login-hint" hidden></div>
+    <input type="text" id="login-user" placeholder="用户名" autocomplete="username" required />
+    <input type="password" id="login-pass" placeholder="密码" autocomplete="current-password" required />
+    <button type="submit" id="login-btn">登录</button>
+    <div id="login-err" class="login-err" hidden></div>
+  </form>
+  <script src="/login.js"></script>
+</body>
+</html>

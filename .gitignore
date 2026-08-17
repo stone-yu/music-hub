@@ -1,20 +1,25 @@
-# 环境变量 / 密钥（本地配置，切勿提交）
+# 依赖与构建产物
+server/node_modules/
+server/dist/
+**/*.log
+
+# 运行数据（含下载文件 / SQLite / 音源脚本）
+data/downloads/
+data/db/
+data/sources/
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# 真实配置（含密码 / apiKey），改用 config.example.yaml 模板
+config.yaml
+
+# 杂项
+.DS_Store
+
+# 环境变量（含密钥，切勿提交）
 .env
-
-# 运行时数据（下载任务记录等）
-data/
-downloads/
-scraped/
-
-# Python
-.venv/
-venv/
-__pycache__/
-*.pyc
-
-# IDE
-.vscode/
-.idea/
+.env.*
 
 # Claude Code 本地配置
 .claude/

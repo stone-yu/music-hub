@@ -1,4 +1,11 @@
-__pycache__
-*.pyc
+# 构建上下文瘦身：只把源码 + web + 依赖清单带进去
+server/node_modules
+server/dist
+server/test
+**/*.log
+data
+config.yaml
 .git
-.gitignore
+scripts
+lx-music-desktop
+**/.DS_Store
