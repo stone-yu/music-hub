@@ -39,3 +39,12 @@ smokeTest:
       sendKey: ""
 log:
   level: info
+navidrome:
+  url: http://your-navidrome:4533/
+  user: admin
+  password: ""
+  musicDir: data/scraped
+scrape:
+  enabled: true
+  autoOnDownload: true
+  targetDir: data/scraped

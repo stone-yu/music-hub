@@ -14,6 +14,10 @@
       <a href="#" class="tab" data-tab="tasks">下载任务</a>
       <a href="#" class="tab" data-tab="sources">音源管理</a>
       <a href="#" class="tab" data-tab="playlists">歌单</a>
+      <a href="#" class="tab" data-tab="square">歌单广场</a>
+      <a href="#" class="tab" data-tab="library">曲库</a>
+      <a href="#" class="tab" data-tab="ai-playlist">AI歌单</a>
+      <a href="#" class="tab" data-tab="scrape">刮削</a>
       <a href="#" class="tab" data-tab="settings">设置</a>
       <a href="#" class="tab" data-tab="health">健康</a>
       <a href="#" id="logout-btn" class="tab logout" hidden>登出</a>
@@ -101,6 +105,73 @@
       </div>
       <div id="playlists"></div>
       <div id="playlist-detail" hidden></div>
+    </section>
+
+    <!-- 歌单广场页 -->
+    <section id="view-square" class="view">
+      <div class="search-bar">
+        <input type="text" id="square-keyword" placeholder="搜歌单：民谣、经典、怀旧" class="name-in" />
+        <select id="square-platform">
+          <option value="">聚合(全平台)</option>
+          <option value="kw">酷我</option>
+          <option value="kg">酷狗</option>
+          <option value="tx">QQ音乐</option>
+          <option value="wy">网易云</option>
+          <option value="mg">咪咕</option>
+        </select>
+        <button id="square-search-btn">搜歌单</button>
+        <button id="square-refresh-btn">广场推荐</button>
+      </div>
+      <div class="search-bar" style="margin-top:8px">
+        <input type="text" id="square-url" placeholder="粘贴歌单分享 URL 解析（网易云/QQ/酷狗/酷我/咪咕）" class="name-in" />
+        <button id="square-resolve-btn">解析</button>
+      </div>
+      <div id="square-status" class="status"></div>
+      <div id="square-results"></div>
+    </section>
+
+    <!-- 曲库页 -->
+    <section id="view-library" class="view">
+      <div class="toolbar">
+        <button id="lib-refresh">刷新曲库</button>
+        <button id="lib-scan">扫描并刷新</button>
+        <span id="lib-summary"></span>
+      </div>
+      <div id="library-status" class="status"></div>
+    </section>
+
+    <!-- AI 歌单页 -->
+    <section id="view-ai-playlist" class="view">
+      <form id="ai-search-form" class="search-bar">
+        <input type="text" id="ai-keyword" placeholder="输入关键词，自动匹配曲库" autocomplete="off" required />
+        <select id="ai-platform">
+          <option value="">聚合(全平台)</option>
+          <option value="kw">酷我</option>
+          <option value="kg">酷狗</option>
+          <option value="tx">QQ音乐</option>
+          <option value="wy">网易云</option>
+          <option value="mg">咪咕</option>
+        </select>
+        <button type="submit">搜索并匹配</button>
+      </form>
+      <div id="ai-status" class="status"></div>
+      <div class="toolbar" id="ai-toolbar" hidden>
+        <input type="text" id="ai-playlist-name" placeholder="歌单名称" class="name-in" />
+        <button id="ai-create-btn" disabled>创建 Navidrome 歌单</button>
+        <span id="ai-selected-count">已选 0 首</span>
+      </div>
+      <div id="ai-results"></div>
+    </section>
+
+    <!-- 刮削页 -->
+    <section id="view-scrape" class="view">
+      <div class="toolbar">
+        <button id="scrape-refresh">刷新</button>
+        <button id="scrape-scan">触发 Navidrome 扫描</button>
+        <span id="scrape-summary"></span>
+      </div>
+      <div id="scrape-status" class="status"></div>
+      <div id="scrape-tasks"></div>
     </section>
 
     <!-- 设置页 -->

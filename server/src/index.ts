@@ -12,12 +12,16 @@ import { sourceRoutes } from './routes/sources.js'
 import { playlistRoutes } from './routes/playlists.js'
 import { settingsRoutes } from './routes/settings.js'
 import { healthRoutes } from './routes/health.js'
+import { navidromeRoutes } from './routes/navidrome.js'
+import { scrapeRoutes } from './routes/scrape.js'
+import { playlistSquareRoutes } from './routes/playlist-square.js'
 import { authRoutes, registerAuthGuard } from './routes/auth.js'
 import { createRateLimiter } from './core/rate-limit.js'
 import { startSmokeScheduler } from './core/smoke/scheduler.js'
 import { sourceEngine } from './core/source-engine/index.js'
 import { downloadQueue } from './core/download/queue.js'
 import { wireEvents } from './core/events.js'
+import { library } from './core/library/cache.js'
 
 async function main(): Promise<void> {
   const app = Fastify({ loggerInstance: logger })
@@ -26,6 +30,9 @@ async function main(): Promise<void> {
   await sourceEngine.start()
   downloadQueue.init()
   wireEvents() // 事件总线接线（供 SSE 广播）
+
+  // 曲库缓存：从磁盘加载快照，有快照则后台异步刷新（不阻塞启动）
+  library.init()
 
   await app.register(fastifyMultipart, { limits: { fileSize: 5 * 1024 * 1024 } })
 
@@ -47,6 +54,9 @@ async function main(): Promise<void> {
   await app.register(playlistRoutes)
   await app.register(settingsRoutes)
   await app.register(healthRoutes)
+  await app.register(navidromeRoutes)
+  await app.register(scrapeRoutes)
+  await app.register(playlistSquareRoutes)
 
   // Web 后台静态资源（web/ 目录），放最后避免抢占 /api 路由
   await app.register(fastifyStatic, {

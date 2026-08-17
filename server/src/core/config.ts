@@ -24,6 +24,8 @@ export interface RoConfig {
     coverSize: number
   }
   sources: { dir: string; hotReload: boolean }
+  navidrome: { url: string; user: string; password: string; musicDir: string }
+  scrape: { enabled: boolean; autoOnDownload: boolean; targetDir: string }
   rateLimit: { enabled: boolean; windowMs: number; max: number }
   smokeTest: {
     enabled: boolean
@@ -48,6 +50,10 @@ function applyEnvOverrides(cfg: RoConfig): void {
   if (process.env.RO_SERVER_HOST) cfg.server.host = process.env.RO_SERVER_HOST
   if (process.env.RO_AUTH_APIKEY) cfg.auth.apiKey = process.env.RO_AUTH_APIKEY
   if (process.env.RO_LOG_LEVEL) cfg.log.level = process.env.RO_LOG_LEVEL
+  // Navidrome 凭据（便于 Docker/env 覆盖 yaml）
+  if (process.env.RO_NAVIDROME_URL) cfg.navidrome.url = process.env.RO_NAVIDROME_URL
+  if (process.env.RO_NAVIDROME_USER) cfg.navidrome.user = process.env.RO_NAVIDROME_USER
+  if (process.env.RO_NAVIDROME_PASSWORD) cfg.navidrome.password = process.env.RO_NAVIDROME_PASSWORD
 }
 
 export function loadConfig(): RoConfig {
@@ -57,6 +63,8 @@ export function loadConfig(): RoConfig {
   // 相对路径统一相对项目根目录解析
   cfg.download.dir = path.resolve(ROOT_DIR, cfg.download.dir)
   cfg.sources.dir = path.resolve(ROOT_DIR, cfg.sources.dir)
+  cfg.navidrome.musicDir = path.resolve(ROOT_DIR, cfg.navidrome.musicDir)
+  cfg.scrape.targetDir = path.resolve(ROOT_DIR, cfg.scrape.targetDir)
   return cfg
 }
 
@@ -65,6 +73,8 @@ export function saveConfig(cfg: RoConfig): void {
   const out = JSON.parse(JSON.stringify(cfg)) as RoConfig
   out.download.dir = path.relative(ROOT_DIR, cfg.download.dir) || cfg.download.dir
   out.sources.dir = path.relative(ROOT_DIR, cfg.sources.dir) || cfg.sources.dir
+  out.navidrome.musicDir = path.relative(ROOT_DIR, cfg.navidrome.musicDir) || cfg.navidrome.musicDir
+  out.scrape.targetDir = path.relative(ROOT_DIR, cfg.scrape.targetDir) || cfg.scrape.targetDir
   fs.writeFileSync(CONFIG_PATH, YAML.stringify(out), 'utf8')
 }
 
@@ -79,6 +89,8 @@ export function patchConfig(patch: DeepPartial<RoConfig>): RoConfig {
   // 路径字段重新解析为绝对路径
   config.download.dir = path.resolve(ROOT_DIR, config.download.dir)
   config.sources.dir = path.resolve(ROOT_DIR, config.sources.dir)
+  config.navidrome.musicDir = path.resolve(ROOT_DIR, config.navidrome.musicDir)
+  config.scrape.targetDir = path.resolve(ROOT_DIR, config.scrape.targetDir)
   saveConfig(config)
   return config
 }
