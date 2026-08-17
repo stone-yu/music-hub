@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ro 音乐下载</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Ro 音乐下载</h1>
+    <nav>
+      <a href="#" class="tab active" data-tab="search">搜索</a>
+      <a href="#" class="tab" data-tab="tasks">下载任务</a>
+      <a href="#" class="tab" data-tab="sources">音源管理</a>
+      <a href="#" class="tab" data-tab="playlists">歌单</a>
+      <a href="#" class="tab" data-tab="settings">设置</a>
+      <a href="#" class="tab" data-tab="health">健康</a>
+      <a href="#" id="logout-btn" class="tab logout" hidden>登出</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- 搜索页 -->
+    <section id="view-search" class="view active">
+      <form id="search-form" class="search-bar">
+        <input type="text" id="keyword" placeholder="歌曲名 / 歌手 / 专辑 / 歌单" autocomplete="off" required />
+        <select id="search-type">
+          <option value="song">歌曲</option>
+          <option value="songlist">歌单</option>
+        </select>
+        <select id="platform">
+          <option value="aggregate">聚合(全平台)</option>
+          <option value="kw">酷我</option>
+          <option value="kg">酷狗</option>
+          <option value="tx">QQ音乐</option>
+          <option value="wy">网易云</option>
+          <option value="mg">咪咕</option>
+        </select>
+        <select id="quality">
+          <option value="flac24bit">Hi-Res (flac24bit)</option>
+          <option value="flac" selected>无损 (flac)</option>
+          <option value="320k">320k</option>
+          <option value="128k">128k</option>
+        </select>
+        <button type="submit">搜索</button>
+      </form>
+
+      <div class="toolbar" id="search-toolbar" hidden>
+        <label class="chk-all"><input type="checkbox" id="check-all" /> 全选</label>
+        <span id="selected-count">已选 0 首</span>
+        <button id="batch-download" disabled>批量下载选中</button>
+        <button id="batch-add-playlist" disabled>加入歌单</button>
+      </div>
+
+      <div id="search-status" class="status"></div>
+      <div id="results"></div>
+    </section>
+
+    <!-- 任务页 -->
+    <section id="view-tasks" class="view">
+      <div class="toolbar">
+        <button id="refresh-tasks">刷新</button>
+        <span id="tasks-summary"></span>
+      </div>
+      <div id="tasks"></div>
+    </section>
+
+    <!-- 音源管理页 -->
+    <section id="view-sources" class="view">
+      <div class="import-panel">
+        <div class="import-block">
+          <h4>在线 URL 导入</h4>
+          <div class="import-row">
+            <input type="text" id="src-url" placeholder="https://.../source.js" />
+            <input type="text" id="src-url-name" placeholder="名称(可选)" class="name-in" />
+            <button id="src-url-btn">导入</button>
+          </div>
+        </div>
+        <div class="import-block">
+          <h4>本地文件上传</h4>
+          <div class="import-row">
+            <input type="file" id="src-file" accept=".js" />
+            <button id="src-file-btn">上传</button>
+          </div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <button id="refresh-sources">刷新</button>
+        <span id="sources-summary"></span>
+      </div>
+      <div id="sources"></div>
+    </section>
+    <!-- 歌单页 -->
+    <section id="view-playlists" class="view">
+      <div class="toolbar">
+        <input type="text" id="new-playlist-name" placeholder="新歌单名称" class="name-in" />
+        <button id="create-playlist">创建歌单</button>
+        <button id="refresh-playlists">刷新</button>
+        <span id="playlists-summary"></span>
+      </div>
+      <div id="playlists"></div>
+      <div id="playlist-detail" hidden></div>
+    </section>
+
+    <!-- 设置页 -->
+    <section id="view-settings" class="view">
+      <div id="settings-body"><div class="empty">加载中…</div></div>
+    </section>
+
+    <!-- 健康状态页 -->
+    <section id="view-health" class="view">
+      <div class="toolbar">
+        <button id="run-smoke">立即冒烟测试</button>
+        <button id="refresh-health">刷新</button>
+        <span id="health-summary"></span>
+      </div>
+      <div id="health-matrix"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

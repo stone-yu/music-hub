@@ -1,0 +1,41 @@
+server:
+  host: 0.0.0.0
+  port: 23330
+auth:
+  enabled: true
+  apiKey: ""
+  webLogin:
+    username: admin
+    password: admin
+download:
+  dir: data/downloads
+  concurrency: 3
+  defaultQuality: flac
+  nameTemplate: "{name} - {singer}"
+  embedCover: true
+  embedLyric: true
+  coverSize: 500
+sources:
+  dir: data/sources
+  hotReload: true
+rateLimit:
+  enabled: true
+  windowMs: 60000
+  max: 300
+smokeTest:
+  enabled: true
+  cron: 0 6 * * *
+  keyword: 周杰伦
+  checkLyric: true
+  checkPic: true
+  alertThreshold: 2
+  alert:
+    bark:
+      enabled: false
+      serverUrl: https://api.day.app
+      deviceKey: ""
+    serverChan:
+      enabled: false
+      sendKey: ""
+log:
+  level: info

@@ -1,0 +1,105 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #f5f6f8; color: #222; }
+header { background: #1f6feb; color: #fff; padding: 14px 20px; display: flex; align-items: center; gap: 24px; }
+header h1 { font-size: 18px; font-weight: 600; }
+nav { display: flex; gap: 8px; }
+nav .tab { color: #cfe0ff; text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 14px; }
+nav .tab.active, nav .tab:hover { background: rgba(255,255,255,.18); color: #fff; }
+main { max-width: 960px; margin: 20px auto; padding: 0 16px; }
+.view { display: none; }
+.view.active { display: block; }
+
+.search-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.search-bar input[type=text] { flex: 1; min-width: 200px; padding: 9px 12px; border: 1px solid #d0d3d9; border-radius: 8px; font-size: 14px; }
+.search-bar select { padding: 9px 10px; border: 1px solid #d0d3d9; border-radius: 8px; background: #fff; font-size: 14px; }
+.search-bar button, .toolbar button { padding: 9px 18px; background: #1f6feb; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
+.search-bar button:hover, .toolbar button:hover { background: #1a5fcc; }
+.toolbar button:disabled { background: #b6c6e0; cursor: not-allowed; }
+
+.toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; padding: 10px 12px; background: #fff; border-radius: 8px; border: 1px solid #e6e8ec; }
+.chk-all { font-size: 14px; cursor: pointer; user-select: none; }
+#selected-count { font-size: 13px; color: #666; }
+.status { font-size: 13px; color: #888; margin-bottom: 10px; min-height: 18px; }
+
+.platform-group { margin-bottom: 20px; }
+.platform-group h3 { font-size: 14px; color: #555; margin-bottom: 8px; padding-left: 4px; border-left: 3px solid #1f6feb; }
+.platform-group h3 .err { color: #d33; font-weight: normal; font-size: 12px; }
+
+table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+th, td { text-align: left; padding: 9px 12px; font-size: 13px; border-bottom: 1px solid #f0f1f3; }
+th { background: #fafbfc; color: #666; font-weight: 500; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #f8faff; }
+td.chk, th.chk { width: 36px; text-align: center; }
+td.q { color: #1f6feb; font-size: 12px; }
+td.act button { padding: 4px 12px; font-size: 12px; background: #1f6feb; color: #fff; border: none; border-radius: 5px; cursor: pointer; }
+
+.badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px; }
+.badge.q { background: #eef4ff; color: #1f6feb; margin-right: 3px; }
+
+#tasks table { table-layout: fixed; }
+.st { font-size: 12px; padding: 2px 8px; border-radius: 4px; }
+.st.pending { background: #fff4e0; color: #a86500; }
+.st.active { background: #e0f0ff; color: #1560bd; }
+.st.completed { background: #e3f7e8; color: #1a7f37; }
+.st.completed_with_warnings { background: #fff4e0; color: #a86500; }
+.st.failed { background: #fde0e0; color: #c22; }
+.st.canceled { background: #eee; color: #888; }
+.progress-bar { height: 6px; background: #eef0f3; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.progress-bar > div { height: 100%; background: #1f6feb; transition: width .3s; }
+
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 14px; z-index: 100; }
+.empty { text-align: center; color: #aaa; padding: 40px; font-size: 14px; }
+
+.import-panel { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.import-block { flex: 1; min-width: 300px; background: #fff; border: 1px solid #e6e8ec; border-radius: 8px; padding: 14px; }
+.import-block h4 { font-size: 13px; color: #555; margin-bottom: 10px; }
+.import-row { display: flex; gap: 8px; align-items: center; }
+.import-row input[type=text] { flex: 1; padding: 8px 10px; border: 1px solid #d0d3d9; border-radius: 6px; font-size: 13px; }
+.import-row input.name-in { flex: 0 0 120px; }
+.import-row input[type=file] { flex: 1; font-size: 13px; }
+.import-row button { padding: 8px 16px; background: #1f6feb; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.import-row button:disabled { background: #b6c6e0; cursor: not-allowed; }
+
+.src-card { background: #fff; border: 1px solid #e6e8ec; border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+.src-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.src-head b { font-size: 15px; margin-right: 6px; }
+.src-act { display: flex; align-items: center; gap: 8px; }
+.src-act button { padding: 4px 12px; font-size: 12px; background: #eef1f5; color: #333; border: 1px solid #d5d9e0; border-radius: 5px; cursor: pointer; }
+.src-act button:hover { background: #e2e6ec; }
+.switch { font-size: 12px; cursor: pointer; user-select: none; }
+.src-desc { font-size: 12px; color: #888; margin-top: 8px; }
+.src-err { font-size: 12px; color: #c22; margin-top: 6px; }
+.src-plats { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+.badge { background: #f0f1f3; color: #666; }
+
+.set-card { background: #fff; border: 1px solid #e6e8ec; border-radius: 8px; padding: 16px 18px; margin-bottom: 14px; }
+.set-card h3 { font-size: 14px; color: #333; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f0f1f3; }
+.set-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.set-row label { flex: 0 0 160px; font-size: 13px; color: #555; }
+.set-row input[type=text], .set-row input[type=number], .set-row select { flex: 1; max-width: 360px; padding: 7px 10px; border: 1px solid #d0d3d9; border-radius: 6px; font-size: 13px; }
+.set-row input[type=checkbox] { width: 16px; height: 16px; }
+.set-row .hint { color: #999; font-weight: normal; font-size: 11px; }
+/* API Key 明文一次性展示 */
+.apikey-reveal { flex: 1; display: flex; align-items: center; gap: 10px; max-width: 500px; }
+.apikey-reveal code { flex: 1; padding: 8px 10px; background: #f7f8fa; border: 1px solid #d0d3d9; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; color: #1f6feb; }
+.apikey-reveal button { padding: 7px 14px; border: 1px solid #d5d9e0; border-radius: 6px; background: #eef1f5; color: #333; cursor: pointer; font-size: 13px; }
+#apikey-gen { padding: 8px 16px; border: none; border-radius: 6px; background: #1f6feb; color: #fff; cursor: pointer; font-size: 13px; }
+.set-row button.danger { padding: 8px 16px; border: 1px solid #f0b4b4; border-radius: 6px; background: #fff0f0; color: #c22; cursor: pointer; font-size: 13px; }
+
+.set-actions { display: flex; gap: 10px; margin-top: 6px; }
+.set-actions button { padding: 9px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
+#set-save { background: #1f6feb; color: #fff; }
+#set-test-notify { background: #eef1f5; color: #333; border: 1px solid #d5d9e0; }
+
+/* 登录页 */
+.login-body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #f5f6f8; }
+.login-card { display: flex; flex-direction: column; gap: 12px; width: 300px; padding: 32px; border: 1px solid #e6e8ec; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.08); background: #fff; }
+.login-card h1 { font-size: 20px; text-align: center; color: #1f6feb; }
+.login-sub { text-align: center; color: #888; font-size: 13px; margin-top: -4px; }
+.login-card input { padding: 10px 12px; border: 1px solid #d0d3d9; border-radius: 8px; font-size: 14px; }
+.login-card button { padding: 10px; border: none; border-radius: 8px; background: #1f6feb; color: #fff; font-size: 15px; cursor: pointer; }
+.login-card button:disabled { background: #b6c6e0; cursor: not-allowed; }
+.login-err { color: #c22; font-size: 13px; text-align: center; }
+.login-hint { color: #a86500; background: #fff4e0; border: 1px solid #ffe0a3; padding: 8px 10px; border-radius: 8px; font-size: 12px; }
+.tab.logout { margin-left: 12px; color: #ffd4d4; }
