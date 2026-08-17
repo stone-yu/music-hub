@@ -9,6 +9,7 @@ const state = {
   selectedForCreate: new Set(), // 创建歌单选中项（已匹配歌曲的 rowKey）
   matchMap: new Map(), // rowKey → 匹配结果（matched/libId/isFuzzy）
   createMap: new Map(), // rowKey → {libId,title,artist} 已匹配歌曲信息（创建球用）
+  createCtx: { name: '', cover: '' }, // 创建歌单默认名/图（歌单详情页带过来，单曲搜索页为空）
   quality: 'flac',
 }
 
@@ -92,8 +93,37 @@ $$('.menu-item').forEach((tab) => {
     if (name === 'sources') loadSources()
     if (name === 'playlists') loadPlaylists()
     if (name === 'settings') switchSettingsSub('general')
+    if (name === 'search') loadSearchSquare()
   })
 })
+
+// 搜索页广场推荐（未搜索时显示）
+async function loadSearchSquare() {
+  const grid = $('#search-square-grid')
+  if (!grid || grid.dataset.loaded === '1') return
+  grid.innerHTML = '<div class="empty">加载中…</div>'
+  try {
+    const d = await fetchJSON('/api/v1/square/hot')
+    const groups = d.groups || []
+    const cards = groups.flatMap((g) => g.items || []).slice(0, 12).map((p) => {
+      const cover = p.img ? `<img src="${escapeHtml(p.img)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''
+      const ph = `<div class="pl-cover-ph" style="${p.img ? 'display:none' : 'display:flex'}">🎶</div>`
+      return `<div class="pl-card" data-id="${escapeHtml(p.id)}" data-src="${escapeHtml(p.source)}" data-name="${escapeHtml(p.name)}">
+        <div class="pl-cover">${cover}${ph}</div>
+        <div class="pl-name">${escapeHtml(p.name)}</div>
+        <div class="pl-meta">${escapeHtml(PLATFORM_NAME[p.source] || p.source)} · ${p.total || 0} 首</div>
+      </div>`
+    }).join('')
+    grid.innerHTML = cards || '<div class="empty">无推荐</div>'
+    grid.dataset.loaded = '1'
+    // 点击歌单卡片跳到歌单页详情
+    $$('#search-square-grid .pl-card').forEach((card) => card.addEventListener('click', () => {
+      const plTab = document.querySelector('.menu-item[data-tab="playlists"]')
+      if (plTab) plTab.click()
+      setTimeout(() => openPlaylistDetail(card.dataset.src, card.dataset.id, card.dataset.name), 100)
+    }))
+  } catch (err) { grid.innerHTML = `<div class="empty">加载失败</div>` }
+}
 
 // ---------- 搜索 ----------
 $('#search-form').addEventListener('submit', async (e) => {
@@ -102,29 +132,18 @@ $('#search-form').addEventListener('submit', async (e) => {
   if (!keyword) return
   state.quality = $('#quality').value
   const platform = $('#platform').value
-  const searchType = $('#search-type').value
   $('#search-status').textContent = '搜索中…'
   $('#results').innerHTML = ''
+  $('#search-square').style.display = 'none'  // 搜索时隐藏广场推荐
   state.results = []
   state.selected.clear()
   state.selectedForCreate.clear()
   state.matchMap = new Map()
   state.createMap = new Map()
-  updateSelectedCount()
+  state.createCtx = { name: '', cover: '' }  // 单曲搜索无默认名/图
   updateGlobalCreateBtn()
 
   try {
-    if (searchType === 'songlist') {
-      // 歌单维度搜索
-      if (platform === 'aggregate') {
-        const r = await fetchJSON(`/api/v1/search/songlist/aggregate?keyword=${encodeURIComponent(keyword)}&page=1`)
-        renderSongListAggregate(r)
-      } else {
-        const r = await fetchJSON(`/api/v1/search/songlist?keyword=${encodeURIComponent(keyword)}&platform=${platform}&page=1`)
-        renderSongListSingle(platform, r)
-      }
-      return
-    }
     if (platform === 'aggregate') {
       const r = await fetchJSON(`/api/v1/search/aggregate?keyword=${encodeURIComponent(keyword)}&page=1`)
       renderAggregate(r)
@@ -272,29 +291,36 @@ function renderGroup(platform, list, error) {
     grid.appendChild(card)
   }
   group.appendChild(grid)
+  bindSongCardEvents(group)
+  return group
+}
 
-  // 试听
-  group.querySelectorAll('.preview-btn').forEach((b) => b.addEventListener('click', () => {
+// 歌曲卡片事件绑定（renderGroup / renderPlaylistDetail 共用）
+function bindSongCardEvents(container) {
+  container.querySelectorAll('.preview-btn').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation()
     const it = state.results.find((r) => rowKey(r) === b.dataset.key)
     if (it) previewSong(it.platform, it, `${it.name} - ${it.singer}`)
   }))
-  // 单首下载
-  group.querySelectorAll('.dl-one').forEach((b) => b.addEventListener('click', async () => {
+  container.querySelectorAll('.dl-one').forEach((b) => b.addEventListener('click', async (e) => {
+    e.stopPropagation()
+    if (b.disabled) return
     const it = state.results.find((r) => rowKey(r) === b.dataset.key)
     if (!it) return
     try {
-      await fetchJSON('/api/v1/download', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform: it.platform, musicInfo: it, quality: state.quality }),
-      })
+      await fetchJSON('/api/v1/download', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform: it.platform, musicInfo: it, quality: state.quality }) })
       toast(`已提交下载：${it.name}`)
     } catch (err) { toast(`下载失败: ${err.message}`) }
   }))
-  // 创建歌单勾选（仅已匹配）
-  group.querySelectorAll('.create-chk').forEach((cb) => cb.addEventListener('change', () => {
+  container.querySelectorAll('.create-chk').forEach((cb) => cb.addEventListener('click', (e) => e.stopPropagation()))
+  container.querySelectorAll('.song-card').forEach((card) => card.addEventListener('click', () => {
+    const cb = card.querySelector('.create-chk')
+    if (!cb || cb.dataset.matched !== '1') return
+    cb.checked = !cb.checked
+    card.classList.toggle('song-card-selected', cb.checked)
     toggleSelectedForCreate(cb.dataset.key, cb.checked)
   }))
-  return group
 }
 
 // 异步给搜索结果打"已在曲库"标记
@@ -333,12 +359,12 @@ function applyMatchMarks() {
       cb.dataset.matched = '1'
       cb.title = '勾选后可创建 Navidrome 歌单'
       cb.style.visibility = 'visible'
-      if (dlBtn) dlBtn.style.display = 'none'  // 已在曲库无需下载
+      if (dlBtn) { dlBtn.disabled = true; dlBtn.classList.add('disabled'); dlBtn.title = '已在曲库' }
     } else {
       cell.innerHTML = `<span class="muted">未收录</span>`
       cb.dataset.matched = '0'
       cb.style.visibility = 'hidden'  // 未匹配不显示创建勾选
-      if (dlBtn) dlBtn.style.display = ''
+      if (dlBtn) { dlBtn.disabled = false; dlBtn.classList.remove('disabled') }
     }
   })
 }
@@ -499,6 +525,8 @@ async function openPlaylistDetail(platform, id, name) {
   try {
     const d = await fetchJSON(`/api/v1/square/detail?platform=${encodeURIComponent(platform)}&id=${encodeURIComponent(id)}`)
     const list = d.detail?.list || []
+    // 设置创建歌单默认名/图（从歌单详情带过来）
+    state.createCtx = { name: d.detail?.info?.name || name, cover: d.detail?.info?.img || '' }
     state.results = list.map((s) => ({ ...s, platform }))
     // 匹配分组
     const songs = list.map((s) => ({ title: s.name, artist: s.singer, source: platform }))
@@ -525,40 +553,52 @@ async function openPlaylistDetail(platform, id, name) {
 }
 function renderPlaylistDetail(name, platform, matched, unmatched) {
   const el = $('#pl-detail')
-  const matchedRows = matched.map((it) => {
+  const matchedCards = matched.map((it) => {
     const key = rowKey(it)
     const m = state.matchMap.get(key)
-    return `<tr data-key="${key}"><td>${escapeHtml(it.name)}</td><td>${escapeHtml(it.singer)}</td><td>${escapeHtml(it.albumName || '')}</td>
-      <td class="match-col"><span class="ok">✓已在曲库${m?.isFuzzy ? ' (模糊)' : ''}</span></td>
-      <td class="act"><button class="preview-btn" data-key="${key}">▶试听</button>
-      <input type="checkbox" class="create-chk" data-key="${key}" data-matched="1" title="勾选创建歌单"></td></tr>`
+    return `<div class="song-card" data-key="${key}">
+      <div class="song-card-top">
+        <input type="checkbox" class="create-chk" data-key="${key}" data-matched="1" title="勾选创建歌单">
+        <div class="song-card-info">
+          <div class="song-card-title">${escapeHtml(it.name)}</div>
+          <div class="song-card-artist">${escapeHtml(it.singer)}${it.albumName ? ' · ' + escapeHtml(it.albumName) : ''}</div>
+        </div>
+      </div>
+      <div class="song-card-bottom">
+        <span class="match-col"><span class="ok">✓已在曲库${m?.isFuzzy ? ' (模糊)' : ''}</span></span>
+        <div class="song-card-act">
+          <button class="preview-btn" data-key="${key}">▶试听</button>
+          <button class="dl-one disabled" data-key="${key}" disabled title="已在曲库">⬇下载</button>
+        </div>
+      </div>
+    </div>`
   }).join('')
-  const unmatchedRows = unmatched.map((it) => {
+  const unmatchedCards = unmatched.map((it) => {
     const key = rowKey(it)
-    return `<tr data-key="${key}"><td>${escapeHtml(it.name)}</td><td>${escapeHtml(it.singer)}</td><td>${escapeHtml(it.albumName || '')}</td>
-      <td class="match-col"><span class="muted">未收录</span></td>
-      <td class="act"><button class="preview-btn" data-key="${key}">▶试听</button><button class="dl-one" data-key="${key}">⬇下载</button></td></tr>`
+    return `<div class="song-card" data-key="${key}">
+      <div class="song-card-top">
+        <input type="checkbox" class="create-chk" data-key="${key}" data-matched="0" style="visibility:hidden">
+        <div class="song-card-info">
+          <div class="song-card-title">${escapeHtml(it.name)}</div>
+          <div class="song-card-artist">${escapeHtml(it.singer)}${it.albumName ? ' · ' + escapeHtml(it.albumName) : ''}</div>
+        </div>
+      </div>
+      <div class="song-card-bottom">
+        <span class="match-col"><span class="muted">未收录</span></span>
+        <div class="song-card-act">
+          <button class="preview-btn" data-key="${key}">▶试听</button>
+          <button class="dl-one" data-key="${key}">⬇下载</button>
+        </div>
+      </div>
+    </div>`
   }).join('')
   el.innerHTML = `
     <button id="pl-back" class="linkbtn" style="margin:4px 0 10px;padding:6px 12px;background:var(--hover);border:1px solid var(--border);border-radius:6px;cursor:pointer">← 返回歌单列表</button>
     <h3 style="margin:0 0 10px">${escapeHtml(name)} · 共 ${matched.length + unmatched.length} 首（已匹配 ${matched.length} · 未匹配 ${unmatched.length}）</h3>
-    ${matched.length ? `<h4 style="color:var(--ok);margin:12px 0 6px">✓ 已在曲库（${matched.length}）</h4><table><thead><tr><th>歌曲</th><th>歌手</th><th>专辑</th><th>曲库</th><th>操作</th></tr></thead><tbody>${matchedRows}</tbody></table>` : ''}
-    ${unmatched.length ? `<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--text-muted)">未匹配 ${unmatched.length} 首（可试听/下载补库）</summary><table style="margin-top:8px"><thead><tr><th>歌曲</th><th>歌手</th><th>专辑</th><th>曲库</th><th>操作</th></tr></thead><tbody>${unmatchedRows}</tbody></table></details>` : ''}`
+    ${matched.length ? `<h4 style="color:var(--ok);margin:12px 0 6px">✓ 已在曲库（${matched.length}）</h4><div class="song-grid">${matchedCards}</div>` : ''}
+    ${unmatched.length ? `<h4 style="color:var(--text-muted);margin:16px 0 6px">未匹配 ${unmatched.length} 首（可试听/下载补库）</h4><div class="song-grid">${unmatchedCards}</div>` : ''}`
   $('#pl-back').addEventListener('click', () => { $('#pl-detail').hidden = true; $('#pl-grid').hidden = false })
-  // 绑定试听/下载/创建勾选
-  el.querySelectorAll('.preview-btn').forEach((b) => b.addEventListener('click', () => {
-    const it = state.results.find((r) => rowKey(r) === b.dataset.key)
-    if (it) previewSong(it.platform, it, `${it.name} - ${it.singer}`)
-  }))
-  el.querySelectorAll('.dl-one').forEach((b) => b.addEventListener('click', async () => {
-    const it = state.results.find((r) => rowKey(r) === b.dataset.key)
-    if (!it) return
-    try {
-      await fetchJSON('/api/v1/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform: it.platform, musicInfo: it, quality: state.quality }) })
-      toast(`已提交下载：${it.name}`)
-    } catch (err) { toast(`下载失败: ${err.message}`) }
-  }))
-  el.querySelectorAll('.create-chk').forEach((cb) => cb.addEventListener('change', () => toggleSelectedForCreate(cb.dataset.key, cb.checked)))
+  bindSongCardEvents(el)
 }
 
 // ---------- 任务（步骤3改为悬浮球，先保留 loadTasks/renderTasks 供复用）----------
@@ -720,18 +760,23 @@ function updateGlobalCreateBtn() {
   ball.classList.toggle('disabled', n === 0)
 }
 function renderCreatePanel() {
-  // 步骤6完整实现：渲染歌单名输入 + 歌曲列表 + 创建 Navidrome 歌单按钮
   const items = state.results.filter((it) => state.selectedForCreate.has(rowKey(it)))
   const rows = items.map((it) => `<tr><td>${escapeHtml(it.name)}</td><td>${escapeHtml(it.singer)}</td><td>${escapeHtml(PLATFORM_NAME[it.platform] || it.platform)}</td></tr>`).join('')
+  const ctx = state.createCtx || { name: '', cover: '' }
+  const defaultName = ctx.name || ''
+  const coverHtml = ctx.cover
+    ? `<img src="${escapeHtml(ctx.cover)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;margin-right:10px" onerror="this.style.display='none'">`
+    : ''
   $('#float-create-panel').innerHTML = `
     <div class="float-panel-head"><b>✅ 创建 Navidrome 歌单（${items.length} 首）</b><button class="float-panel-close" data-close>×</button></div>
-    <input type="text" id="create-pl-name" placeholder="歌单名称" class="name-in">
+    <div style="display:flex;align-items:center;margin-bottom:10px">${coverHtml}
+      <input type="text" id="create-pl-name" placeholder="歌单名称" class="name-in" value="${escapeHtml(defaultName)}">
+    </div>
     <div style="max-height:200px;overflow-y:auto;margin-bottom:10px"><table class="card"><thead><tr><th>歌曲</th><th>歌手</th><th>平台</th></tr></thead><tbody>${rows}</tbody></table></div>
     <button id="create-pl-btn" class="create-btn">创建 Navidrome 歌单</button>`
   $('#create-pl-btn').addEventListener('click', async () => {
     const name = $('#create-pl-name').value.trim()
     if (!name) return toast('请输入歌单名称')
-    // 已匹配歌曲的 libId 从 createMap 取
     const ids = items.map((it) => state.createMap.get(rowKey(it))?.libId).filter(Boolean)
     if (!ids.length) return toast('无有效歌曲')
     try {
@@ -740,7 +785,7 @@ function renderCreatePanel() {
       })
       toast(`歌单「${name}」已创建（${d.songCount} 首）`)
       state.selectedForCreate.clear()
-      $$('.create-chk').forEach((cb) => cb.checked = false)
+      $$('.create-chk').forEach((cb) => { cb.checked = false; cb.closest('.song-card')?.classList.remove('song-card-selected') })
       updateGlobalCreateBtn()
       $('#float-create-panel').classList.remove('show')
       $('#float-backdrop').classList.remove('show')
