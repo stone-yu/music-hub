@@ -229,7 +229,13 @@
   <div id="global-player" class="global-player">
     <div class="gp-icon">🎵</div>
     <div class="gp-info"><div id="gp-title" class="gp-title">未播放</div><div class="gp-sub">试听</div></div>
-    <audio id="global-audio" controls></audio>
+    <button id="gp-play" class="gp-play" title="播放/暂停">▶</button>
+    <div class="gp-progress-wrap">
+      <span id="gp-current" class="gp-time">0:00</span>
+      <div id="gp-progress" class="gp-progress"><div id="gp-progress-fill" class="gp-progress-fill"></div></div>
+      <span id="gp-duration" class="gp-time">0:00</span>
+    </div>
+    <audio id="global-audio" hidden></audio>
     <button id="gp-close" class="gp-close">×</button>
   </div>
 
