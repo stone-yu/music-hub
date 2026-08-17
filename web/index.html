@@ -11,10 +11,10 @@
   <div class="sidebar-brand"><img class="brand-icon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238b9cff'/%3E%3Cstop offset='1' stop-color='%236b7cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='48' height='48' rx='12' fill='url(%23g)'/%3E%3Cpath d='M20 13v15.5a4.5 4.5 0 1 1-2.4-3.98V13z' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linejoin='round'/%3E%3Cpath d='M20 13l11-2.6v3.4L20 17z' fill='%23fff'/%3E%3C/svg%3E" alt="MusicHub"><span class="brand-text">MusicHub</span></div>
   <aside class="sidebar" id="sidebar">
     <button class="sidebar-toggle" id="sidebar-toggle"><span class="tg-arrow"></span></button>
-    <a href="#" class="menu-item active" data-tab="search"><span class="menu-icon">🔍</span><span class="menu-text">歌曲</span></a>
-    <a href="#" class="menu-item" data-tab="playlists"><span class="menu-icon">🎶</span><span class="menu-text">歌单</span></a>
-    <a href="#" class="menu-item" data-tab="library"><span class="menu-icon">🎵</span><span class="menu-text">曲库</span></a>
-    <a href="#" class="menu-item" data-tab="sources"><span class="menu-icon">🔌</span><span class="menu-text">音源</span></a>
+    <a href="#" class="menu-item active" data-tab="search"><span class="menu-icon">🔥</span><span class="menu-text">热榜歌曲</span></a>
+    <a href="#" class="menu-item" data-tab="playlists"><span class="menu-icon">🎶</span><span class="menu-text">热榜歌单</span></a>
+    <a href="#" class="menu-item" data-tab="library"><span class="menu-icon">🎵</span><span class="menu-text">我的曲库</span></a>
+    <a href="#" class="menu-item" data-tab="sources"><span class="menu-icon">🔌</span><span class="menu-text">音源管理</span></a>
   </aside>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
@@ -41,44 +41,57 @@
   <main class="main">
     <div class="main-inner">
 
-    <!-- 搜索页 -->
+    <!-- 热榜歌曲页 -->
     <section id="view-search" class="view active">
-      <form id="search-form" class="search-bar">
-        <input type="text" id="keyword" placeholder="歌曲名 / 歌手" autocomplete="off" required />
-        <select id="platform">
-          <option value="aggregate">聚合(全平台)</option>
-          <option value="kw">酷我</option>
-          <option value="kg">酷狗</option>
-          <option value="tx">QQ音乐</option>
-          <option value="wy">网易云</option>
-          <option value="mg">咪咕</option>
-        </select>
-        <button type="submit">搜索</button>
-      </form>
-
-      <div id="search-status" class="status"></div>
-      <div id="results"></div>
-
-      <!-- 热榜推荐（未搜索时显示） -->
-      <div id="search-square">
-        <div class="toolbar" style="margin-top:16px">
-          <h3 class="platform-group" style="border-left:3px solid var(--accent);padding-left:6px;font-size:14px;color:#555;margin:0">🔥 各平台热榜</h3>
-          <div class="pl-tabs" id="rank-tabs">
-            <span class="ptab active" data-src="wy" data-id="3778678" data-name="网易热歌榜">网易热歌</span>
-            <span class="ptab" data-src="kg" data-id="8888" data-name="酷狗热歌榜">酷狗热歌</span>
-            <span class="ptab" data-src="tx" data-id="62" data-name="QQ热歌榜">QQ热歌</span>
-            <span class="ptab" data-src="wy" data-id="3779629" data-name="网易新歌榜">网易新歌</span>
-          </div>
-          <button id="rank-refresh" style="margin-left:auto">刷新</button>
+      <!-- 热榜歌曲首页 -->
+      <div id="search-home">
+        <div class="page-head">
+          <h2 class="page-title">🔥 热榜歌曲</h2>
+          <button id="rank-refresh">刷新</button>
+          <form id="search-form" class="head-search">
+            <input type="text" id="keyword" placeholder="歌曲名 / 歌手" autocomplete="off" required />
+            <select id="platform">
+              <option value="aggregate">聚合</option>
+              <option value="kw">酷我</option>
+              <option value="kg">酷狗</option>
+              <option value="tx">QQ音乐</option>
+              <option value="wy">网易云</option>
+              <option value="mg">咪咕</option>
+            </select>
+            <button type="submit">搜索</button>
+          </form>
+        </div>
+        <div class="pl-tabs" id="rank-tabs">
+          <span class="ptab active" data-src="wy" data-id="3778678" data-name="网易热歌榜">网易热歌</span>
+          <span class="ptab" data-src="kg" data-id="8888" data-name="酷狗热歌榜">酷狗热歌</span>
+          <span class="ptab" data-src="tx" data-id="62" data-name="QQ热歌榜">QQ热歌</span>
+          <span class="ptab" data-src="wy" data-id="3779629" data-name="网易新歌榜">网易新歌</span>
         </div>
         <div id="search-square-list"></div>
       </div>
+      <!-- 搜索结果页 -->
+      <div id="search-results-page" hidden>
+        <div class="page-head">
+          <button id="search-back" class="back-btn">← 返回热榜</button>
+          <h2 class="page-title">歌曲搜索结果</h2>
+        </div>
+        <div id="search-status" class="status"></div>
+        <div id="results"></div>
+      </div>
     </section>
 
-    <!-- 歌单页（步骤7改造为广场+详情，先保留结构） -->
+    <!-- 热榜歌单页 -->
     <section id="view-playlists" class="view">
-      <div class="search-bar">
-        <input type="text" id="pl-keyword" placeholder="搜歌单：民谣、经典、怀旧" class="name-in" />
+      <!-- 热榜歌单首页 -->
+      <div id="pl-home">
+        <div class="page-head">
+          <h2 class="page-title">🎶 热榜歌单</h2>
+          <button id="pl-refresh-btn">刷新</button>
+          <div class="head-search">
+            <input type="text" id="pl-keyword" placeholder="搜歌单：民谣、经典、怀旧" class="name-in" />
+            <button id="pl-search-btn">搜歌单</button>
+          </div>
+        </div>
         <div class="pl-tabs" id="pl-platform-tabs">
           <span class="ptab active" data-p="">聚合</span>
           <span class="ptab" data-p="kw">酷我</span>
@@ -87,11 +100,10 @@
           <span class="ptab" data-p="wy">网易云</span>
           <span class="ptab" data-p="mg">咪咕</span>
         </div>
-        <button id="pl-search-btn">搜歌单</button>
-        <button id="pl-refresh-btn">广场推荐</button>
+        <div id="pl-status" class="status"></div>
+        <div id="pl-grid"></div>
       </div>
-      <div id="pl-status" class="status"></div>
-      <div id="pl-grid"></div>
+      <!-- 歌单详情页 -->
       <div id="pl-detail" hidden></div>
     </section>
 
