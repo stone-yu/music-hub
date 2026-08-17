@@ -49,6 +49,11 @@ function safeView() {
         },
       },
     },
+    scrape: {
+      enabled: config.scrape.enabled,
+      autoOnDownload: config.scrape.autoOnDownload,
+      targetDir: config.scrape.targetDir,
+    },
   }
 }
 
@@ -73,6 +78,7 @@ interface SettingsPatch {
       serverChan?: { enabled?: boolean; sendKey?: string }
     }
   }
+  scrape?: { enabled?: boolean; autoOnDownload?: boolean; targetDir?: string }
 }
 
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {

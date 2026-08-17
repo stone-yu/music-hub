@@ -4,19 +4,38 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MusicHub</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238b9cff'/%3E%3Cstop offset='1' stop-color='%236b7cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='48' height='48' rx='12' fill='url(%23g)'/%3E%3Cpath d='M20 13v15.5a4.5 4.5 0 1 1-2.4-3.98V13z' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linejoin='round'/%3E%3Cpath d='M20 13l11-2.6v3.4L20 17z' fill='%23fff'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body class="sidebar-open">
-  <div class="sidebar-brand">🎵 MusicHub</div>
+  <div class="sidebar-brand"><img class="brand-icon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238b9cff'/%3E%3Cstop offset='1' stop-color='%236b7cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='48' height='48' rx='12' fill='url(%23g)'/%3E%3Cpath d='M20 13v15.5a4.5 4.5 0 1 1-2.4-3.98V13z' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linejoin='round'/%3E%3Cpath d='M20 13l11-2.6v3.4L20 17z' fill='%23fff'/%3E%3C/svg%3E" alt="MusicHub"><span class="brand-text">MusicHub</span></div>
   <aside class="sidebar" id="sidebar">
     <button class="sidebar-toggle" id="sidebar-toggle"><span class="tg-arrow"></span></button>
     <a href="#" class="menu-item active" data-tab="search"><span class="menu-icon">🔍</span><span class="menu-text">搜索</span></a>
     <a href="#" class="menu-item" data-tab="playlists"><span class="menu-icon">🎶</span><span class="menu-text">歌单</span></a>
     <a href="#" class="menu-item" data-tab="sources"><span class="menu-icon">🔌</span><span class="menu-text">音源</span></a>
-    <a href="#" class="menu-item" data-tab="settings"><span class="menu-icon">⚙️</span><span class="menu-text">设置</span></a>
-    <a href="#" id="logout-btn" class="menu-item" hidden><span class="menu-icon">🚪</span><span class="menu-text">登出</span></a>
   </aside>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <!-- 顶部固定条：曲库状态 + 刷新 + 个人中心 -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <span id="status-indicator" class="status-indicator">● 检查中…</span>
+    </div>
+    <div class="topbar-right">
+      <button onclick="refreshLibraryTop()" id="topbar-refresh" class="topbar-btn" title="刷新曲库">
+        <svg id="libraryRefreshIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      </button>
+      <div class="profile-wrap">
+        <button id="profile-btn" class="topbar-btn profile-btn" title="个人中心">👤</button>
+        <div class="profile-menu" id="profile-menu">
+          <div class="profile-menu-item" data-tab="settings"><span>⚙️</span> 设置</div>
+          <div class="profile-menu-divider"></div>
+          <div class="profile-menu-item profile-menu-danger" id="logout-btn" hidden><span>🚪</span> 退出登录</div>
+        </div>
+      </div>
+    </div>
+  </header>
 
   <main class="main">
     <div class="main-inner">
@@ -45,13 +64,6 @@
         </select>
         <button type="submit">搜索</button>
       </form>
-
-      <div class="toolbar" id="search-toolbar" hidden>
-        <label class="chk-all"><input type="checkbox" id="check-all" /> 全选</label>
-        <span id="selected-count">已选 0 首</span>
-        <button id="batch-download" disabled>批量下载选中</button>
-        <button id="batch-add-playlist" disabled>加入歌单</button>
-      </div>
 
       <div id="search-status" class="status"></div>
       <div id="results"></div>

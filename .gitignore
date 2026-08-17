@@ -24,3 +24,4 @@ config.yaml
 # Claude Code 本地配置
 .claude/
 data/library_cache.json
+data/scraped/

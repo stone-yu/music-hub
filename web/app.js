@@ -42,6 +42,44 @@ function initSidebar() {
   })
 }
 
+// ---------- 顶部条：曲库状态 + 个人中心 ----------
+async function checkTopStatus() {
+  const el = $('#status-indicator')
+  try {
+    const d = await fetchJSON('/api/v1/navidrome/status')
+    if (d.connected) {
+      el.innerHTML = `<span class="ok">● 已连接</span> · 曲库 ${d.librarySize} 首${d.libraryLoading ? ' · 加载中' : ''}`
+    } else {
+      el.innerHTML = `<span class="err">● 连接失败</span>`
+    }
+  } catch { el.innerHTML = `<span class="err">● 网络错误</span>` }
+}
+function refreshLibraryTop() {
+  const ico = $('#libraryRefreshIcon')
+  ico.classList.add('spin')
+  fetchJSON('/api/v1/navidrome/library/refresh', { method: 'POST' })
+    .then(() => checkTopStatus())
+    .catch((e) => toast(e.message))
+    .finally(() => setTimeout(() => ico.classList.remove('spin'), 800))
+}
+function initProfileMenu() {
+  const btn = $('#profile-btn')
+  const menu = $('#profile-menu')
+  btn.addEventListener('click', (e) => { e.stopPropagation(); menu.classList.toggle('show') })
+  document.addEventListener('click', (e) => { if (!e.target.closest('.profile-wrap')) menu.classList.remove('show') })
+  // 设置菜单项：切到设置 view
+  menu.querySelectorAll('.profile-menu-item[data-tab]').forEach((it) => {
+    it.addEventListener('click', () => {
+      menu.classList.remove('show')
+      const name = it.dataset.tab
+      $$('.menu-item').forEach((t) => t.classList.remove('active'))
+      $$('.view').forEach((v) => v.classList.remove('active'))
+      $(`#view-${name}`).classList.add('active')
+      if (name === 'settings') switchSettingsSub('general')
+    })
+  })
+}
+
 // ---------- 视图切换 ----------
 $$('.menu-item').forEach((tab) => {
   tab.addEventListener('click', (e) => {
@@ -108,13 +146,11 @@ function renderSongListAggregate(data) {
     container.appendChild(renderSongListGroup(pr.platform, pr.list, pr.ok ? null : pr.error))
   }
   $('#search-status').textContent = total ? `共 ${total} 个歌单` : '无结果'
-  $('#search-toolbar').hidden = true
 }
 
 function renderSongListSingle(platform, data) {
   $('#results').appendChild(renderSongListGroup(platform, data.list, null))
   $('#search-status').textContent = data.list.length ? `共 ${data.list.length} 个歌单` : '无结果'
-  $('#search-toolbar').hidden = true
 }
 
 function renderSongListGroup(platform, list, error) {
@@ -192,8 +228,6 @@ function renderSingle(platform, data) {
 
 function finalizeSearch(count) {
   $('#search-status').textContent = count ? `共 ${count} 首` : '无结果'
-  $('#search-toolbar').hidden = count === 0
-  $('#check-all').checked = false
 }
 
 function renderGroup(platform, list, error) {
@@ -211,44 +245,34 @@ function renderGroup(platform, list, error) {
     return group
   }
 
-  const table = document.createElement('table')
-  table.innerHTML = `<thead><tr>
-    <th class="chk"></th><th>歌曲</th><th>歌手</th><th>专辑</th><th>时长</th><th>音质</th><th>曲库</th><th>操作</th>
-  </tr></thead><tbody></tbody>`
-  const tbody = table.querySelector('tbody')
-
+  const grid = document.createElement('div')
+  grid.className = 'song-grid'
   for (const raw of list) {
     const item = { ...raw, platform }
     state.results.push(item)
     const key = rowKey(item)
-    const tr = document.createElement('tr')
-    tr.dataset.key = key
-    const qualities = (item.types || []).map((t) => `<span class="badge q">${t.type}</span>`).join('')
-    tr.innerHTML = `
-      <td class="chk"><input type="checkbox" data-key="${key}" class="dl-chk" /></td>
-      <td>${escapeHtml(item.name)}</td>
-      <td>${escapeHtml(item.singer)}</td>
-      <td>${escapeHtml(item.albumName || '')}</td>
-      <td>${escapeHtml(String(item.interval || ''))}</td>
-      <td class="q">${qualities}</td>
-      <td class="match-col" data-key="${key}"><span class="pending">…</span></td>
-      <td class="act">
-        <button class="preview-btn" data-key="${key}">▶试听</button>
-        <button class="dl-one" data-key="${key}">⬇下载</button>
+    const card = document.createElement('div')
+    card.className = 'song-card'
+    card.dataset.key = key
+    card.innerHTML = `
+      <div class="song-card-top">
         <input type="checkbox" class="create-chk" data-key="${key}" data-matched="0" title="勾选已匹配歌曲创建歌单" />
-      </td>`
-    tbody.appendChild(tr)
+        <div class="song-card-info">
+          <div class="song-card-title">${escapeHtml(item.name)}</div>
+          <div class="song-card-artist">${escapeHtml(item.singer)}${item.albumName ? ' · ' + escapeHtml(item.albumName) : ''}</div>
+        </div>
+      </div>
+      <div class="song-card-bottom">
+        <span class="match-col" data-key="${key}"><span class="pending">…</span></span>
+        <div class="song-card-act">
+          <button class="preview-btn" data-key="${key}">▶试听</button>
+          <button class="dl-one" data-key="${key}">⬇下载</button>
+        </div>
+      </div>`
+    grid.appendChild(card)
   }
-  group.appendChild(table)
+  group.appendChild(grid)
 
-  // 批量下载勾选
-  group.querySelectorAll('.dl-chk').forEach((cb) => {
-    cb.addEventListener('change', () => {
-      if (cb.checked) state.selected.add(cb.dataset.key)
-      else state.selected.delete(cb.dataset.key)
-      updateSelectedCount()
-    })
-  })
   // 试听
   group.querySelectorAll('.preview-btn').forEach((b) => b.addEventListener('click', () => {
     const it = state.results.find((r) => rowKey(r) === b.dataset.key)
@@ -297,20 +321,24 @@ async function matchSearchResults() {
 }
 
 function applyMatchMarks() {
-  $$('#results tr[data-key]').forEach((tr) => {
-    const key = tr.dataset.key
+  $$('#results .song-card[data-key]').forEach((card) => {
+    const key = card.dataset.key
     const m = state.matchMap.get(key)
-    const cell = tr.querySelector('.match-col')
-    const cb = tr.querySelector('.create-chk')
+    const cell = card.querySelector('.match-col')
+    const cb = card.querySelector('.create-chk')
+    const dlBtn = card.querySelector('.dl-one')
     if (!cell || !cb) return
     if (m?.matched) {
       cell.innerHTML = `<span class="ok">✓已在曲库${m.isFuzzy ? ' (模糊)' : ''}</span>`
       cb.dataset.matched = '1'
       cb.title = '勾选后可创建 Navidrome 歌单'
+      cb.style.visibility = 'visible'
+      if (dlBtn) dlBtn.style.display = 'none'  // 已在曲库无需下载
     } else {
       cell.innerHTML = `<span class="muted">未收录</span>`
       cb.dataset.matched = '0'
-      cb.disabled = true
+      cb.style.visibility = 'hidden'  // 未匹配不显示创建勾选
+      if (dlBtn) dlBtn.style.display = ''
     }
   })
 }
@@ -328,84 +356,11 @@ function toggleSelectedForCreate(key, on) {
   updateGlobalCreateBtn()
 }
 
-// ---------- 全选 / 计数 / 批量下载 ----------
-$('#check-all').addEventListener('change', (e) => {
-  const checked = e.target.checked
-  $$('#results input[type=checkbox]').forEach((cb) => {
-    cb.checked = checked
-    if (checked) state.selected.add(cb.dataset.key)
-    else state.selected.delete(cb.dataset.key)
-  })
-  updateSelectedCount()
-})
-
-function updateSelectedCount() {
-  const n = state.selected.size
-  $('#selected-count').textContent = `已选 ${n} 首`
-  $('#batch-download').disabled = n === 0
-  $('#batch-add-playlist').disabled = n === 0
-}
-
+// ---------- 计数（批量下载条已移除，勾选改为创建歌单球用）----------
+function updateSelectedCount() { /* no-op：原批量下载条已删除 */ }
 function selectedItems() {
   return state.results.filter((it) => state.selected.has(rowKey(it)))
 }
-
-$('#batch-download').addEventListener('click', async () => {
-  const items = state.results
-    .filter((it) => state.selected.has(rowKey(it)))
-    .map((it) => ({ platform: it.platform, musicInfo: it, quality: state.quality }))
-  if (!items.length) return
-  $('#batch-download').disabled = true
-  try {
-    const r = await fetchJSON('/api/v1/download/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items, quality: state.quality }),
-    })
-    toast(`已提交 ${r.acceptedCount} 首${r.rejectedCount ? `，${r.rejectedCount} 首被拒` : ''}`)
-    state.selected.clear()
-    $$('#results input[type=checkbox]').forEach((cb) => (cb.checked = false))
-    $('#check-all').checked = false
-    updateSelectedCount()
-  } catch (err) {
-    toast(`批量下载失败: ${err.message}`)
-  } finally {
-    $('#batch-download').disabled = state.selected.size === 0
-  }
-})
-
-// 把选中歌曲加入歌单
-$('#batch-add-playlist').addEventListener('click', async () => {
-  const items = selectedItems()
-  if (!items.length) return
-  let pls
-  try { pls = (await fetchJSON('/api/v1/playlists')).playlists } catch (err) { return toast(err.message) }
-  let targetId
-  if (!pls.length) {
-    const name = prompt('还没有歌单，输入新歌单名称：')
-    if (!name || !name.trim()) return
-    try { targetId = (await fetchJSON('/api/v1/playlists', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim() }) })).id }
-    catch (err) { return toast(err.message) }
-  } else {
-    const list = pls.map((p, i) => `${i + 1}. ${p.name} (${p.count})`).join('\n')
-    const pick = prompt(`选择歌单序号加入（或输入新名称创建）：\n${list}`)
-    if (!pick) return
-    const idx = parseInt(pick) - 1
-    if (!Number.isNaN(idx) && pls[idx]) targetId = pls[idx].id
-    else {
-      try { targetId = (await fetchJSON('/api/v1/playlists', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: pick.trim() }) })).id }
-      catch (err) { return toast(err.message) }
-    }
-  }
-  let added = 0
-  for (const it of items) {
-    try {
-      const r = await fetchJSON(`/api/v1/playlists/${targetId}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform: it.platform, musicInfo: it }) })
-      if (r.added) added++
-    } catch { /* ignore single failure */ }
-  }
-  toast(`已加入 ${added} 首（${items.length - added} 首已存在）`)
-})
 
 // ---------- 歌单页 ----------
 $('#refresh-playlists').addEventListener('click', loadLocalPlaylists)
@@ -497,11 +452,15 @@ async function loadPlaylists() {
 }
 function renderPlaylistGrid(groups) {
   const parts = groups.map((g) => {
-    const cards = (g.items || []).map((p) =>
-      `<div class="pl-card" data-id="${escapeHtml(p.id)}" data-src="${escapeHtml(p.source)}" data-name="${escapeHtml(p.name)}">
+    const cards = (g.items || []).map((p) => {
+      const cover = p.img ? `<img src="${escapeHtml(p.img)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''
+      const placeholder = `<div class="pl-cover-ph" style="${p.img ? 'display:none' : 'display:flex'}">🎶</div>`
+      return `<div class="pl-card" data-id="${escapeHtml(p.id)}" data-src="${escapeHtml(p.source)}" data-name="${escapeHtml(p.name)}">
+        <div class="pl-cover">${cover}${placeholder}</div>
         <div class="pl-name">${escapeHtml(p.name)}</div>
         <div class="pl-meta">${escapeHtml(PLATFORM_NAME[p.source] || p.source)} · ${p.total || 0} 首</div>
-      </div>`).join('')
+      </div>`
+    }).join('')
     return `<h3 class="platform-group" style="border-left:3px solid var(--accent);padding-left:6px;font-size:14px;color:#555;margin:12px 0 8px">${escapeHtml(g.keyword)}</h3><div class="pl-grid">${cards}</div>`
   })
   $('#pl-status').innerHTML = ''
@@ -642,29 +601,30 @@ function renderTasksInto(listSel, summarySel, tasks) {
   if (!container) return
   if (!tasks.length) { container.innerHTML = '<div class="empty">暂无任务</div>'; return }
 
-  const table = document.createElement('table')
-  table.innerHTML = `<thead><tr>
-    <th>歌曲</th><th>平台</th><th>音质</th><th>状态</th><th>进度</th><th>操作</th>
-  </tr></thead><tbody></tbody>`
-  const tbody = table.querySelector('tbody')
-  for (const t of tasks) {
-    const tr = document.createElement('tr')
+  const cards = tasks.map((t) => {
     const q = t.actualQuality ? `${t.actualQuality}` : (t.requestedQuality || '')
     const warn = (t.warnings && t.warnings.length) ? ` ⚠️${t.warnings.length}` : ''
     const actions = (t.status === 'failed' || t.status === 'canceled' || t.status === 'completed_with_warnings')
       ? `<button data-retry="${t.id}">重试</button> `
       : (t.status === 'pending' || t.status === 'active') ? `<button data-cancel="${t.id}">取消</button> ` : ''
-    tr.innerHTML = `
-      <td>${escapeHtml(t.name)} - ${escapeHtml(t.singer)}</td>
-      <td>${PLATFORM_NAME[t.platform] || t.platform}</td>
-      <td>${q}${t.actualSource ? ` <span class="badge q">${escapeHtml(t.actualSource)}</span>` : ''}</td>
-      <td><span class="st ${t.status}">${statusLabel(t.status)}${warn}</span></td>
-      <td>${t.progress || 0}%<div class="progress-bar"><div style="width:${t.progress || 0}%"></div></div></td>
-      <td class="act">${actions}<button data-del="${t.id}">删除</button></td>`
-    tbody.appendChild(tr)
-  }
-  container.innerHTML = ''
-  container.appendChild(table)
+    const scrape = t.scrape_status ? `<span class="badge q">刮削:${escapeHtml(t.scrape_status)}</span>` : ''
+    return `<div class="task-card">
+      <div class="task-card-top">
+        <div class="task-card-title">${escapeHtml(t.name)} <span class="task-card-singer">- ${escapeHtml(t.singer)}</span></div>
+        <button data-del="${t.id}" class="task-card-del">×</button>
+      </div>
+      <div class="task-card-meta">
+        <span class="badge">${PLATFORM_NAME[t.platform] || t.platform}</span>
+        <span class="badge q">${q}</span>
+        ${t.actualSource ? `<span class="badge">${escapeHtml(t.actualSource)}</span>` : ''}
+        ${scrape}
+        <span class="st ${t.status}">${statusLabel(t.status)}${warn}</span>
+      </div>
+      <div class="task-card-progress">${t.progress || 0}%<div class="progress-bar"><div style="width:${t.progress || 0}%"></div></div></div>
+      <div class="task-card-act">${actions}</div>
+    </div>`
+  }).join('')
+  container.innerHTML = `<div class="task-card-list">${cards}</div>`
 
   container.querySelectorAll('[data-retry]').forEach((b) => b.addEventListener('click', () => act(`/api/v1/tasks/${b.dataset.retry}/retry`, 'POST', '已重新入队')))
   container.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', () => act(`/api/v1/tasks/${b.dataset.cancel}/cancel`, 'POST', '已取消')))
@@ -886,6 +846,7 @@ async function loadSettingsOriginal() {
 
 function renderSettings(s) {
   const d = s.download, sm = s.smokeTest, bark = sm.alert.bark, sc = sm.alert.serverChan
+  const sc2 = s.scrape || { enabled: false, autoOnDownload: false, targetDir: '' }
   const apiKeySet = !!(s.auth && s.auth.apiKeySet)
   const qOpt = (v) => ['flac24bit', 'flac', '320k', '128k'].map((q) => `<option value="${q}" ${q === v ? 'selected' : ''}>${q}</option>`).join('')
   $('#settings-general').innerHTML = `
@@ -917,6 +878,13 @@ function renderSettings(s) {
       <div class="set-row"><label>封面尺寸 (100-1000)</label><input type="number" id="set-cover" min="100" max="1000" value="${d.coverSize}" /></div>
       <div class="set-row"><label>嵌入封面</label><input type="checkbox" id="set-embed-cover" ${d.embedCover ? 'checked' : ''} /></div>
       <div class="set-row"><label>嵌入歌词</label><input type="checkbox" id="set-embed-lyric" ${d.embedLyric ? 'checked' : ''} /></div>
+    </div>
+
+    <div class="set-card">
+      <h3>刮削设置</h3>
+      <div class="set-row"><label>启用刮削</label><input type="checkbox" id="set-scrape-en" ${sc2.enabled ? 'checked' : ''} /><span class="hint">关闭后下载完成不自动整理入库</span></div>
+      <div class="set-row"><label>下载后自动刮削</label><input type="checkbox" id="set-scrape-auto" ${sc2.autoOnDownload ? 'checked' : ''} /></div>
+      <div class="set-row"><label>整理目录</label><input type="text" id="set-scrape-dir" value="${escapeHtml(sc2.targetDir)}" /><span class="hint">需映射到 Navidrome 音乐目录</span></div>
     </div>
 
     <div class="set-card">
@@ -990,6 +958,11 @@ async function saveSettings() {
       coverSize: parseInt($('#set-cover').value),
       embedCover: $('#set-embed-cover').checked,
       embedLyric: $('#set-embed-lyric').checked,
+    },
+    scrape: {
+      enabled: $('#set-scrape-en').checked,
+      autoOnDownload: $('#set-scrape-auto').checked,
+      targetDir: $('#set-scrape-dir').value,
     },
     smokeTest: {
       enabled: $('#set-smoke-en').checked,
@@ -1089,6 +1062,10 @@ async function initAuth() {
     }
     // 启动全局下载任务轮询（悬浮球角标）
     startGlobalTasksPolling()
+    // 顶部条：曲库状态 + 个人中心
+    initProfileMenu()
+    checkTopStatus()
+    setInterval(checkTopStatus, 15000)
   } catch { /* ignore */ }
 }
 initAuth()

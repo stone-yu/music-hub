@@ -10,6 +10,7 @@
 import type { FastifyInstance } from 'fastify'
 import { downloadQueue } from '../core/download/queue.js'
 import { isPlatform, ALL_PLATFORMS } from '../core/search/index.js'
+import { scrapeStore } from '../core/db/scrape.js'
 import type { MusicInfo } from '../core/adapters/common.js'
 import type { Quality } from '../core/source-engine/lx-env.js'
 import type { TaskStatus } from '../core/db/index.js'
@@ -64,7 +65,13 @@ export async function downloadRoutes(app: FastifyInstance): Promise<void> {
 
   app.get<{ Querystring: { status?: string } }>('/api/v1/tasks', async (req) => {
     const status = req.query.status as TaskStatus | undefined
-    return { tasks: downloadQueue.list(status) }
+    const tasks = downloadQueue.list(status)
+    // 附加刮削状态（关联 scrape_tasks 表）
+    for (const t of tasks) {
+      const sc = scrapeStore.findByDownloadTask(t.id)
+      t.scrape_status = sc?.status ?? null
+    }
+    return { tasks }
   })
 
   app.get<{ Params: { id: string } }>('/api/v1/tasks/:id', async (req, reply) => {
