@@ -73,6 +73,11 @@ function toast(msg) {
 function rowKey(item) {
   return `${item.platform}:${item.songmid}`
 }
+// 歌曲头图（有 img 显示图片，无则音符占位）
+function coverHtml(img) {
+  if (img) return `<img class="song-card-cover" src="${escapeHtml(img)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="song-card-icon" style="display:none">🎵</span>`
+  return `<span class="song-card-icon">🎵</span>`
+}
 
 // ---------- 左侧菜单 ----------
 function initSidebar() {
@@ -389,7 +394,7 @@ function renderGroup(platform, list, error) {
     card.innerHTML = `
       <div class="song-card-top">
         <input type="checkbox" class="create-chk" data-key="${key}" data-matched="0" title="勾选已匹配歌曲创建歌单" />
-        <span class="song-card-icon">🎵</span>
+        ${coverHtml(item.img)}
         <div class="song-card-info">
           <div class="song-card-title">${escapeHtml(item.name)}</div>
           <div class="song-card-artist">${escapeHtml(item.singer)}${item.albumName ? ' · ' + escapeHtml(item.albumName) : ''}</div>
@@ -618,7 +623,7 @@ function renderPlaylistDetail(name, platform, matched, unmatched) {
     return `<div class="song-card" data-key="${key}">
       <div class="song-card-top">
         <input type="checkbox" class="create-chk" data-key="${key}" data-matched="1" title="勾选创建歌单">
-        <span class="song-card-icon">🎵</span>
+        ${coverHtml(it.img)}
         <div class="song-card-info">
           <div class="song-card-title">${escapeHtml(it.name)}</div>
           <div class="song-card-artist">${escapeHtml(it.singer)}${it.albumName ? ' · ' + escapeHtml(it.albumName) : ''}</div>
@@ -638,7 +643,7 @@ function renderPlaylistDetail(name, platform, matched, unmatched) {
     return `<div class="song-card" data-key="${key}">
       <div class="song-card-top">
         <input type="checkbox" class="create-chk" data-key="${key}" data-matched="0" style="visibility:hidden">
-        <span class="song-card-icon">🎵</span>
+        ${coverHtml(it.img)}
         <div class="song-card-info">
           <div class="song-card-title">${escapeHtml(it.name)}</div>
           <div class="song-card-artist">${escapeHtml(it.singer)}${it.albumName ? ' · ' + escapeHtml(it.albumName) : ''}</div>
