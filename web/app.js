@@ -15,18 +15,36 @@ const state = {
 
 const PLATFORM_NAME = { kw: '酷我', kg: '酷狗', tx: 'QQ音乐', wy: '网易云', mg: '咪咕' }
 const QUALITIES = [
-  { v: 'flac24bit', label: 'Hi-Res (flac24bit)' },
-  { v: 'flac', label: '无损 (flac)' },
-  { v: '320k', label: '320k' },
-  { v: '128k', label: '128k' },
+  { v: 'flac24bit', label: 'Hi-Res 无损', desc: 'flac24bit 最高音质' },
+  { v: 'flac', label: '无损 FLAC', desc: 'flac 高保真' },
+  { v: '320k', label: '高品 320k', desc: '320kbps MP3' },
+  { v: '128k', label: '标准 128k', desc: '128kbps MP3' },
 ]
-// 下载时选择音质（默认 flac）
-function pickQuality() {
-  const opts = QUALITIES.map((q, i) => `${i + 1}. ${q.label}`).join('\n')
-  const pick = prompt(`选择下载音质：\n${opts}`)
-  const idx = parseInt(pick || '') - 1
-  if (Number.isNaN(idx) || !QUALITIES[idx]) return null
-  return QUALITIES[idx].v
+// 下载时选择音质：自定义弹框展示音质+大小，返回 Promise<quality>
+function pickQuality(musicInfo) {
+  return new Promise((resolve) => {
+    const modal = $('#quality-modal')
+    const list = $('#quality-modal-list')
+    // 从 musicInfo.types 取各音质大小（可能不全）
+    const typeMap = {}
+    if (musicInfo?.types) musicInfo.types.forEach((t) => { typeMap[t.type] = t.size })
+    if (musicInfo?._types) Object.entries(musicInfo._types).forEach(([k, v]) => { if (v?.size && !typeMap[k]) typeMap[k] = v.size })
+    list.innerHTML = QUALITIES.map((q) => {
+      const size = typeMap[q.v]
+      const sizeHtml = size ? `<div class="q-size">${escapeHtml(String(size))}</div>` : `<div class="q-size">未知大小</div>`
+      return `<div class="quality-row" data-q="${q.v}">
+        <div class="q-label"><div class="q-name">${escapeHtml(q.label)}</div>${sizeHtml}</div>
+        <button class="q-dl">下载</button>
+      </div>`
+    }).join('')
+    modal.hidden = false
+    const close = (val) => { modal.hidden = true; resolve(val) }
+    $('#quality-modal-close').onclick = () => close(null)
+    modal.onclick = (e) => { if (e.target === modal) close(null) }
+    list.querySelectorAll('.quality-row').forEach((row) => {
+      row.querySelector('.q-dl').onclick = () => close(row.dataset.q)
+    })
+  })
 }
 
 function toast(msg) {
@@ -369,7 +387,7 @@ function bindSongCardEvents(container) {
     if (b.disabled) return
     const it = state.results.find((r) => rowKey(r) === b.dataset.key)
     if (!it) return
-    const quality = pickQuality()
+    const quality = await pickQuality(it)
     if (!quality) return
     try {
       await fetchJSON('/api/v1/download', { method: 'POST', headers: { 'Content-Type': 'application/json' },
