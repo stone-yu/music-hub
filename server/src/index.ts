@@ -15,6 +15,7 @@ import { healthRoutes } from './routes/health.js'
 import { navidromeRoutes } from './routes/navidrome.js'
 import { scrapeRoutes } from './routes/scrape.js'
 import { playlistSquareRoutes } from './routes/playlist-square.js'
+import { previewRoutes } from './routes/preview.js'
 import { authRoutes, registerAuthGuard } from './routes/auth.js'
 import { createRateLimiter } from './core/rate-limit.js'
 import { startSmokeScheduler } from './core/smoke/scheduler.js'
@@ -57,6 +58,7 @@ async function main(): Promise<void> {
   await app.register(navidromeRoutes)
   await app.register(scrapeRoutes)
   await app.register(playlistSquareRoutes)
+  await app.register(previewRoutes)
 
   // Web 后台静态资源（web/ 目录），放最后避免抢占 /api 路由
   await app.register(fastifyStatic, {

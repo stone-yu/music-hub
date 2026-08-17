@@ -5,9 +5,11 @@ const $$ = (sel) => Array.from(document.querySelectorAll(sel))
 
 const state = {
   results: [],       // 扁平化的歌曲列表（含 platform）
-  selected: new Set(), // 选中项 key
+  selected: new Set(), // 批量下载选中项 key
+  selectedForCreate: new Set(), // 创建歌单选中项（已匹配歌曲的 rowKey）
+  matchMap: new Map(), // rowKey → 匹配结果（matched/libId/isFuzzy）
+  createMap: new Map(), // rowKey → {libId,title,artist} 已匹配歌曲信息（创建球用）
   quality: 'flac',
-  tasksTimer: null,
 }
 
 const PLATFORM_NAME = { kw: '酷我', kg: '酷狗', tx: 'QQ音乐', wy: '网易云', mg: '咪咕' }
@@ -24,24 +26,34 @@ function rowKey(item) {
   return `${item.platform}:${item.songmid}`
 }
 
+// ---------- 左侧菜单 ----------
+function initSidebar() {
+  const pref = localStorage.getItem('sidebar-open')
+  if (pref === '0') document.body.classList.remove('sidebar-open')
+  $('#sidebar-toggle').addEventListener('click', () => {
+    const open = !document.body.classList.contains('sidebar-open')
+    document.body.classList.toggle('sidebar-open', open)
+    $('#sidebar-backdrop').classList.toggle('show', open && window.innerWidth <= 768)
+    if (window.innerWidth > 768) localStorage.setItem('sidebar-open', open ? '1' : '0')
+  })
+  $('#sidebar-backdrop').addEventListener('click', () => {
+    document.body.classList.remove('sidebar-open')
+    $('#sidebar-backdrop').classList.remove('show')
+  })
+}
+
 // ---------- 视图切换 ----------
-$$('.tab').forEach((tab) => {
+$$('.menu-item').forEach((tab) => {
   tab.addEventListener('click', (e) => {
     e.preventDefault()
     const name = tab.dataset.tab
-    $$('.tab').forEach((t) => t.classList.toggle('active', t === tab))
+    if (!name) return
+    $$('.menu-item').forEach((t) => t.classList.toggle('active', t === tab))
     $$('.view').forEach((v) => v.classList.remove('active'))
     $(`#view-${name}`).classList.add('active')
-    if (name === 'tasks') { loadTasks(); startTasksPolling() }
-    else stopTasksPolling()
     if (name === 'sources') loadSources()
     if (name === 'playlists') loadPlaylists()
-    if (name === 'square') loadSquareHot()
-    if (name === 'library') loadLibrary()
-    if (name === 'ai-playlist') loadAiInit()
-    if (name === 'scrape') loadScrape()
-    if (name === 'settings') loadSettings()
-    if (name === 'health') loadHealth()
+    if (name === 'settings') switchSettingsSub('general')
   })
 })
 
@@ -57,7 +69,11 @@ $('#search-form').addEventListener('submit', async (e) => {
   $('#results').innerHTML = ''
   state.results = []
   state.selected.clear()
+  state.selectedForCreate.clear()
+  state.matchMap = new Map()
+  state.createMap = new Map()
   updateSelectedCount()
+  updateGlobalCreateBtn()
 
   try {
     if (searchType === 'songlist') {
@@ -164,12 +180,14 @@ function renderAggregate(data) {
     container.appendChild(renderGroup(pr.platform, pr.list, pr.ok ? null : pr.error))
   }
   finalizeSearch(totalCount)
+  matchSearchResults()
 }
 
 function renderSingle(platform, data) {
   const container = $('#results')
   container.appendChild(renderGroup(platform, data.list, null))
   finalizeSearch(data.list.length)
+  matchSearchResults()
 }
 
 function finalizeSearch(count) {
@@ -195,7 +213,7 @@ function renderGroup(platform, list, error) {
 
   const table = document.createElement('table')
   table.innerHTML = `<thead><tr>
-    <th class="chk"></th><th>歌曲</th><th>歌手</th><th>专辑</th><th>时长</th><th>音质</th>
+    <th class="chk"></th><th>歌曲</th><th>歌手</th><th>专辑</th><th>时长</th><th>音质</th><th>曲库</th><th>操作</th>
   </tr></thead><tbody></tbody>`
   const tbody = table.querySelector('tbody')
 
@@ -204,26 +222,110 @@ function renderGroup(platform, list, error) {
     state.results.push(item)
     const key = rowKey(item)
     const tr = document.createElement('tr')
+    tr.dataset.key = key
     const qualities = (item.types || []).map((t) => `<span class="badge q">${t.type}</span>`).join('')
     tr.innerHTML = `
-      <td class="chk"><input type="checkbox" data-key="${key}" /></td>
+      <td class="chk"><input type="checkbox" data-key="${key}" class="dl-chk" /></td>
       <td>${escapeHtml(item.name)}</td>
       <td>${escapeHtml(item.singer)}</td>
       <td>${escapeHtml(item.albumName || '')}</td>
       <td>${escapeHtml(String(item.interval || ''))}</td>
-      <td class="q">${qualities}</td>`
+      <td class="q">${qualities}</td>
+      <td class="match-col" data-key="${key}"><span class="pending">…</span></td>
+      <td class="act">
+        <button class="preview-btn" data-key="${key}">▶试听</button>
+        <button class="dl-one" data-key="${key}">⬇下载</button>
+        <input type="checkbox" class="create-chk" data-key="${key}" data-matched="0" title="勾选已匹配歌曲创建歌单" />
+      </td>`
     tbody.appendChild(tr)
   }
   group.appendChild(table)
 
-  group.querySelectorAll('input[type=checkbox]').forEach((cb) => {
+  // 批量下载勾选
+  group.querySelectorAll('.dl-chk').forEach((cb) => {
     cb.addEventListener('change', () => {
       if (cb.checked) state.selected.add(cb.dataset.key)
       else state.selected.delete(cb.dataset.key)
       updateSelectedCount()
     })
   })
+  // 试听
+  group.querySelectorAll('.preview-btn').forEach((b) => b.addEventListener('click', () => {
+    const it = state.results.find((r) => rowKey(r) === b.dataset.key)
+    if (it) previewSong(it.platform, it, `${it.name} - ${it.singer}`)
+  }))
+  // 单首下载
+  group.querySelectorAll('.dl-one').forEach((b) => b.addEventListener('click', async () => {
+    const it = state.results.find((r) => rowKey(r) === b.dataset.key)
+    if (!it) return
+    try {
+      await fetchJSON('/api/v1/download', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform: it.platform, musicInfo: it, quality: state.quality }),
+      })
+      toast(`已提交下载：${it.name}`)
+    } catch (err) { toast(`下载失败: ${err.message}`) }
+  }))
+  // 创建歌单勾选（仅已匹配）
+  group.querySelectorAll('.create-chk').forEach((cb) => cb.addEventListener('change', () => {
+    toggleSelectedForCreate(cb.dataset.key, cb.checked)
+  }))
   return group
+}
+
+// 异步给搜索结果打"已在曲库"标记
+async function matchSearchResults() {
+  if (!state.results.length) return
+  const songs = state.results.map((it) => ({ title: it.name, artist: it.singer, source: it.platform }))
+  try {
+    const r = await fetchJSON('/api/v1/navidrome/match/songs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ songs }),
+    })
+    state.matchMap = new Map()
+    state.createMap = new Map()
+    r.results.forEach((m) => {
+      const item = state.results[m.index]
+      if (!item) return
+      const key = rowKey(item)
+      state.matchMap.set(key, m)
+      if (m.matched) state.createMap.set(key, { libId: m.libId, title: m.libTitle, artist: m.libArtist, platform: item.platform })
+    })
+    applyMatchMarks()
+  } catch (err) {
+    $('#search-status').textContent += `（曲库匹配失败：${err.message}）`
+  }
+}
+
+function applyMatchMarks() {
+  $$('#results tr[data-key]').forEach((tr) => {
+    const key = tr.dataset.key
+    const m = state.matchMap.get(key)
+    const cell = tr.querySelector('.match-col')
+    const cb = tr.querySelector('.create-chk')
+    if (!cell || !cb) return
+    if (m?.matched) {
+      cell.innerHTML = `<span class="ok">✓已在曲库${m.isFuzzy ? ' (模糊)' : ''}</span>`
+      cb.dataset.matched = '1'
+      cb.title = '勾选后可创建 Navidrome 歌单'
+    } else {
+      cell.innerHTML = `<span class="muted">未收录</span>`
+      cb.dataset.matched = '0'
+      cb.disabled = true
+    }
+  })
+}
+
+// 创建球勾选枢纽：仅已匹配歌曲可勾选进创建球
+function toggleSelectedForCreate(key, on) {
+  const m = state.matchMap.get(key)
+  if (!m?.matched) {
+    const cb = document.querySelector(`.create-chk[data-key="${key}"]`)
+    if (cb) { cb.checked = false; toast('未匹配歌曲请先下载补库') }
+    return
+  }
+  if (on) state.selectedForCreate.add(key)
+  else state.selectedForCreate.delete(key)
+  updateGlobalCreateBtn()
 }
 
 // ---------- 全选 / 计数 / 批量下载 ----------
@@ -306,7 +408,7 @@ $('#batch-add-playlist').addEventListener('click', async () => {
 })
 
 // ---------- 歌单页 ----------
-$('#refresh-playlists').addEventListener('click', loadPlaylists)
+$('#refresh-playlists').addEventListener('click', loadLocalPlaylists)
 $('#create-playlist').addEventListener('click', async () => {
   const name = $('#new-playlist-name').value.trim()
   if (!name) return toast('请输入歌单名称')
@@ -314,11 +416,11 @@ $('#create-playlist').addEventListener('click', async () => {
     await fetchJSON('/api/v1/playlists', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
     $('#new-playlist-name').value = ''
     toast('已创建')
-    loadPlaylists()
+    loadLocalPlaylists()
   } catch (err) { toast(err.message) }
 })
 
-async function loadPlaylists() {
+async function loadLocalPlaylists() {
   $('#playlist-detail').hidden = true
   try {
     const r = await fetchJSON('/api/v1/playlists')
@@ -353,7 +455,7 @@ function renderPlaylists(pls) {
     try { const r = await fetchJSON(`/api/v1/playlists/${b.dataset.dl}/download`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quality: $('#quality').value }) }); toast(`已提交 ${r.acceptedCount} 首`) }
     catch (err) { toast(err.message) }
   }))
-  c.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { if (confirm('确认删除该歌单?')) act(`/api/v1/playlists/${b.dataset.del}`, 'DELETE', '已删除', loadPlaylists) }))
+  c.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { if (confirm('确认删除该歌单?')) act(`/api/v1/playlists/${b.dataset.del}`, 'DELETE', '已删除', loadLocalPlaylists) }))
 }
 
 async function openPlaylist(id) {
@@ -380,19 +482,154 @@ async function openPlaylist(id) {
   } catch (err) { toast(err.message) }
 }
 
-// ---------- 任务页 ----------
-$('#refresh-tasks').addEventListener('click', loadTasks)
-
-async function loadTasks() {
+// ---------- 歌单广场（平台标签 + 搜歌单 + 详情已匹配/未匹配分组）----------
+let plActivePlatform = ''
+async function loadPlaylists() {
+  $('#pl-detail').hidden = true
+  $('#pl-grid').hidden = false
+  $('#pl-status').innerHTML = '<div class="status">加载广场推荐…</div>'
   try {
-    const r = await fetchJSON('/api/v1/tasks')
-    renderTasks(r.tasks || [])
+    const d = await fetchJSON('/api/v1/square/hot' + (plActivePlatform ? `?platform=${plActivePlatform}` : ''))
+    renderPlaylistGrid(d.groups || [])
   } catch (err) {
-    $('#tasks').innerHTML = `<div class="empty">加载失败: ${escapeHtml(err.message)}</div>`
+    $('#pl-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
+  }
+}
+function renderPlaylistGrid(groups) {
+  const parts = groups.map((g) => {
+    const cards = (g.items || []).map((p) =>
+      `<div class="pl-card" data-id="${escapeHtml(p.id)}" data-src="${escapeHtml(p.source)}" data-name="${escapeHtml(p.name)}">
+        <div class="pl-name">${escapeHtml(p.name)}</div>
+        <div class="pl-meta">${escapeHtml(PLATFORM_NAME[p.source] || p.source)} · ${p.total || 0} 首</div>
+      </div>`).join('')
+    return `<h3 class="platform-group" style="border-left:3px solid var(--accent);padding-left:6px;font-size:14px;color:#555;margin:12px 0 8px">${escapeHtml(g.keyword)}</h3><div class="pl-grid">${cards}</div>`
+  })
+  $('#pl-status').innerHTML = ''
+  $('#pl-grid').innerHTML = parts.join('') || '<div class="empty">无结果</div>'
+  $$('#pl-grid .pl-card').forEach((card) => card.addEventListener('click', () => openPlaylistDetail(card.dataset.src, card.dataset.id, card.dataset.name)))
+}
+$$('#pl-platform-tabs .ptab').forEach((t) => t.addEventListener('click', () => {
+  $$('#pl-platform-tabs .ptab').forEach((x) => x.classList.toggle('active', x === t))
+  plActivePlatform = t.dataset.p
+  loadPlaylists()
+}))
+$('#pl-search-btn').addEventListener('click', async () => {
+  const kw = $('#pl-keyword').value.trim()
+  if (!kw) return toast('请输入关键词')
+  $('#pl-detail').hidden = true
+  $('#pl-grid').hidden = false
+  $('#pl-status').innerHTML = '<div class="status">搜索中…</div>'
+  try {
+    const url = `/api/v1/square/search?keyword=${encodeURIComponent(kw)}` + (plActivePlatform ? `&platforms=${plActivePlatform}` : '')
+    const d = await fetchJSON(url)
+    const groups = (d.results || []).filter((r) => r.ok && r.list.length).map((r) => ({ keyword: PLATFORM_NAME[r.platform] || r.platform, items: r.list }))
+    renderPlaylistGrid(groups)
+  } catch (err) { $('#pl-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>` }
+})
+$('#pl-refresh-btn').addEventListener('click', loadPlaylists)
+
+async function openPlaylistDetail(platform, id, name) {
+  $('#pl-grid').hidden = true
+  $('#pl-detail').hidden = false
+  $('#pl-status').innerHTML = `<div class="status">加载 ${escapeHtml(name)} …</div>`
+  // 进详情清空旧创建勾选
+  state.selectedForCreate = new Set()
+  state.matchMap = new Map()
+  state.createMap = new Map()
+  updateGlobalCreateBtn()
+  try {
+    const d = await fetchJSON(`/api/v1/square/detail?platform=${encodeURIComponent(platform)}&id=${encodeURIComponent(id)}`)
+    const list = d.detail?.list || []
+    state.results = list.map((s) => ({ ...s, platform }))
+    // 匹配分组
+    const songs = list.map((s) => ({ title: s.name, artist: s.singer, source: platform }))
+    const m = await fetchJSON('/api/v1/navidrome/match/songs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ songs }) })
+    const map = new Map(m.results.map((r) => [r.index, r]))
+    state.matchMap = new Map()
+    state.createMap = new Map()
+    const matched = [], unmatched = []
+    list.forEach((s, i) => {
+      const r = map.get(i)
+      const it = { ...s, platform }
+      if (r?.matched) {
+        state.matchMap.set(rowKey(it), r)
+        state.createMap.set(rowKey(it), { libId: r.libId, title: r.libTitle, artist: r.libArtist, platform })
+        matched.push(it)
+      } else {
+        unmatched.push(it)
+      }
+    })
+    renderPlaylistDetail(name, platform, matched, unmatched)
+  } catch (err) {
+    $('#pl-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
+  }
+}
+function renderPlaylistDetail(name, platform, matched, unmatched) {
+  const el = $('#pl-detail')
+  const matchedRows = matched.map((it) => {
+    const key = rowKey(it)
+    const m = state.matchMap.get(key)
+    return `<tr data-key="${key}"><td>${escapeHtml(it.name)}</td><td>${escapeHtml(it.singer)}</td><td>${escapeHtml(it.albumName || '')}</td>
+      <td class="match-col"><span class="ok">✓已在曲库${m?.isFuzzy ? ' (模糊)' : ''}</span></td>
+      <td class="act"><button class="preview-btn" data-key="${key}">▶试听</button>
+      <input type="checkbox" class="create-chk" data-key="${key}" data-matched="1" title="勾选创建歌单"></td></tr>`
+  }).join('')
+  const unmatchedRows = unmatched.map((it) => {
+    const key = rowKey(it)
+    return `<tr data-key="${key}"><td>${escapeHtml(it.name)}</td><td>${escapeHtml(it.singer)}</td><td>${escapeHtml(it.albumName || '')}</td>
+      <td class="match-col"><span class="muted">未收录</span></td>
+      <td class="act"><button class="preview-btn" data-key="${key}">▶试听</button><button class="dl-one" data-key="${key}">⬇下载</button></td></tr>`
+  }).join('')
+  el.innerHTML = `
+    <button id="pl-back" class="linkbtn" style="margin:4px 0 10px;padding:6px 12px;background:var(--hover);border:1px solid var(--border);border-radius:6px;cursor:pointer">← 返回歌单列表</button>
+    <h3 style="margin:0 0 10px">${escapeHtml(name)} · 共 ${matched.length + unmatched.length} 首（已匹配 ${matched.length} · 未匹配 ${unmatched.length}）</h3>
+    ${matched.length ? `<h4 style="color:var(--ok);margin:12px 0 6px">✓ 已在曲库（${matched.length}）</h4><table><thead><tr><th>歌曲</th><th>歌手</th><th>专辑</th><th>曲库</th><th>操作</th></tr></thead><tbody>${matchedRows}</tbody></table>` : ''}
+    ${unmatched.length ? `<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--text-muted)">未匹配 ${unmatched.length} 首（可试听/下载补库）</summary><table style="margin-top:8px"><thead><tr><th>歌曲</th><th>歌手</th><th>专辑</th><th>曲库</th><th>操作</th></tr></thead><tbody>${unmatchedRows}</tbody></table></details>` : ''}`
+  $('#pl-back').addEventListener('click', () => { $('#pl-detail').hidden = true; $('#pl-grid').hidden = false })
+  // 绑定试听/下载/创建勾选
+  el.querySelectorAll('.preview-btn').forEach((b) => b.addEventListener('click', () => {
+    const it = state.results.find((r) => rowKey(r) === b.dataset.key)
+    if (it) previewSong(it.platform, it, `${it.name} - ${it.singer}`)
+  }))
+  el.querySelectorAll('.dl-one').forEach((b) => b.addEventListener('click', async () => {
+    const it = state.results.find((r) => rowKey(r) === b.dataset.key)
+    if (!it) return
+    try {
+      await fetchJSON('/api/v1/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform: it.platform, musicInfo: it, quality: state.quality }) })
+      toast(`已提交下载：${it.name}`)
+    } catch (err) { toast(`下载失败: ${err.message}`) }
+  }))
+  el.querySelectorAll('.create-chk').forEach((cb) => cb.addEventListener('change', () => toggleSelectedForCreate(cb.dataset.key, cb.checked)))
+}
+
+// ---------- 任务（步骤3改为悬浮球，先保留 loadTasks/renderTasks 供复用）----------
+
+// ---------- 下载任务（全局轮询 + 悬浮球面板）----------
+let dlPollTimer = null
+let dlActiveCount = 0
+
+async function fetchTasks() {
+  try { return (await fetchJSON('/api/v1/tasks')).tasks || [] } catch { return [] }
+}
+
+function startGlobalTasksPolling() {
+  if (dlPollTimer) return
+  dlPollTimer = setInterval(globalTasksTick, 3000)
+  globalTasksTick()
+}
+async function globalTasksTick() {
+  const tasks = await fetchTasks()
+  dlActiveCount = tasks.filter((t) => t.status === 'active' || t.status === 'pending').length
+  const badge = $('#float-dl-badge')
+  badge.textContent = dlActiveCount
+  badge.hidden = dlActiveCount === 0
+  // 面板打开时才刷新列表
+  if ($('#float-dl-panel').classList.contains('show')) {
+    renderTasksInto('#float-dl-list', '#float-dl-summary', tasks)
   }
 }
 
-function renderTasks(tasks) {
+function renderTasksInto(listSel, summarySel, tasks) {
   const summary = { pending: 0, active: 0, completed: 0, failed: 0 }
   tasks.forEach((t) => {
     if (t.status === 'completed' || t.status === 'completed_with_warnings') summary.completed++
@@ -400,9 +637,10 @@ function renderTasks(tasks) {
     else if (t.status === 'active') summary.active++
     else summary.pending++
   })
-  $('#tasks-summary').textContent = `进行中 ${summary.active} · 等待 ${summary.pending} · 完成 ${summary.completed} · 失败 ${summary.failed}`
-
-  if (!tasks.length) { $('#tasks').innerHTML = '<div class="empty">暂无任务</div>'; return }
+  if (summarySel) $(summarySel).textContent = `进行中 ${summary.active} · 等待 ${summary.pending} · 完成 ${summary.completed} · 失败 ${summary.failed}`
+  const container = $(listSel)
+  if (!container) return
+  if (!tasks.length) { container.innerHTML = '<div class="empty">暂无任务</div>'; return }
 
   const table = document.createElement('table')
   table.innerHTML = `<thead><tr>
@@ -425,7 +663,6 @@ function renderTasks(tasks) {
       <td class="act">${actions}<button data-del="${t.id}">删除</button></td>`
     tbody.appendChild(tr)
   }
-  const container = $('#tasks')
   container.innerHTML = ''
   container.appendChild(table)
 
@@ -434,8 +671,8 @@ function renderTasks(tasks) {
   container.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => act(`/api/v1/tasks/${b.dataset.del}`, 'DELETE', '已删除')))
 }
 
-async function act(url, method, okMsg, after) {
-  try { await fetchJSON(url, { method }); toast(okMsg); (after || loadTasks)() }
+async function act(url, method, okMsg) {
+  try { await fetchJSON(url, { method }); toast(okMsg); globalTasksTick() }
   catch (err) { toast(err.message) }
 }
 
@@ -443,13 +680,115 @@ function statusLabel(s) {
   return { pending: '等待', active: '下载中', completed: '完成', completed_with_warnings: '完成(有警告)', failed: '失败', canceled: '已取消' }[s] || s
 }
 
-function startTasksPolling() {
-  stopTasksPolling()
-  state.tasksTimer = setInterval(loadTasks, 2000)
+// 悬浮球交互
+function toggleFloatPanel(name) {
+  const dlPanel = $('#float-dl-panel')
+  const crPanel = $('#float-create-panel')
+  const target = name === 'download' ? dlPanel : crPanel
+  const other = name === 'download' ? crPanel : dlPanel
+  const wasShow = target.classList.contains('show')
+  other.classList.remove('show')
+  target.classList.toggle('show', !wasShow)
+  $('#float-backdrop').classList.toggle('show', !wasShow)
+  if (!wasShow && name === 'download') globalTasksTick()
+  if (!wasShow && name === 'create') renderCreatePanel()
 }
-function stopTasksPolling() {
-  if (state.tasksTimer) { clearInterval(state.tasksTimer); state.tasksTimer = null }
+$('#float-dl-ball').addEventListener('click', () => toggleFloatPanel('download'))
+$('#float-create-ball').addEventListener('click', () => {
+  if (state.selectedForCreate.size === 0) return
+  toggleFloatPanel('create')
+})
+$('#float-backdrop').addEventListener('click', () => {
+  $('#float-dl-panel').classList.remove('show')
+  $('#float-create-panel').classList.remove('show')
+  $('#float-backdrop').classList.remove('show')
+})
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-close]')) {
+    const panel = e.target.closest('.float-panel')
+    if (panel) panel.classList.remove('show')
+    $('#float-backdrop').classList.remove('show')
+  }
+})
+
+// ---------- 全局播放器 + 试听 ----------
+let currentPreview = null
+async function previewSong(platform, musicInfo, label) {
+  const audio = $('#global-audio')
+  const box = $('#global-player')
+  const rid = `${platform}:${musicInfo.songmid}`
+  // 切换：同一首正在播放则暂停
+  if (audio.dataset.rid === rid && !audio.paused) { audio.pause(); return }
+  $('#gp-title').textContent = label || `${musicInfo.name} - ${musicInfo.singer}`
+  box.hidden = false
+  audio.src = ''
+  audio.dataset.proxyTried = ''
+  try {
+    const r = await fetchJSON('/api/v1/preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform, musicInfo, quality: '128k' }),
+    })
+    audio.src = r.url
+    audio.dataset.rid = rid
+    currentPreview = { platform, musicInfo, label }
+    await audio.play().catch(() => {})
+  } catch (err) {
+    toast(`试听失败：${err.message}`)
+    setTimeout(() => { if (audio.paused && !audio.src) box.hidden = true }, 1500)
+  }
+  audio.onerror = () => {
+    if (audio.dataset.proxyTried || !audio.src) return
+    audio.dataset.proxyTried = '1'
+    // 防盗链：切流式代理
+    const directUrl = audio.src
+    audio.src = `/api/v1/preview/proxy?url=${encodeURIComponent(directUrl)}`
+    audio.play().catch(() => toast('代理播放也失败，可能音源失效'))
+  }
 }
+$('#gp-close').addEventListener('click', () => {
+  const audio = $('#global-audio')
+  audio.pause(); audio.src = ''; audio.dataset.proxyTried = ''
+  $('#global-player').hidden = true
+})
+
+// ---------- 创建歌单悬浮球（步骤6完整实现，先加桩）----------
+function updateGlobalCreateBtn() {
+  const n = state.selectedForCreate.size
+  const ball = $('#float-create-ball')
+  $('#float-create-badge').textContent = n
+  $('#float-create-badge').hidden = n === 0
+  ball.classList.toggle('disabled', n === 0)
+}
+function renderCreatePanel() {
+  // 步骤6完整实现：渲染歌单名输入 + 歌曲列表 + 创建 Navidrome 歌单按钮
+  const items = state.results.filter((it) => state.selectedForCreate.has(rowKey(it)))
+  const rows = items.map((it) => `<tr><td>${escapeHtml(it.name)}</td><td>${escapeHtml(it.singer)}</td><td>${escapeHtml(PLATFORM_NAME[it.platform] || it.platform)}</td></tr>`).join('')
+  $('#float-create-panel').innerHTML = `
+    <div class="float-panel-head"><b>✅ 创建 Navidrome 歌单（${items.length} 首）</b><button class="float-panel-close" data-close>×</button></div>
+    <input type="text" id="create-pl-name" placeholder="歌单名称" class="name-in">
+    <div style="max-height:200px;overflow-y:auto;margin-bottom:10px"><table class="card"><thead><tr><th>歌曲</th><th>歌手</th><th>平台</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <button id="create-pl-btn" class="create-btn">创建 Navidrome 歌单</button>`
+  $('#create-pl-btn').addEventListener('click', async () => {
+    const name = $('#create-pl-name').value.trim()
+    if (!name) return toast('请输入歌单名称')
+    // 已匹配歌曲的 libId 从 createMap 取
+    const ids = items.map((it) => state.createMap.get(rowKey(it))?.libId).filter(Boolean)
+    if (!ids.length) return toast('无有效歌曲')
+    try {
+      const d = await fetchJSON('/api/v1/navidrome/playlist/create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, song_ids: ids }),
+      })
+      toast(`歌单「${name}」已创建（${d.songCount} 首）`)
+      state.selectedForCreate.clear()
+      $$('.create-chk').forEach((cb) => cb.checked = false)
+      updateGlobalCreateBtn()
+      $('#float-create-panel').classList.remove('show')
+      $('#float-backdrop').classList.remove('show')
+    } catch (err) { toast(`创建失败：${err.message}`) }
+  })
+}
+updateGlobalCreateBtn()
+
 
 // ---------- 音源管理 ----------
 $('#refresh-sources').addEventListener('click', loadSources)
@@ -535,13 +874,13 @@ function renderSources(sources) {
   container.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { if (confirm('确认删除该音源?')) act(`/api/v1/sources/${b.dataset.del}`, 'DELETE', '已删除', loadSources) }))
 }
 
-// ---------- 设置页 ----------
-async function loadSettings() {
+// ---------- 常规设置（设置子页 general）----------
+async function loadSettingsOriginal() {
   try {
     const s = await fetchJSON('/api/v1/settings')
     renderSettings(s)
   } catch (err) {
-    $('#settings-body').innerHTML = `<div class="empty">加载失败: ${escapeHtml(err.message)}</div>`
+    $('#settings-general').innerHTML = `<div class="empty">加载失败: ${escapeHtml(err.message)}</div>`
   }
 }
 
@@ -549,7 +888,7 @@ function renderSettings(s) {
   const d = s.download, sm = s.smokeTest, bark = sm.alert.bark, sc = sm.alert.serverChan
   const apiKeySet = !!(s.auth && s.auth.apiKeySet)
   const qOpt = (v) => ['flac24bit', 'flac', '320k', '128k'].map((q) => `<option value="${q}" ${q === v ? 'selected' : ''}>${q}</option>`).join('')
-  $('#settings-body').innerHTML = `
+  $('#settings-general').innerHTML = `
     <div class="set-card">
       <h3>API Key</h3>
       <div class="set-row">
@@ -638,7 +977,7 @@ async function revokeApiKey() {
   try {
     await fetchJSON('/api/v1/settings/apikey', { method: 'DELETE' })
     toast('已撤销')
-    loadSettings()
+    loadSettingsOriginal()
   } catch (err) { toast(`撤销失败: ${err.message}`) }
 }
 
@@ -666,7 +1005,7 @@ async function saveSettings() {
   try {
     await fetchJSON('/api/v1/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
     toast('已保存')
-    loadSettings()
+    loadSettingsOriginal()
   } catch (err) { toast(`保存失败: ${err.message}`) }
 }
 
@@ -748,6 +1087,8 @@ async function initAuth() {
         location.href = '/login.html'
       })
     }
+    // 启动全局下载任务轮询（悬浮球角标）
+    startGlobalTasksPolling()
   } catch { /* ignore */ }
 }
 initAuth()
@@ -909,101 +1250,15 @@ $('#scrape-scan').addEventListener('click', async () => {
   try { await fetchJSON('/api/v1/scrape/scan', { method: 'POST' }) } catch (e) { toast(e.message) }
 })
 
-// ---------- 歌单广场 ----------
-async function loadSquareHot() {
-  $('#square-status').innerHTML = '<div class="status">加载广场推荐…</div>'
-  try {
-    const d = await fetchJSON('/api/v1/square/hot')
-    const groups = d.groups || []
-    const parts = groups.map((g) => {
-      const cards = (g.items || []).map((p) =>
-        `<div class="pl-card" data-id="${escapeHtml(p.id)}" data-src="${escapeHtml(p.source)}" data-name="${escapeHtml(p.name)}">
-          <div class="pl-name">${escapeHtml(p.name)}</div>
-          <div class="pl-meta">${escapeHtml(PLATFORM_NAME[p.source] || p.source)} · ${p.total || 0} 首</div>
-        </div>`).join('')
-      return `<h3 style="color:var(--text);margin:12px 0 6px">${escapeHtml(g.keyword)}</h3><div class="pl-grid">${cards}</div>`
-    })
-    $('#square-status').innerHTML = ''
-    $('#square-results').innerHTML = parts.join('') || '<div class="empty">无结果</div>'
-    bindSquareCards()
-  } catch (err) {
-    $('#square-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
-  }
+// ---------- 设置子页切换（步骤8完整实现，先加桩）----------
+function switchSettingsSub(sub) {
+  $$('#settings-tabs .ptab').forEach((x) => x.classList.toggle('active', x.dataset.sub === sub))
+  $$('.settings-sub').forEach((s) => { s.hidden = s.id !== `settings-${sub}` })
+  if (sub === 'general') loadSettingsOriginal()
+  if (sub === 'library') loadLibrary()
+  if (sub === 'ai-playlist') loadAiInit()
+  if (sub === 'scrape') loadScrape()
+  if (sub === 'health') loadHealth()
 }
-$('#square-search-btn').addEventListener('click', async () => {
-  const kw = $('#square-keyword').value.trim()
-  const p = $('#square-platform').value
-  if (!kw) { toast('请输入关键词'); return }
-  $('#square-status').innerHTML = '<div class="status">搜索中…</div>'
-  try {
-    const url = `/api/v1/square/search?keyword=${encodeURIComponent(kw)}` + (p ? `&platforms=${p}` : '')
-    const d = await fetchJSON(url)
-    const results = d.results || []
-    const parts = results.filter((r) => r.ok && r.list.length).map((r) => {
-      const cards = r.list.map((p) =>
-        `<div class="pl-card" data-id="${escapeHtml(p.id)}" data-src="${escapeHtml(p.source)}" data-name="${escapeHtml(p.name)}">
-          <div class="pl-name">${escapeHtml(p.name)}</div>
-          <div class="pl-meta">${escapeHtml(PLATFORM_NAME[p.source] || p.source)} · ${p.total || 0} 首</div>
-        </div>`).join('')
-      return `<h3 style="color:var(--text);margin:12px 0 6px">${escapeHtml(PLATFORM_NAME[r.platform] || r.platform)}</h3><div class="pl-grid">${cards}</div>`
-    })
-    $('#square-status').innerHTML = ''
-    $('#square-results').innerHTML = parts.join('') || '<div class="empty">无结果</div>'
-    bindSquareCards()
-  } catch (err) {
-    $('#square-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
-  }
-})
-$('#square-resolve-btn').addEventListener('click', async () => {
-  const url = $('#square-url').value.trim()
-  if (!url) { toast('请粘贴 URL'); return }
-  $('#square-status').innerHTML = '<div class="status">解析中…</div>'
-  try {
-    const d = await fetchJSON(`/api/v1/square/resolve?url=${encodeURIComponent(url)}`)
-    const det = d.detail || {}
-    $('#square-status').innerHTML = `<div class="status">${escapeHtml(PLATFORM_NAME[d.platform] || d.platform)} 歌单：${escapeHtml(det.info?.name || '')} · ${det.list?.length || 0} 首</div>`
-    renderSquareSongs(d.platform, det.list || [])
-  } catch (err) {
-    $('#square-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
-  }
-})
-$('#square-refresh-btn').addEventListener('click', loadSquareHot)
-function bindSquareCards() {
-  $$('.pl-card').forEach((card) => card.addEventListener('click', async () => {
-    const src = card.dataset.src
-    const id = card.dataset.id
-    if (!src || !id) return
-    $('#square-status').innerHTML = '<div class="status">加载歌单详情…</div>'
-    try {
-      const d = await fetchJSON(`/api/v1/square/detail?platform=${encodeURIComponent(src)}&id=${encodeURIComponent(id)}`)
-      const det = d.detail || {}
-      $('#square-status').innerHTML = `<div class="status">${escapeHtml(card.dataset.name)} · ${det.list?.length || 0} 首</div>`
-      renderSquareSongs(d.platform, det.list || [])
-    } catch (err) {
-      $('#square-status').innerHTML = `<div class="status err">加载详情失败：${escapeHtml(err.message)}</div>`
-    }
-  }))
-}
-function renderSquareSongs(platform, list) {
-  const el = $('#square-results')
-  if (!list.length) { el.innerHTML = '<div class="empty">歌单无歌曲</div>'; return }
-  state.results = list.map((s) => ({ ...s, platform }))
-  state.selected = new Set()
-  el.innerHTML = '<table class="card"><thead><tr><th>歌曲</th><th>歌手</th><th>专辑</th><th></th></tr></thead><tbody>' +
-    list.map((s, i) => `<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.singer)}</td><td>${escapeHtml(s.albumName || '')}</td>
-      <td><button class="dl-one" data-idx="${i}">下载</button></td></tr>`).join('') + '</tbody></table>'
-  $$('.dl-one').forEach((btn) => btn.addEventListener('click', () => squareDownloadOne(parseInt(btn.dataset.idx))))
-}
-async function squareDownloadOne(idx) {
-  const s = state.results[idx]
-  if (!s) return
-  try {
-    await fetchJSON('/api/v1/download', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ platform: s.platform, musicInfo: s, quality: state.quality }),
-    })
-    toast(`已提交下载：${s.name}`)
-  } catch (err) {
-    toast(`下载失败: ${err.message}`)
-  }
-}
+$$('#settings-tabs .ptab').forEach((t) => t.addEventListener('click', () => switchSettingsSub(t.dataset.sub)))
+initSidebar()
