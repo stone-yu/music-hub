@@ -106,40 +106,47 @@ $$('.menu-item').forEach((tab) => {
     $(`#view-${name}`).classList.add('active')
     if (name === 'sources') loadSources()
     if (name === 'playlists') loadPlaylists()
+    if (name === 'library') loadLibraryStats()
     if (name === 'settings') switchSettingsSub('general')
     if (name === 'search') loadSearchSquare()
   })
 })
 
-// 搜索页广场推荐（未搜索时显示）
+// 搜索页热榜推荐（未搜索时显示，直接展示榜单歌曲）
+const rankCache = new Map() // key `${src}:${id}` → { list, name }
+let activeRankTab = null
+
 async function loadSearchSquare() {
-  const grid = $('#search-square-grid')
-  if (!grid || grid.dataset.loaded === '1') return
-  grid.innerHTML = '<div class="empty">加载中…</div>'
-  try {
-    const d = await fetchJSON('/api/v1/ranks')
-    const ranks = (d.ranks || []).slice(0, 12)
-    const cards = ranks.map((r) => {
-      const cover = r.cover_url ? `<img src="${escapeHtml(r.cover_url)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''
-      const ph = `<div class="pl-cover-ph" style="${r.cover_url ? 'display:none' : 'display:flex'}">🔥</div>`
-      return `<div class="pl-card" data-id="${escapeHtml(r.id)}" data-src="${escapeHtml(r.source)}" data-name="${escapeHtml(r.name)}">
-        <div class="pl-cover">${cover}${ph}</div>
-        <div class="pl-name">${escapeHtml(r.name)}</div>
-        <div class="pl-meta">${escapeHtml(PLATFORM_NAME[r.source] || r.source)} 热榜</div>
-      </div>`
-    }).join('')
-    grid.innerHTML = cards || '<div class="empty">无推荐</div>'
-    grid.dataset.loaded = '1'
-    // 点击榜单卡片加载热榜歌曲到搜索结果区
-    $$('#search-square-grid .pl-card').forEach((card) => card.addEventListener('click', () => loadRankSongs(card.dataset.src, card.dataset.id, card.dataset.name)))
-  } catch (err) { grid.innerHTML = `<div class="empty">加载失败</div>` }
+  // 默认选第一个榜单标签
+  const firstTab = $('#rank-tabs .ptab.active') || $('#rank-tabs .ptab')
+  if (firstTab) {
+    activeRankTab = firstTab
+    await loadRankSongs(firstTab.dataset.src, firstTab.dataset.id, firstTab.dataset.name)
+  }
 }
 
-// 加载某榜单歌曲，渲染到 #results（卡片式 + 曲库匹配）
+// 榜单标签切换
+$$('#rank-tabs .ptab').forEach((t) => t.addEventListener('click', () => {
+  $$('#rank-tabs .ptab').forEach((x) => x.classList.toggle('active', x === t))
+  activeRankTab = t
+  loadRankSongs(t.dataset.src, t.dataset.id, t.dataset.name)
+}))
+$('#rank-refresh').addEventListener('click', () => {
+  if (!activeRankTab) return
+  rankCache.delete(`${activeRankTab.dataset.src}:${activeRankTab.dataset.id}`)
+  loadRankSongs(activeRankTab.dataset.src, activeRankTab.dataset.id, activeRankTab.dataset.name)
+})
+
+// 加载某榜单歌曲，渲染到推荐区 #search-square-list（卡片式 + 曲库匹配）
 async function loadRankSongs(source, id, name) {
-  $('#search-square').style.display = 'none'
-  $('#search-status').textContent = `加载 ${name} …`
+  const el = $('#search-square-list')
+  if (!el) return
+  const cacheKey = `${source}:${id}`
+  $('#search-square-list').innerHTML = '<div class="empty">加载中…</div>'
+  // 显示推荐区（搜索后隐藏，切回榜单要恢复）
+  $('#search-square').style.display = ''
   $('#results').innerHTML = ''
+  $('#search-status').textContent = ''
   state.results = []
   state.selectedForCreate.clear()
   state.matchMap = new Map()
@@ -147,17 +154,22 @@ async function loadRankSongs(source, id, name) {
   state.createCtx = { name: name + ' - 热榜', cover: '' }
   updateGlobalCreateBtn()
   try {
-    const d = await fetchJSON(`/api/v1/ranks/${encodeURIComponent(source)}/${encodeURIComponent(id)}?limit=50`)
-    const list = d.list || []
+    let list
+    if (rankCache.has(cacheKey)) {
+      list = rankCache.get(cacheKey).list
+    } else {
+      const d = await fetchJSON(`/api/v1/ranks/${encodeURIComponent(source)}/${encodeURIComponent(id)}?limit=50`)
+      list = d.list || []
+      rankCache.set(cacheKey, { list, name })
+    }
     const group = renderGroup(source, list, null)
-    // 改标题为榜单名
     const h3 = group.querySelector('h3')
     if (h3) h3.textContent = `${name} · ${list.length} 首`
-    $('#results').appendChild(group)
-    finalizeSearch(list.length)
+    el.innerHTML = ''
+    el.appendChild(group)
     matchSearchResults()
   } catch (err) {
-    $('#search-status').textContent = `加载失败: ${err.message}`
+    el.innerHTML = `<div class="empty">加载失败：${escapeHtml(err.message)}</div>`
   }
 }
 
@@ -504,13 +516,21 @@ async function openPlaylist(id) {
 
 // ---------- 歌单广场（平台标签 + 搜歌单 + 详情已匹配/未匹配分组）----------
 let plActivePlatform = ''
+const plCache = new Map() // platform → groups
 async function loadPlaylists() {
   $('#pl-detail').hidden = true
   $('#pl-grid').hidden = false
+  const cacheKey = plActivePlatform || 'all'
+  if (plCache.has(cacheKey)) {
+    renderPlaylistGrid(plCache.get(cacheKey))
+    return
+  }
   $('#pl-status').innerHTML = '<div class="status">加载广场推荐…</div>'
   try {
     const d = await fetchJSON('/api/v1/square/hot' + (plActivePlatform ? `?platform=${plActivePlatform}` : ''))
-    renderPlaylistGrid(d.groups || [])
+    const groups = d.groups || []
+    plCache.set(cacheKey, groups)
+    renderPlaylistGrid(groups)
   } catch (err) {
     $('#pl-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
   }
@@ -550,7 +570,7 @@ $('#pl-search-btn').addEventListener('click', async () => {
     renderPlaylistGrid(groups)
   } catch (err) { $('#pl-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>` }
 })
-$('#pl-refresh-btn').addEventListener('click', loadPlaylists)
+$('#pl-refresh-btn').addEventListener('click', () => { plCache.clear(); loadPlaylists() })
 
 async function openPlaylistDetail(platform, id, name) {
   $('#pl-grid').hidden = true
@@ -1169,6 +1189,35 @@ function escapeHtml(str) {
 
 // ---------- 曲库 ----------
 let libTimer = null
+// ---------- 曲库统计（独立曲库菜单）----------
+async function loadLibraryStats() {
+  const el = $('#library-stats')
+  const sum = $('#lib-stats-summary')
+  if (!el) return
+  el.innerHTML = '<div class="empty">加载中…</div>'
+  try {
+    const d = await fetchJSON('/api/v1/navidrome/stats')
+    sum.textContent = `${d.songCount} 首 · ${d.artistCount} 位艺术家 · ${d.albumCount} 张专辑`
+    const pls = d.playlists || []
+    const cards = pls.map((p) => `<div class="src-card"><div class="src-head">
+      <div><b>${escapeHtml(p.name)}</b> <span class="badge">${p.songCount} 首</span></div>
+      <div class="src-desc">${escapeHtml(p.owner || '')} ${p.public ? '· 公开' : ''}</div>
+      </div></div>`).join('')
+    el.innerHTML = `
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+        <div class="src-card" style="flex:1;min-width:120px;text-align:center"><div style="font-size:24px;font-weight:600;color:var(--accent)">${d.songCount}</div><div style="font-size:13px;color:var(--text-muted)">歌曲</div></div>
+        <div class="src-card" style="flex:1;min-width:120px;text-align:center"><div style="font-size:24px;font-weight:600;color:var(--accent)">${d.artistCount}</div><div style="font-size:13px;color:var(--text-muted)">艺术家</div></div>
+        <div class="src-card" style="flex:1;min-width:120px;text-align:center"><div style="font-size:24px;font-weight:600;color:var(--accent)">${d.albumCount}</div><div style="font-size:13px;color:var(--text-muted)">专辑</div></div>
+        <div class="src-card" style="flex:1;min-width:120px;text-align:center"><div style="font-size:24px;font-weight:600;color:var(--accent)">${pls.length}</div><div style="font-size:13px;color:var(--text-muted)">歌单</div></div>
+      </div>
+      <h3 class="platform-group" style="border-left:3px solid var(--accent);padding-left:6px;font-size:14px;color:#555;margin:12px 0 8px">🎵 Navidrome 歌单（只读）</h3>
+      ${cards || '<div class="empty">暂无歌单</div>'}`
+  } catch (err) {
+    el.innerHTML = `<div class="empty">加载失败：${escapeHtml(err.message)}</div>`
+  }
+}
+$('#lib-stats-refresh').addEventListener('click', loadLibraryStats)
+
 async function loadLibrary() {
   await updateLibraryStatus()
   if (libTimer) clearInterval(libTimer)
