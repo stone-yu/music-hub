@@ -32,7 +32,7 @@ body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 .sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 45; width: 248px;
   transform: translateX(-100%); transition: transform .28s cubic-bezier(.4,0,.2,1);
   overflow-x: hidden; overflow-y: auto;
-  background: var(--bg-soft); border-right: 1px solid var(--border); padding: 16px 14px; }
+  background: var(--bg-soft); border-right: 1px solid var(--border); padding: 52px 14px 16px; }
 body.sidebar-open .sidebar { transform: translateX(0); }
 .sidebar-brand { display: flex; align-items: center; gap: 8px; white-space: nowrap; margin-bottom: 14px; padding: 0 4px; }
 .brand-icon { width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(107,124,246,.3); }
@@ -50,6 +50,9 @@ body.sidebar-open .sidebar { transform: translateX(0); }
   background: var(--bg-soft); border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
 .topbar-left { display: flex; align-items: center; gap: 12px; }
+.topbar-brand { display: flex; align-items: center; gap: 8px; }
+.topbar-brand .brand-icon { width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0; }
+.topbar-brand .brand-text { font-size: 16px; font-weight: 600; color: var(--text); }
 .status-indicator { font-size: 13px; color: var(--text-muted); }
 .status-indicator .ok { color: var(--ok); }
 .status-indicator .err { color: var(--err); }
