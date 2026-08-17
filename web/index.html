@@ -3,28 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ro 音乐下载</title>
+  <title>MusicHub</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
-<body>
-  <header>
-    <h1>Ro 音乐下载</h1>
-    <nav>
-      <a href="#" class="tab active" data-tab="search">搜索</a>
-      <a href="#" class="tab" data-tab="tasks">下载任务</a>
-      <a href="#" class="tab" data-tab="sources">音源管理</a>
-      <a href="#" class="tab" data-tab="playlists">歌单</a>
-      <a href="#" class="tab" data-tab="square">歌单广场</a>
-      <a href="#" class="tab" data-tab="library">曲库</a>
-      <a href="#" class="tab" data-tab="ai-playlist">AI歌单</a>
-      <a href="#" class="tab" data-tab="scrape">刮削</a>
-      <a href="#" class="tab" data-tab="settings">设置</a>
-      <a href="#" class="tab" data-tab="health">健康</a>
-      <a href="#" id="logout-btn" class="tab logout" hidden>登出</a>
-    </nav>
-  </header>
+<body class="sidebar-open">
+  <div class="sidebar-brand">🎵 MusicHub</div>
+  <aside class="sidebar" id="sidebar">
+    <button class="sidebar-toggle" id="sidebar-toggle"><span class="tg-arrow"></span></button>
+    <a href="#" class="menu-item active" data-tab="search"><span class="menu-icon">🔍</span><span class="menu-text">搜索</span></a>
+    <a href="#" class="menu-item" data-tab="playlists"><span class="menu-icon">🎶</span><span class="menu-text">歌单</span></a>
+    <a href="#" class="menu-item" data-tab="sources"><span class="menu-icon">🔌</span><span class="menu-text">音源</span></a>
+    <a href="#" class="menu-item" data-tab="settings"><span class="menu-icon">⚙️</span><span class="menu-text">设置</span></a>
+    <a href="#" id="logout-btn" class="menu-item" hidden><span class="menu-icon">🚪</span><span class="menu-text">登出</span></a>
+  </aside>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
-  <main>
+  <main class="main">
+    <div class="main-inner">
+
     <!-- 搜索页 -->
     <section id="view-search" class="view active">
       <form id="search-form" class="search-bar">
@@ -61,13 +57,35 @@
       <div id="results"></div>
     </section>
 
-    <!-- 任务页 -->
-    <section id="view-tasks" class="view">
-      <div class="toolbar">
-        <button id="refresh-tasks">刷新</button>
-        <span id="tasks-summary"></span>
+    <!-- 歌单页（步骤7改造为广场+详情，先保留结构） -->
+    <section id="view-playlists" class="view">
+      <div class="search-bar">
+        <input type="text" id="pl-keyword" placeholder="搜歌单：民谣、经典、怀旧" class="name-in" />
+        <div class="pl-tabs" id="pl-platform-tabs">
+          <span class="ptab active" data-p="">聚合</span>
+          <span class="ptab" data-p="kw">酷我</span>
+          <span class="ptab" data-p="kg">酷狗</span>
+          <span class="ptab" data-p="tx">QQ音乐</span>
+          <span class="ptab" data-p="wy">网易云</span>
+          <span class="ptab" data-p="mg">咪咕</span>
+        </div>
+        <button id="pl-search-btn">搜歌单</button>
+        <button id="pl-refresh-btn">广场推荐</button>
       </div>
-      <div id="tasks"></div>
+      <div id="pl-status" class="status"></div>
+      <div id="pl-grid"></div>
+      <div id="pl-detail" hidden></div>
+      <details style="margin-top:24px">
+        <summary style="cursor:pointer;font-weight:600;color:var(--text)">我的本地歌单</summary>
+        <div class="toolbar" style="margin-top:10px">
+          <input type="text" id="new-playlist-name" placeholder="新歌单名称" class="name-in" />
+          <button id="create-playlist">创建</button>
+          <button id="refresh-playlists">刷新</button>
+          <span id="playlists-summary"></span>
+        </div>
+        <div id="playlists"></div>
+        <div id="playlist-detail" hidden></div>
+      </details>
     </section>
 
     <!-- 音源管理页 -->
@@ -95,100 +113,94 @@
       </div>
       <div id="sources"></div>
     </section>
-    <!-- 歌单页 -->
-    <section id="view-playlists" class="view">
-      <div class="toolbar">
-        <input type="text" id="new-playlist-name" placeholder="新歌单名称" class="name-in" />
-        <button id="create-playlist">创建歌单</button>
-        <button id="refresh-playlists">刷新</button>
-        <span id="playlists-summary"></span>
-      </div>
-      <div id="playlists"></div>
-      <div id="playlist-detail" hidden></div>
-    </section>
 
-    <!-- 歌单广场页 -->
-    <section id="view-square" class="view">
-      <div class="search-bar">
-        <input type="text" id="square-keyword" placeholder="搜歌单：民谣、经典、怀旧" class="name-in" />
-        <select id="square-platform">
-          <option value="">聚合(全平台)</option>
-          <option value="kw">酷我</option>
-          <option value="kg">酷狗</option>
-          <option value="tx">QQ音乐</option>
-          <option value="wy">网易云</option>
-          <option value="mg">咪咕</option>
-        </select>
-        <button id="square-search-btn">搜歌单</button>
-        <button id="square-refresh-btn">广场推荐</button>
-      </div>
-      <div class="search-bar" style="margin-top:8px">
-        <input type="text" id="square-url" placeholder="粘贴歌单分享 URL 解析（网易云/QQ/酷狗/酷我/咪咕）" class="name-in" />
-        <button id="square-resolve-btn">解析</button>
-      </div>
-      <div id="square-status" class="status"></div>
-      <div id="square-results"></div>
-    </section>
-
-    <!-- 曲库页 -->
-    <section id="view-library" class="view">
-      <div class="toolbar">
-        <button id="lib-refresh">刷新曲库</button>
-        <button id="lib-scan">扫描并刷新</button>
-        <span id="lib-summary"></span>
-      </div>
-      <div id="library-status" class="status"></div>
-    </section>
-
-    <!-- AI 歌单页 -->
-    <section id="view-ai-playlist" class="view">
-      <form id="ai-search-form" class="search-bar">
-        <input type="text" id="ai-keyword" placeholder="输入关键词，自动匹配曲库" autocomplete="off" required />
-        <select id="ai-platform">
-          <option value="">聚合(全平台)</option>
-          <option value="kw">酷我</option>
-          <option value="kg">酷狗</option>
-          <option value="tx">QQ音乐</option>
-          <option value="wy">网易云</option>
-          <option value="mg">咪咕</option>
-        </select>
-        <button type="submit">搜索并匹配</button>
-      </form>
-      <div id="ai-status" class="status"></div>
-      <div class="toolbar" id="ai-toolbar" hidden>
-        <input type="text" id="ai-playlist-name" placeholder="歌单名称" class="name-in" />
-        <button id="ai-create-btn" disabled>创建 Navidrome 歌单</button>
-        <span id="ai-selected-count">已选 0 首</span>
-      </div>
-      <div id="ai-results"></div>
-    </section>
-
-    <!-- 刮削页 -->
-    <section id="view-scrape" class="view">
-      <div class="toolbar">
-        <button id="scrape-refresh">刷新</button>
-        <button id="scrape-scan">触发 Navidrome 扫描</button>
-        <span id="scrape-summary"></span>
-      </div>
-      <div id="scrape-status" class="status"></div>
-      <div id="scrape-tasks"></div>
-    </section>
-
-    <!-- 设置页 -->
+    <!-- 设置页（步骤8改造为子tab，先保留原结构） -->
     <section id="view-settings" class="view">
-      <div id="settings-body"><div class="empty">加载中…</div></div>
+      <div class="settings-tabs" id="settings-tabs">
+        <span class="ptab active" data-sub="general">常规设置</span>
+        <span class="ptab" data-sub="library">曲库</span>
+        <span class="ptab" data-sub="ai-playlist">AI歌单</span>
+        <span class="ptab" data-sub="scrape">刮削</span>
+        <span class="ptab" data-sub="health">健康</span>
+      </div>
+      <div id="settings-body"></div>
+      <!-- 常规设置（原 settings-body 内容，步骤8搬入） -->
+      <div id="settings-general" class="settings-sub"><div class="empty">加载中…</div></div>
+      <!-- 曲库 -->
+      <div id="settings-library" class="settings-sub" hidden>
+        <div class="toolbar">
+          <button id="lib-refresh">刷新曲库</button>
+          <button id="lib-scan">扫描并刷新</button>
+          <span id="lib-summary"></span>
+        </div>
+        <div id="library-status" class="status"></div>
+      </div>
+      <!-- AI歌单 -->
+      <div id="settings-ai-playlist" class="settings-sub" hidden>
+        <form id="ai-search-form" class="search-bar">
+          <input type="text" id="ai-keyword" placeholder="输入关键词，自动匹配曲库" autocomplete="off" required />
+          <select id="ai-platform">
+            <option value="">聚合(全平台)</option>
+            <option value="kw">酷我</option>
+            <option value="kg">酷狗</option>
+            <option value="tx">QQ音乐</option>
+            <option value="wy">网易云</option>
+            <option value="mg">咪咕</option>
+          </select>
+          <button type="submit">搜索并匹配</button>
+        </form>
+        <div id="ai-status" class="status"></div>
+        <div class="toolbar" id="ai-toolbar" hidden>
+          <input type="text" id="ai-playlist-name" placeholder="歌单名称" class="name-in" />
+          <button id="ai-create-btn" disabled>创建 Navidrome 歌单</button>
+          <span id="ai-selected-count">已选 0 首</span>
+        </div>
+        <div id="ai-results"></div>
+      </div>
+      <!-- 刮削 -->
+      <div id="settings-scrape" class="settings-sub" hidden>
+        <div class="toolbar">
+          <button id="scrape-refresh">刷新</button>
+          <button id="scrape-scan">触发 Navidrome 扫描</button>
+          <span id="scrape-summary"></span>
+        </div>
+        <div id="scrape-status" class="status"></div>
+        <div id="scrape-tasks"></div>
+      </div>
+      <!-- 健康 -->
+      <div id="settings-health" class="settings-sub" hidden>
+        <div class="toolbar">
+          <button id="run-smoke">立即冒烟测试</button>
+          <button id="refresh-health">刷新</button>
+          <span id="health-summary"></span>
+        </div>
+        <div id="health-matrix"></div>
+      </div>
     </section>
 
-    <!-- 健康状态页 -->
-    <section id="view-health" class="view">
-      <div class="toolbar">
-        <button id="run-smoke">立即冒烟测试</button>
-        <button id="refresh-health">刷新</button>
-        <span id="health-summary"></span>
-      </div>
-      <div id="health-matrix"></div>
-    </section>
+    </div><!-- /.main-inner -->
   </main>
+
+  <!-- 悬浮球：下载任务 -->
+  <div class="float-ball float-ball-download" id="float-dl-ball" title="下载任务">⬇<span class="float-badge" id="float-dl-badge" hidden>0</span></div>
+  <div class="float-panel" id="float-dl-panel">
+    <div class="float-panel-head"><b>⬇ 下载任务</b><span class="summary" id="float-dl-summary"></span><button class="float-panel-close" data-close>×</button></div>
+    <div id="float-dl-list"></div>
+  </div>
+
+  <!-- 悬浮球：创建歌单 -->
+  <div class="float-ball float-ball-create disabled" id="float-create-ball" title="创建歌单">✅<span class="float-badge green" id="float-create-badge" hidden>0</span></div>
+  <div class="float-panel" id="float-create-panel"></div>
+
+  <div class="float-backdrop" id="float-backdrop"></div>
+
+  <!-- 全局播放器 -->
+  <div id="global-player" class="global-player" hidden>
+    <div class="gp-icon">🎵</div>
+    <div class="gp-info"><div id="gp-title" class="gp-title">未播放</div><div class="gp-sub">试听</div></div>
+    <audio id="global-audio" controls></audio>
+    <button id="gp-close" class="gp-close">×</button>
+  </div>
 
   <div id="toast" class="toast" hidden></div>
 

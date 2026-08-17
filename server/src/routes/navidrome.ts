@@ -3,12 +3,13 @@
  *   GET  /api/v1/navidrome/status                         连接/库大小/加载状态
  *   POST /api/v1/navidrome/library/refresh?scan_first=    触发刷新（可选先扫描）
  *   POST /api/v1/navidrome/match                          搜歌→匹配库→matched/unmatched
+ *   POST /api/v1/navidrome/match/songs                    按歌曲列表逐首匹配（保留 index 对应表格行）
  *   POST /api/v1/navidrome/playlist/create                用 Navidrome 库内歌曲 ID 创建歌单（不带封面，降级用自动封面）
  */
 import type { FastifyInstance } from 'fastify'
 import { navidromeClient } from '../core/navidrome/client.js'
 import { library } from '../core/library/cache.js'
-import { matchSongs, type MatchInput } from '../core/library/match.js'
+import { matchSongs, matchOne, type MatchInput } from '../core/library/match.js'
 import { searchService, isPlatform, ALL_PLATFORMS, type Platform } from '../core/search/index.js'
 import type { MusicInfo } from '../core/adapters/common.js'
 
@@ -97,5 +98,19 @@ export async function navidromeRoutes(app: FastifyInstance): Promise<void> {
     const playlistId = await navidromeClient.createPlaylist(name.trim(), song_ids)
     if (!playlistId) return reply.code(500).send({ error: '创建歌单失败' })
     return { success: true, playlistId, playlistName: name, songCount: song_ids.length }
+  })
+
+  // 按歌曲列表逐首匹配（保留 index 对应前端表格行，不去重）。供搜索结果/歌单详情打"已在曲库"标记。
+  app.post<{ Body: { songs?: MatchInput[] } }>('/api/v1/navidrome/match/songs', async (req, reply) => {
+    const { songs } = req.body ?? {}
+    if (!Array.isArray(songs) || !songs.length) return reply.code(400).send({ error: 'songs (non-empty) required' })
+    const libIndex = library.getIndex()
+    const results = songs.map((s, index) => {
+      const { matched, isFuzzy } = matchOne(s, libIndex)
+      return matched
+        ? { index, matched: true, libId: matched.id, libTitle: matched.title, libArtist: matched.artist, album: matched.album, isFuzzy }
+        : { index, matched: false }
+    })
+    return { results, librarySize: library.getStatus().size }
   })
 }
