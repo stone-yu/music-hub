@@ -274,7 +274,8 @@ td.act button:hover { background: var(--accent-hover); }
 .song-card-selected { border-color: var(--accent); background: var(--accent-soft); }
 .dl-one.disabled { background: #cbd5e1 !important; color: #94a3b8 !important; cursor: not-allowed; }
 .song-card-top { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
-.song-card-icon { font-size: 18px; line-height: 22px; flex-shrink: 0; opacity: .6; }
+.song-card-icon { font-size: 18px; line-height: 22px; flex-shrink: 0; opacity: .6; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; background: var(--hover); }
+.song-card-cover { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
 .song-card-top .create-chk { margin-top: 3px; cursor: pointer; flex-shrink: 0; }
 .song-card-info { flex: 1; min-width: 0; }
 .song-card-title { font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
