@@ -778,8 +778,8 @@ async function previewSong(platform, musicInfo, label) {
   const audio = $('#global-audio')
   const box = $('#global-player')
   const rid = `${platform}:${musicInfo.songmid}`
-  // 切换：同一首正在播放则暂停
-  if (audio.dataset.rid === rid && !audio.paused) { audio.pause(); return }
+  // 切换：同一首正在播放则切换播放/暂停
+  if (audio.dataset.rid === rid && audio.src) { togglePlay(); return }
   $('#gp-title').textContent = label || `${musicInfo.name} - ${musicInfo.singer}`
   box.hidden = false
   audio.src = ''
@@ -816,6 +816,43 @@ $('#gp-close').addEventListener('click', () => {
   const audio = $('#global-audio')
   audio.pause(); audio.src = ''; audio.dataset.proxyTried = ''
   $('#gp-title').textContent = '未播放'
+  $('#gp-play').textContent = '▶'
+  $('#gp-progress-fill').style.width = '0%'
+  $('#gp-current').textContent = '0:00'
+  $('#gp-duration').textContent = '0:00'
+})
+
+// 播放/暂停 + 进度条 + 时间
+function togglePlay() {
+  const audio = $('#global-audio')
+  if (!audio.src) return
+  if (audio.paused) { audio.play().catch(() => {}); $('#gp-play').textContent = '⏸' }
+  else { audio.pause(); $('#gp-play').textContent = '▶' }
+}
+function fmtTime(s) {
+  if (!s || isNaN(s)) return '0:00'
+  const m = Math.floor(s / 60)
+  const sec = Math.floor(s % 60)
+  return `${m}:${sec < 10 ? '0' : ''}${sec}`
+}
+const _audio = document.querySelector('#global-audio')
+$('#gp-play').addEventListener('click', togglePlay)
+_audio.addEventListener('play', () => { $('#gp-play').textContent = '⏸' })
+_audio.addEventListener('pause', () => { $('#gp-play').textContent = '▶' })
+_audio.addEventListener('timeupdate', () => {
+  const cur = _audio.currentTime, dur = _audio.duration
+  $('#gp-current').textContent = fmtTime(cur)
+  $('#gp-duration').textContent = fmtTime(dur)
+  if (dur) $('#gp-progress-fill').style.width = `${(cur / dur) * 100}%`
+})
+_audio.addEventListener('loadedmetadata', () => { $('#gp-duration').textContent = fmtTime(_audio.duration) })
+_audio.addEventListener('ended', () => { $('#gp-play').textContent = '▶' })
+// 拖动进度条 seek
+$('#gp-progress').addEventListener('click', (e) => {
+  const bar = $('#gp-progress')
+  const rect = bar.getBoundingClientRect()
+  const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+  if (_audio.duration) { _audio.currentTime = ratio * _audio.duration }
 })
 
 // ---------- 创建歌单悬浮球（步骤6完整实现，先加桩）----------
