@@ -209,7 +209,7 @@ td.act button:hover { background: var(--accent-hover); }
 .float-panel .create-btn:hover { background: #16a34a; }
 
 /* ---------- 全局播放器 ---------- */
-.global-player { position: fixed; bottom: 0; left: 0; right: 0; z-index: 44; background: #1e293b;
+.global-player { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; background: #1e293b;
   border-top: 1px solid rgba(255,255,255,.12); box-shadow: 0 -4px 20px rgba(0,0,0,.25);
   display: flex; align-items: center; gap: 12px; padding: 8px 16px; }
 .global-player[hidden] { display: none; }
@@ -227,6 +227,8 @@ td.act button:hover { background: var(--accent-hover); }
 .song-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
 .song-card { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; transition: border-color .15s, box-shadow .15s; }
 .song-card:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(31,111,235,.1); }
+.song-card-selected { border-color: var(--accent); background: var(--accent-soft); }
+.dl-one.disabled { background: #cbd5e1 !important; color: #94a3b8 !important; cursor: not-allowed; }
 .song-card-top { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
 .song-card-top .create-chk { margin-top: 3px; cursor: pointer; flex-shrink: 0; }
 .song-card-info { flex: 1; min-width: 0; }
