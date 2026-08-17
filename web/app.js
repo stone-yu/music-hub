@@ -743,7 +743,7 @@ async function previewSong(platform, musicInfo, label) {
     await audio.play().catch(() => {})
   } catch (err) {
     toast(`试听失败：${err.message}`)
-    setTimeout(() => { if (audio.paused && !audio.src) box.hidden = true }, 1500)
+    $('#gp-title').textContent = '未播放'
   }
   audio.onerror = () => {
     if (audio.dataset.proxyTried || !audio.src) return
@@ -757,7 +757,7 @@ async function previewSong(platform, musicInfo, label) {
 $('#gp-close').addEventListener('click', () => {
   const audio = $('#global-audio')
   audio.pause(); audio.src = ''; audio.dataset.proxyTried = ''
-  $('#global-player').hidden = true
+  $('#gp-title').textContent = '未播放'
 })
 
 // ---------- 创建歌单悬浮球（步骤6完整实现，先加桩）----------
