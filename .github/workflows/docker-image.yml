@@ -13,14 +13,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Resolve tag & write VERSION
-        run: |
-          git fetch --tags --force --depth=1
-          TAG=${GITHUB_REF#refs/tags/}
-          echo "TAG=$TAG" >> $GITHUB_ENV
-          echo "$TAG" > VERSION
-          echo "Building tag: $TAG"
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -46,7 +38,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:${{ env.TAG }}
+            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
             ghcr.io/${{ github.repository }}:latest
             ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
