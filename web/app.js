@@ -76,17 +76,20 @@ function rowKey(item) {
 
 // ---------- 左侧菜单 ----------
 function initSidebar() {
+  // 默认根据 localStorage 决定开/关（PC 端默认展开，首次无记录时展开）
   const pref = localStorage.getItem('sidebar-open')
-  if (pref === '0') document.body.classList.remove('sidebar-open')
+  const defaultOpen = pref === null ? true : pref === '1'
+  document.body.classList.toggle('sidebar-open', defaultOpen)
   $('#sidebar-toggle').addEventListener('click', () => {
     const open = !document.body.classList.contains('sidebar-open')
     document.body.classList.toggle('sidebar-open', open)
     $('#sidebar-backdrop').classList.toggle('show', open && window.innerWidth <= 768)
-    if (window.innerWidth > 768) localStorage.setItem('sidebar-open', open ? '1' : '0')
+    localStorage.setItem('sidebar-open', open ? '1' : '0')
   })
   $('#sidebar-backdrop').addEventListener('click', () => {
     document.body.classList.remove('sidebar-open')
     $('#sidebar-backdrop').classList.remove('show')
+    localStorage.setItem('sidebar-open', '0')
   })
 }
 

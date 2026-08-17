@@ -28,41 +28,27 @@
 [data-theme="dark"] .quality-row { background: var(--card); }
 body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: var(--text); }
 
-/* ---------- 左侧菜单 ---------- */
-.sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 45; width: 72px;
-  transition: width .28s cubic-bezier(.4,0,.2,1); overflow-x: hidden; overflow-y: auto;
-  background: var(--bg-soft); border-right: 1px solid var(--border); padding: 60px 10px 16px; }
-body.sidebar-open .sidebar { width: 248px; padding-left: 14px; padding-right: 14px; }
-.sidebar-brand { position: fixed; top: 10px; left: 14px; z-index: 46; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
-body:not(.sidebar-open) .sidebar-brand { left: 20px; }
-body:not(.sidebar-open) .sidebar-brand .brand-text { display: none; }
+/* ---------- 左侧菜单（完全展开/隐藏，非图标条模式）---------- */
+.sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 45; width: 248px;
+  transform: translateX(-100%); transition: transform .28s cubic-bezier(.4,0,.2,1);
+  overflow-x: hidden; overflow-y: auto;
+  background: var(--bg-soft); border-right: 1px solid var(--border); padding: 16px 14px; }
+body.sidebar-open .sidebar { transform: translateX(0); }
+.sidebar-brand { display: flex; align-items: center; gap: 8px; white-space: nowrap; margin-bottom: 14px; padding: 0 4px; }
 .brand-icon { width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(107,124,246,.3); }
 .brand-text { font-size: 15px; font-weight: 600; color: var(--text); }
-.sidebar-toggle { display: flex; align-items: center; width: 100%; height: 36px; margin-bottom: 6px;
-  border: none; background: transparent; color: var(--text-muted); cursor: pointer; border-radius: 9px; font-size: 16px; transition: all .15s; }
-.sidebar-toggle:hover { color: var(--accent); background: var(--hover); }
-.sidebar-toggle .tg-arrow { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; font-size: 1rem; }
-body.sidebar-open .sidebar-toggle { justify-content: flex-end; }
-body.sidebar-open .sidebar-toggle .tg-arrow::before { content: '◀'; }
-body:not(.sidebar-open) .sidebar-toggle { justify-content: center; }
-body:not(.sidebar-open) .sidebar-toggle .tg-arrow::before { content: '▶'; }
 .menu-item { padding: 11px 14px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 11px;
   color: var(--text-muted); font-weight: 500; font-size: .9rem; text-decoration: none; transition: all .15s; }
 .menu-item:hover { color: var(--text); background: var(--hover); }
 .menu-item.active { color: var(--accent); background: var(--accent-soft); }
 .menu-item.active::before { content: ""; width: 3px; height: 16px; background: var(--accent); border-radius: 2px; margin-right: -8px; }
 .menu-icon { font-size: 18px; flex-shrink: 0; }
-.menu-text { white-space: nowrap; overflow: hidden; max-width: 160px; transition: opacity .2s, max-width .28s; }
-body:not(.sidebar-open) .menu-item { justify-content: center; gap: 0; }
-body:not(.sidebar-open) .menu-text { opacity: 0; max-width: 0; }
-body:not(.sidebar-open) .menu-item.active::before { display: none; }
+.menu-text { white-space: nowrap; }
 
-/* ---------- 顶部固定条 ---------- */
-.topbar { position: fixed; top: 0; left: 72px; right: 0; z-index: 40; height: 52px;
+/* ---------- 顶部固定条（始终全宽，不随菜单变化）---------- */
+.topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 40; height: 52px;
   background: var(--bg-soft); border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
-  transition: left .28s; }
-body.sidebar-open .topbar { left: 248px; }
+  display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
 .topbar-left { display: flex; align-items: center; gap: 12px; }
 .status-indicator { font-size: 13px; color: var(--text-muted); }
 .status-indicator .ok { color: var(--ok); }
@@ -71,6 +57,7 @@ body.sidebar-open .topbar { left: 248px; }
 .topbar-btn { width: 34px; height: 34px; border: none; background: transparent; color: var(--text-muted);
   border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; }
 .topbar-btn:hover { background: var(--hover); color: var(--accent); }
+.hamburger { color: var(--text); }
 #libraryRefreshIcon.spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .profile-wrap { position: relative; }
@@ -85,7 +72,8 @@ body.sidebar-open .topbar { left: 248px; }
 .profile-menu-danger:hover { background: rgba(194,34,34,.1); }
 .profile-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
 
-.main { padding-left: 72px; padding-top: 52px; transition: padding-left .28s; min-height: 100vh; }
+/* 主内容区：左侧 padding 跟随菜单展开/隐藏 */
+.main { padding-left: 0; padding-top: 52px; transition: padding-left .28s; min-height: 100vh; }
 body.sidebar-open .main { padding-left: 248px; }
 .main-inner { max-width: 1400px; margin: 0 auto; padding: 20px 24px 110px; }
 
@@ -104,12 +92,9 @@ body.sidebar-open .main { padding-left: 248px; }
 .sidebar-backdrop { display: none; }
 .sidebar-backdrop.show { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 44; }
 @media (max-width: 768px) {
-  .sidebar { width: 248px; transform: translateX(-100%); }
-  body.sidebar-open .sidebar { transform: translateX(0); }
+  /* 移动端：菜单浮层覆盖，主内容不偏移 */
   .main, body.sidebar-open .main { padding-left: 0; }
-  .topbar { left: 0; }
-  body.sidebar-open .topbar { left: 0; }
-  .sidebar-brand .brand-text { display: none; }
+  .sidebar-backdrop.show { display: block; }
 }
 
 .view { display: none; }
