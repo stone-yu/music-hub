@@ -1319,3 +1319,5 @@ function switchSettingsSub(sub) {
 }
 $$('#settings-tabs .ptab').forEach((t) => t.addEventListener('click', () => switchSettingsSub(t.dataset.sub)))
 initSidebar()
+// 初始加载热榜歌曲（默认 active 的 view 是 search）
+loadSearchSquare()
