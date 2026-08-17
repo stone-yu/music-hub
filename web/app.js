@@ -113,10 +113,26 @@ $$('.menu-item').forEach((tab) => {
 })
 
 // 搜索页热榜推荐（未搜索时显示，直接展示榜单歌曲）
-const rankCache = new Map() // key `${src}:${id}` → { list, name }
+// 缓存持久化到 localStorage（10分钟过期），避免每次登录重载慢
+const RANK_CACHE_TTL = 10 * 60 * 1000
+function getRankCache(key) {
+  try {
+    const raw = localStorage.getItem('rank:' + key)
+    if (!raw) return null
+    const obj = JSON.parse(raw)
+    if (Date.now() - obj.ts > RANK_CACHE_TTL) return null
+    return obj.list
+  } catch { return null }
+}
+function setRankCache(key, list) {
+  try { localStorage.setItem('rank:' + key, JSON.stringify({ ts: Date.now(), list })) } catch { /* quota */ }
+}
 let activeRankTab = null
 
 async function loadSearchSquare() {
+  // 切到热榜首页（隐藏搜索结果页）
+  $('#search-home').hidden = false
+  $('#search-results-page').hidden = true
   // 默认选第一个榜单标签
   const firstTab = $('#rank-tabs .ptab.active') || $('#rank-tabs .ptab')
   if (firstTab) {
@@ -124,6 +140,8 @@ async function loadSearchSquare() {
     await loadRankSongs(firstTab.dataset.src, firstTab.dataset.id, firstTab.dataset.name)
   }
 }
+// 返回热榜
+$('#search-back').addEventListener('click', loadSearchSquare)
 
 // 榜单标签切换
 $$('#rank-tabs .ptab').forEach((t) => t.addEventListener('click', () => {
@@ -133,20 +151,16 @@ $$('#rank-tabs .ptab').forEach((t) => t.addEventListener('click', () => {
 }))
 $('#rank-refresh').addEventListener('click', () => {
   if (!activeRankTab) return
-  rankCache.delete(`${activeRankTab.dataset.src}:${activeRankTab.dataset.id}`)
+  localStorage.removeItem('rank:' + `${activeRankTab.dataset.src}:${activeRankTab.dataset.id}`)
   loadRankSongs(activeRankTab.dataset.src, activeRankTab.dataset.id, activeRankTab.dataset.name)
 })
 
-// 加载某榜单歌曲，渲染到推荐区 #search-square-list（卡片式 + 曲库匹配）
+// 加载某榜单歌曲，渲染到 #search-square-list（卡片式 + 曲库匹配）
 async function loadRankSongs(source, id, name) {
   const el = $('#search-square-list')
   if (!el) return
   const cacheKey = `${source}:${id}`
-  $('#search-square-list').innerHTML = '<div class="empty">加载中…</div>'
-  // 显示推荐区（搜索后隐藏，切回榜单要恢复）
-  $('#search-square').style.display = ''
-  $('#results').innerHTML = ''
-  $('#search-status').textContent = ''
+  el.innerHTML = '<div class="empty">加载中…</div>'
   state.results = []
   state.selectedForCreate.clear()
   state.matchMap = new Map()
@@ -154,13 +168,11 @@ async function loadRankSongs(source, id, name) {
   state.createCtx = { name: name + ' - 热榜', cover: '' }
   updateGlobalCreateBtn()
   try {
-    let list
-    if (rankCache.has(cacheKey)) {
-      list = rankCache.get(cacheKey).list
-    } else {
+    let list = getRankCache(cacheKey)
+    if (!list) {
       const d = await fetchJSON(`/api/v1/ranks/${encodeURIComponent(source)}/${encodeURIComponent(id)}?limit=50`)
       list = d.list || []
-      rankCache.set(cacheKey, { list, name })
+      setRankCache(cacheKey, list)
     }
     const group = renderGroup(source, list, null)
     const h3 = group.querySelector('h3')
@@ -179,15 +191,17 @@ $('#search-form').addEventListener('submit', async (e) => {
   const keyword = $('#keyword').value.trim()
   if (!keyword) return
   const platform = $('#platform').value
+  // 切到搜索结果页
+  $('#search-home').hidden = true
+  $('#search-results-page').hidden = false
   $('#search-status').textContent = '搜索中…'
   $('#results').innerHTML = ''
-  $('#search-square').style.display = 'none'  // 搜索时隐藏广场推荐
   state.results = []
   state.selected.clear()
   state.selectedForCreate.clear()
   state.matchMap = new Map()
   state.createMap = new Map()
-  state.createCtx = { name: '', cover: '' }  // 单曲搜索无默认名/图
+  state.createCtx = { name: '', cover: '' }
   updateGlobalCreateBtn()
 
   try {
@@ -438,21 +452,27 @@ function selectedItems() {
 }
 
 // ---------- 歌单广场（平台标签 + 搜歌单 + 详情已匹配/未匹配分组）----------
+// 缓存持久化到 localStorage（10分钟过期）
 let plActivePlatform = ''
-const plCache = new Map() // platform → groups
+function getPlCache(key) {
+  try { const raw = localStorage.getItem('pl:' + key); if (!raw) return null
+    const o = JSON.parse(raw); if (Date.now() - o.ts > RANK_CACHE_TTL) return null; return o.groups } catch { return null }
+}
+function setPlCache(key, groups) {
+  try { localStorage.setItem('pl:' + key, JSON.stringify({ ts: Date.now(), groups })) } catch {}
+}
 async function loadPlaylists() {
+  // 切到歌单首页
+  $('#pl-home').hidden = false
   $('#pl-detail').hidden = true
-  $('#pl-grid').hidden = false
   const cacheKey = plActivePlatform || 'all'
-  if (plCache.has(cacheKey)) {
-    renderPlaylistGrid(plCache.get(cacheKey))
-    return
-  }
+  const cached = getPlCache(cacheKey)
+  if (cached) { renderPlaylistGrid(cached); return }
   $('#pl-status').innerHTML = '<div class="status">加载广场推荐…</div>'
   try {
     const d = await fetchJSON('/api/v1/square/hot' + (plActivePlatform ? `?platform=${plActivePlatform}` : ''))
     const groups = d.groups || []
-    plCache.set(cacheKey, groups)
+    setPlCache(cacheKey, groups)
     renderPlaylistGrid(groups)
   } catch (err) {
     $('#pl-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
@@ -484,7 +504,7 @@ $('#pl-search-btn').addEventListener('click', async () => {
   const kw = $('#pl-keyword').value.trim()
   if (!kw) return toast('请输入关键词')
   $('#pl-detail').hidden = true
-  $('#pl-grid').hidden = false
+  $('#pl-home').hidden = false
   $('#pl-status').innerHTML = '<div class="status">搜索中…</div>'
   try {
     const url = `/api/v1/square/search?keyword=${encodeURIComponent(kw)}` + (plActivePlatform ? `&platforms=${plActivePlatform}` : '')
@@ -493,10 +513,14 @@ $('#pl-search-btn').addEventListener('click', async () => {
     renderPlaylistGrid(groups)
   } catch (err) { $('#pl-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>` }
 })
-$('#pl-refresh-btn').addEventListener('click', () => { plCache.clear(); loadPlaylists() })
+$('#pl-refresh-btn').addEventListener('click', () => {
+  // 清所有 pl: 缓存
+  Object.keys(localStorage).filter((k) => k.startsWith('pl:')).forEach((k) => localStorage.removeItem(k))
+  loadPlaylists()
+})
 
 async function openPlaylistDetail(platform, id, name) {
-  $('#pl-grid').hidden = true
+  $('#pl-home').hidden = true
   $('#pl-detail').hidden = false
   $('#pl-status').innerHTML = `<div class="status">加载 ${escapeHtml(name)} …</div>`
   // 进详情清空旧创建勾选
@@ -579,7 +603,7 @@ function renderPlaylistDetail(name, platform, matched, unmatched) {
     <h3 style="margin:0 0 10px">${escapeHtml(name)} · 共 ${matched.length + unmatched.length} 首（已匹配 ${matched.length} · 未匹配 ${unmatched.length}）</h3>
     ${matched.length ? `<h4 style="color:var(--ok);margin:12px 0 6px">✓ 已在曲库（${matched.length}）</h4><div class="song-grid">${matchedCards}</div>` : ''}
     ${unmatched.length ? `<h4 style="color:var(--text-muted);margin:16px 0 6px">未匹配 ${unmatched.length} 首（可试听/下载补库）</h4><div class="song-grid">${unmatchedCards}</div>` : ''}`
-  $('#pl-back').addEventListener('click', () => { $('#pl-detail').hidden = true; $('#pl-grid').hidden = false })
+  $('#pl-back').addEventListener('click', () => { $('#pl-detail').hidden = true; $('#pl-home').hidden = false })
   bindSongCardEvents(el)
 }
 

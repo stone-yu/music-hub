@@ -68,6 +68,19 @@ body.sidebar-open .topbar { left: 248px; }
 .main { padding-left: 72px; padding-top: 52px; transition: padding-left .28s; min-height: 100vh; }
 body.sidebar-open .main { padding-left: 248px; }
 .main-inner { max-width: 1400px; margin: 0 auto; padding: 20px 24px 110px; }
+
+/* 页面标题行 */
+.page-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.page-title { font-size: 18px; font-weight: 600; color: var(--text); margin: 0; }
+.back-btn { padding: 6px 14px; background: var(--hover); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--text); }
+.back-btn:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.head-search { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+.head-search input[type=text] { min-width: 220px; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: 8px; font-size: 14px; }
+.head-search select { padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: #fff; font-size: 14px; }
+.head-search button { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
+.head-search button:hover { background: var(--accent-hover); }
+#rank-refresh, #pl-refresh-btn { padding: 8px 16px; background: var(--hover); color: var(--text); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 13px; }
+#rank-refresh:hover, #pl-refresh-btn:hover { background: var(--accent-soft); color: var(--accent); }
 .sidebar-backdrop { display: none; }
 .sidebar-backdrop.show { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 44; }
 @media (max-width: 768px) {
