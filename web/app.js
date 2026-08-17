@@ -337,6 +337,7 @@ function renderGroup(platform, list, error) {
     card.innerHTML = `
       <div class="song-card-top">
         <input type="checkbox" class="create-chk" data-key="${key}" data-matched="0" title="勾选已匹配歌曲创建歌单" />
+        <span class="song-card-icon">🎵</span>
         <div class="song-card-info">
           <div class="song-card-title">${escapeHtml(item.name)}</div>
           <div class="song-card-artist">${escapeHtml(item.singer)}${item.albumName ? ' · ' + escapeHtml(item.albumName) : ''}</div>
@@ -410,7 +411,7 @@ async function matchSearchResults() {
 }
 
 function applyMatchMarks() {
-  $$('#results .song-card[data-key]').forEach((card) => {
+  $$('.song-card[data-key]').forEach((card) => {
     const key = card.dataset.key
     const m = state.matchMap.get(key)
     const cell = card.querySelector('.match-col')
@@ -565,6 +566,7 @@ function renderPlaylistDetail(name, platform, matched, unmatched) {
     return `<div class="song-card" data-key="${key}">
       <div class="song-card-top">
         <input type="checkbox" class="create-chk" data-key="${key}" data-matched="1" title="勾选创建歌单">
+        <span class="song-card-icon">🎵</span>
         <div class="song-card-info">
           <div class="song-card-title">${escapeHtml(it.name)}</div>
           <div class="song-card-artist">${escapeHtml(it.singer)}${it.albumName ? ' · ' + escapeHtml(it.albumName) : ''}</div>
@@ -584,6 +586,7 @@ function renderPlaylistDetail(name, platform, matched, unmatched) {
     return `<div class="song-card" data-key="${key}">
       <div class="song-card-top">
         <input type="checkbox" class="create-chk" data-key="${key}" data-matched="0" style="visibility:hidden">
+        <span class="song-card-icon">🎵</span>
         <div class="song-card-info">
           <div class="song-card-title">${escapeHtml(it.name)}</div>
           <div class="song-card-artist">${escapeHtml(it.singer)}${it.albumName ? ' · ' + escapeHtml(it.albumName) : ''}</div>
