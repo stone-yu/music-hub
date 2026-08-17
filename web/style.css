@@ -6,6 +6,26 @@
   --hover: #f5f7fb; --shadow-lg: 0 8px 24px rgba(0,0,0,.12);
   --ok: #1a7f37; --warn: #a86500; --err: #c22;
 }
+/* 暗色主题 */
+[data-theme="dark"] {
+  --bg: #0f172a; --bg-soft: #1e293b; --card: #1e293b;
+  --text: #e2e8f0; --text-muted: #94a3b8; --border: #334155; --border-strong: #475569;
+  --accent: #60a5fa; --accent-hover: #93c5fd; --accent-soft: rgba(96,165,250,.15);
+  --hover: rgba(255,255,255,.06); --shadow-lg: 0 8px 24px rgba(0,0,0,.4);
+  --ok: #4ade80; --warn: #fbbf24; --err: #f87171;
+}
+[data-theme="dark"] .st.pending { background: rgba(251,191,36,.15); }
+[data-theme="dark"] .st.active { background: rgba(96,165,250,.15); color: #93c5fd; }
+[data-theme="dark"] .st.completed { background: rgba(74,222,128,.15); }
+[data-theme="dark"] .st.completed_with_warnings { background: rgba(251,191,36,.15); }
+[data-theme="dark"] .st.failed { background: rgba(248,113,113,.15); }
+[data-theme="dark"] .st.canceled { background: rgba(148,163,184,.15); }
+[data-theme="dark"] .warn { background: rgba(251,191,36,.15); }
+[data-theme="dark"] .badge { background: rgba(255,255,255,.08); }
+[data-theme="dark"] .badge.q { background: rgba(96,165,250,.15); }
+[data-theme="dark"] .pl-cover { background: linear-gradient(135deg, #1e293b, #334155); }
+[data-theme="dark"] .src-act button { background: rgba(255,255,255,.06); color: #cbd5e1; border-color: #475569; }
+[data-theme="dark"] .quality-row { background: var(--card); }
 body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: var(--text); }
 
 /* ---------- 左侧菜单 ---------- */
@@ -76,7 +96,7 @@ body.sidebar-open .main { padding-left: 248px; }
 .back-btn:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
 .head-search { display: flex; gap: 8px; align-items: center; margin-left: auto; }
 .head-search input[type=text] { min-width: 220px; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: 8px; font-size: 14px; }
-.head-search select { padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: #fff; font-size: 14px; }
+.head-search select { padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--card); font-size: 14px; }
 .head-search button { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
 .head-search button:hover { background: var(--accent-hover); }
 #rank-refresh, #pl-refresh-btn { padding: 8px 16px; background: var(--hover); color: var(--text); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 13px; }
@@ -98,12 +118,12 @@ body.sidebar-open .main { padding-left: 248px; }
 /* ---------- 通用控件 ---------- */
 .search-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .search-bar input[type=text] { flex: 1; min-width: 200px; padding: 9px 12px; border: 1px solid var(--border-strong); border-radius: 8px; font-size: 14px; }
-.search-bar select { padding: 9px 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: #fff; font-size: 14px; }
+.search-bar select { padding: 9px 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--card); font-size: 14px; }
 .search-bar button, .toolbar button { padding: 9px 18px; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
 .search-bar button:hover, .toolbar button:hover { background: var(--accent-hover); }
 .toolbar button:disabled { background: #b6c6e0; cursor: not-allowed; }
 
-.toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; padding: 10px 12px; background: #fff; border-radius: 8px; border: 1px solid var(--border); flex-wrap: wrap; }
+.toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; padding: 10px 12px; background: var(--card); border-radius: 8px; border: 1px solid var(--border); flex-wrap: wrap; }
 .chk-all { font-size: 14px; cursor: pointer; user-select: none; }
 #selected-count { font-size: 13px; color: #666; }
 .status { font-size: 13px; color: #888; margin-bottom: 10px; min-height: 18px; }
@@ -112,9 +132,9 @@ body.sidebar-open .main { padding-left: 248px; }
 .platform-group h3 { font-size: 14px; color: #555; margin-bottom: 8px; padding-left: 4px; border-left: 3px solid var(--accent); }
 .platform-group h3 .err { color: var(--err); font-weight: normal; font-size: 12px; }
 
-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
 th, td { text-align: left; padding: 9px 12px; font-size: 13px; border-bottom: 1px solid #f0f1f3; vertical-align: middle; }
-th { background: #fafbfc; color: #666; font-weight: 500; }
+th { background: var(--hover); color: #666; font-weight: 500; }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: #f8faff; }
 td.chk, th.chk { width: 36px; text-align: center; }
@@ -168,7 +188,7 @@ td.act button:hover { background: var(--accent-hover); }
 .empty { text-align: center; color: #aaa; padding: 40px; font-size: 14px; }
 
 .import-panel { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
-.import-block { flex: 1; min-width: 300px; background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.import-block { flex: 1; min-width: 300px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
 .import-block h4 { font-size: 13px; color: #555; margin-bottom: 10px; }
 .import-row { display: flex; gap: 8px; align-items: center; }
 .import-row input[type=text] { flex: 1; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 6px; font-size: 13px; }
@@ -177,7 +197,7 @@ td.act button:hover { background: var(--accent-hover); }
 .import-row button { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
 .import-row button:disabled { background: #b6c6e0; cursor: not-allowed; }
 
-.src-card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+.src-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
 .src-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .src-head b { font-size: 15px; margin-right: 6px; }
 .src-act { display: flex; align-items: center; gap: 8px; }
@@ -189,7 +209,7 @@ td.act button:hover { background: var(--accent-hover); }
 .src-plats { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
 .badge { background: #f0f1f3; color: #666; }
 
-.set-card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; margin-bottom: 14px; }
+.set-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; margin-bottom: 14px; }
 .set-card h3 { font-size: 14px; color: #333; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f0f1f3; }
 .set-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .set-row label { flex: 0 0 160px; font-size: 13px; color: #555; }
@@ -197,7 +217,7 @@ td.act button:hover { background: var(--accent-hover); }
 .set-row input[type=checkbox] { width: 16px; height: 16px; }
 .set-row .hint { color: #999; font-weight: normal; font-size: 11px; }
 .apikey-reveal { flex: 1; display: flex; align-items: center; gap: 10px; max-width: 500px; }
-.apikey-reveal code { flex: 1; padding: 8px 10px; background: #f7f8fa; border: 1px solid var(--border-strong); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; color: var(--accent); }
+.apikey-reveal code { flex: 1; padding: 8px 10px; background: var(--hover); border: 1px solid var(--border-strong); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; color: var(--accent); }
 .apikey-reveal button { padding: 7px 14px; border: 1px solid #d5d9e0; border-radius: 6px; background: #eef1f5; color: #333; cursor: pointer; font-size: 13px; }
 #apikey-gen { padding: 8px 16px; border: none; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; font-size: 13px; }
 .set-row button.danger { padding: 8px 16px; border: 1px solid #f0b4b4; border-radius: 6px; background: #fff0f0; color: var(--err); cursor: pointer; font-size: 13px; }
@@ -280,7 +300,7 @@ td.act button:hover { background: var(--accent-hover); }
 
 /* ---------- 歌单广场/卡片 ---------- */
 .pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
-.pl-card { padding: 0; background: #fff; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: border-color .15s; overflow: hidden; }
+.pl-card { padding: 0; background: var(--card); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: border-color .15s; overflow: hidden; }
 .pl-cover { width: 100%; aspect-ratio: 1 / 1; background: linear-gradient(135deg, #eef4ff, #e0e7ff); position: relative; }
 .pl-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .pl-cover-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 36px; color: var(--accent); opacity: .5; }
@@ -304,7 +324,7 @@ table.card th { color: #666; font-weight: 600; }
 
 /* ---------- 登录页 ---------- */
 .login-body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg); }
-.login-card { display: flex; flex-direction: column; gap: 12px; width: 300px; padding: 32px; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.08); background: #fff; }
+.login-card { display: flex; flex-direction: column; gap: 12px; width: 300px; padding: 32px; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.08); background: var(--card); }
 .login-card h1 { font-size: 20px; text-align: center; color: var(--accent); }
 .login-sub { text-align: center; color: #888; font-size: 13px; margin-top: -4px; }
 .login-card input { padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 8px; font-size: 14px; }
