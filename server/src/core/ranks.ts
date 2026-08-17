@@ -24,9 +24,9 @@ const NETEASE_RANKS: Rank[] = [
   { id: '991319590', name: '中文说唱榜', source: 'wy', cover_url: '' },
 ]
 
-async function getJson(url: string, params?: Record<string, string>): Promise<any | null> {
+async function getJson(url: string, params?: Record<string, string>, headers?: Record<string, string>): Promise<any | null> {
   try {
-    const resp = await needle('get', url, params ?? {}, { response_timeout: 15_000, follow_max: 3, json: false })
+    const resp = await needle('get', url, params ?? {}, { response_timeout: 15_000, follow_max: 3, json: false, headers })
     const body = resp.body
     if (typeof body === 'string') return JSON.parse(body)
     return body
@@ -43,6 +43,7 @@ async function neteaseRanks(): Promise<Rank[]> {
 }
 async function neteaseRankSongs(rankId: string, limit = 100): Promise<MusicInfo[]> {
   for (let attempt = 0; attempt < 2; attempt++) {
+    // 旧接口 playlist/detail，tracks.album.picUrl 有封面
     const data = await getJson('http://music.163.com/api/playlist/detail', { id: rankId })
     if (!data) return []
     try {
@@ -51,9 +52,10 @@ async function neteaseRankSongs(rankId: string, limit = 100): Promise<MusicInfo[
       const songs: MusicInfo[] = []
       for (const t of tracks.slice(0, limit)) {
         const artists = (t.artists ?? t.ar ?? []).map((a: any) => a.name ?? '').join('/')
-        const album = (t.album ?? t.al ?? {}).name ?? ''
+        const al = t.album ?? t.al ?? {}
+        const album = al.name ?? ''
         if (t.name && artists) {
-          songs.push({ name: t.name, singer: artists, source: 'wy', songmid: String(t.id), albumName: album, types: [], _types: {} })
+          songs.push({ name: t.name, singer: artists, source: 'wy', songmid: String(t.id), albumName: album, img: al.picUrl ?? null, types: [], _types: {} })
         }
       }
       if (songs.length) return songs
@@ -94,9 +96,11 @@ async function qqRankSongs(rankId: string, limit = 100): Promise<MusicInfo[]> {
     const list = data.toplist?.data?.songInfoList ?? []
     for (const s of list) {
       const artists = (s.singer ?? []).map((si: any) => si.name ?? '').join('/')
+      const albumMid = s.album?.mid ?? ''
       const album = s.album?.name ?? ''
+      const img = albumMid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${albumMid}.jpg` : null
       if (s.title && artists) {
-        songs.push({ name: s.title, singer: artists, source: 'tx', songmid: String(s.mid ?? s.id ?? ''), albumName: album, types: [], _types: {} })
+        songs.push({ name: s.title, singer: artists, source: 'tx', songmid: String(s.mid ?? s.id ?? ''), albumName: album, img, types: [], _types: {} })
       }
     }
   } catch (err) {
@@ -134,7 +138,8 @@ async function kugouRankSongs(rankId: string, limit = 100): Promise<MusicInfo[]>
         if (!title) title = parts[1]!.trim()
       }
       if (title && artist) {
-        songs.push({ name: title, singer: artist, source: 'kg', songmid: String(item.hash ?? item.songid ?? ''), albumName: item.albumname ?? '', types: [], _types: {} })
+        const img = item.album_sizable_cover ? String(item.album_sizable_cover).replace('{size}', '150') : null
+        songs.push({ name: title, singer: artist, source: 'kg', songmid: String(item.hash ?? item.songid ?? ''), albumName: item.albumname ?? '', img, types: [], _types: {} })
       }
     }
   } catch (err) {
