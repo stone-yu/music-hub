@@ -42,7 +42,9 @@ body.sidebar-open .sidebar { transform: translateX(0); }
 .menu-item:hover { color: var(--text); background: var(--hover); }
 .menu-item.active { color: var(--accent); background: var(--accent-soft); }
 .menu-item.active::before { content: ""; width: 3px; height: 16px; background: var(--accent); border-radius: 2px; margin-right: -8px; }
-.menu-icon { font-size: 18px; flex-shrink: 0; }
+.menu-icon { width: 20px; height: 20px; flex-shrink: 0; color: var(--text-muted); transition: color .15s; }
+.menu-item:hover .menu-icon { color: var(--text); }
+.menu-item.active .menu-icon { color: var(--accent); }
 .menu-text { white-space: nowrap; }
 
 /* ---------- 顶部固定条（始终全宽，不随菜单变化）---------- */
