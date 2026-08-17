@@ -46,7 +46,7 @@ body.sidebar-open .sidebar { transform: translateX(0); }
 .menu-text { white-space: nowrap; }
 
 /* ---------- 顶部固定条（始终全宽，不随菜单变化）---------- */
-.topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 40; height: 52px;
+.topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 50; height: 52px;
   background: var(--bg-soft); border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
 .topbar-left { display: flex; align-items: center; gap: 12px; }
