@@ -13,6 +13,7 @@
     <button class="sidebar-toggle" id="sidebar-toggle"><span class="tg-arrow"></span></button>
     <a href="#" class="menu-item active" data-tab="search"><span class="menu-icon">🔍</span><span class="menu-text">歌曲</span></a>
     <a href="#" class="menu-item" data-tab="playlists"><span class="menu-icon">🎶</span><span class="menu-text">歌单</span></a>
+    <a href="#" class="menu-item" data-tab="library"><span class="menu-icon">🎵</span><span class="menu-text">曲库</span></a>
     <a href="#" class="menu-item" data-tab="sources"><span class="menu-icon">🔌</span><span class="menu-text">音源</span></a>
   </aside>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
@@ -60,8 +61,17 @@
 
       <!-- 热榜推荐（未搜索时显示） -->
       <div id="search-square">
-        <h3 class="platform-group" style="border-left:3px solid var(--accent);padding-left:6px;font-size:14px;color:#555;margin:16px 0 8px">🔥 各平台热榜</h3>
-        <div id="search-square-grid"></div>
+        <div class="toolbar" style="margin-top:16px">
+          <h3 class="platform-group" style="border-left:3px solid var(--accent);padding-left:6px;font-size:14px;color:#555;margin:0">🔥 各平台热榜</h3>
+          <div class="pl-tabs" id="rank-tabs">
+            <span class="ptab active" data-src="wy" data-id="3778678" data-name="网易热歌榜">网易热歌</span>
+            <span class="ptab" data-src="kg" data-id="8888" data-name="酷狗热歌榜">酷狗热歌</span>
+            <span class="ptab" data-src="tx" data-id="62" data-name="QQ热歌榜">QQ热歌</span>
+            <span class="ptab" data-src="wy" data-id="3779629" data-name="网易新歌榜">网易新歌</span>
+          </div>
+          <button id="rank-refresh" style="margin-left:auto">刷新</button>
+        </div>
+        <div id="search-square-list"></div>
       </div>
     </section>
 
@@ -94,6 +104,15 @@
         <div id="playlists"></div>
         <div id="playlist-detail" hidden></div>
       </details>
+    </section>
+
+    <!-- 曲库页（Navidrome 统计 + 歌单列表只读） -->
+    <section id="view-library" class="view">
+      <div class="toolbar">
+        <button id="lib-stats-refresh">刷新</button>
+        <span id="lib-stats-summary"></span>
+      </div>
+      <div id="library-stats" class="status">加载中…</div>
     </section>
 
     <!-- 音源管理页 -->

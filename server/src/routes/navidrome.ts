@@ -45,6 +45,27 @@ export async function navidromeRoutes(app: FastifyInstance): Promise<void> {
     }
   })
 
+  // 曲库统计：歌曲数/艺术家数/专辑数 + Navidrome 歌单列表（只读）
+  app.get('/api/v1/navidrome/stats', async () => {
+    const songs = library.getSongs()
+    const artists = new Set(songs.map((s) => s.artist))
+    const albums = new Set(songs.map((s) => s.album).filter(Boolean))
+    let playlists: any[] = []
+    try { playlists = await navidromeClient.getPlaylists() } catch { /* best-effort */ }
+    return {
+      songCount: songs.length,
+      artistCount: artists.size,
+      albumCount: albums.size,
+      playlists: playlists.map((p: any) => ({
+        id: String(p.id ?? ''),
+        name: p.name ?? '',
+        songCount: p.songCount ?? 0,
+        public: p.public ?? false,
+        owner: p.owner ?? '',
+      })),
+    }
+  })
+
   app.post<{ Querystring: RefreshQuery }>('/api/v1/navidrome/library/refresh', async (req) => {
     const scanFirst = req.query.scan_first === 'true' || req.query.scan_first === '1'
     library.refresh(scanFirst)
