@@ -211,8 +211,8 @@ td.act button:hover { background: var(--accent-hover); }
   display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: var(--shadow-lg);
   font-size: 20px; color: #fff; transition: all .2s; }
 .float-ball:hover { transform: scale(1.08) translateY(-2px); }
-.float-ball-download { bottom: 84px; background: linear-gradient(135deg, #8b9cff, #6b7cf6); }
-.float-ball-create { bottom: 24px; background: linear-gradient(135deg, #4ade80, #22c55e); }
+.float-ball-download { bottom: 144px; background: linear-gradient(135deg, #8b9cff, #6b7cf6); }
+.float-ball-create { bottom: 84px; background: linear-gradient(135deg, #4ade80, #22c55e); }
 .float-ball-create.disabled { background: #9ca3af; cursor: not-allowed; opacity: .6; }
 .float-badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; border-radius: 9px;
   background: #ef4444; color: #fff; font-size: 11px; line-height: 18px; text-align: center; padding: 0 5px; }
@@ -220,8 +220,8 @@ td.act button:hover { background: var(--accent-hover); }
 .float-panel { position: fixed; right: 18px; z-index: 47; width: 360px; max-width: 90vw; max-height: 60vh; overflow-y: auto;
   background: #1e293b; color: #fff; border-radius: 12px; box-shadow: var(--shadow-lg); padding: 14px; display: none; }
 .float-panel.show { display: block; }
-#float-dl-panel { bottom: 140px; }
-#float-create-panel { bottom: 80px; }
+#float-dl-panel { bottom: 200px; }
+#float-create-panel { bottom: 140px; }
 .float-backdrop.show { position: fixed; inset: 0; z-index: 45; }
 .float-panel-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .float-panel-head b { color: #fff; font-size: 14px; }
