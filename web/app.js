@@ -746,12 +746,18 @@ async function previewSong(platform, musicInfo, label) {
     $('#gp-title').textContent = '未播放'
   }
   audio.onerror = () => {
-    if (audio.dataset.proxyTried || !audio.src) return
+    if (audio.dataset.proxyTried === 'done' || !audio.src) return
+    if (audio.dataset.proxyTried === '1') {
+      // 代理也失败才提示
+      audio.dataset.proxyTried = 'done'
+      toast('播放失败，可能音源失效或防盗链')
+      return
+    }
+    // 直链失败：切流式代理重试
     audio.dataset.proxyTried = '1'
-    // 防盗链：切流式代理
     const directUrl = audio.src
     audio.src = `/api/v1/preview/proxy?url=${encodeURIComponent(directUrl)}`
-    audio.play().catch(() => toast('代理播放也失败，可能音源失效'))
+    audio.play().catch(() => { /* 静默，靠 onerror 二次判断 */ })
   }
 }
 $('#gp-close').addEventListener('click', () => {
