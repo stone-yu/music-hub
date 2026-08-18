@@ -1,34 +1,27 @@
 services:
-  musichub:
-    # 方式一：用预构建镜像（tag 触发 GitHub Actions 自动构建）
+  music-hub:
     image: ghcr.io/stone-yu/music-hub:latest
-    # 方式二：本地构建（取消注释下面两行）
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-    container_name: musichub
+    container_name: music-hub
     restart: unless-stopped
     ports:
-      - "23330:23330"
+      - "4733:23330"
     environment:
       TZ: Asia/Shanghai
-      RO_SERVER_HOST: 0.0.0.0
-      RO_SERVER_PORT: "23330"
-      # Navidrome 连接（也可在 config.yaml 里配，这里优先级更高）
-      RO_NAVIDROME_URL: http://your-navidrome:4533
-      RO_NAVIDROME_USER: admin
-      RO_NAVIDROME_PASSWORD: your-password
+      # Navidrome 连接
+      NAVIDROME_URL: "http://your-navidrome:4533/"
+      NAVIDROME_USER: "your-username"
+      NAVIDROME_PASS: "your-password"
+      # Web 登录密码
+      LOGIN_PASSWORD: "your-login-password"
     volumes:
-      # 配置文件（用户名/密码/apiKey/音质/刮削设置等）
-      - ./config.yaml:/app/config.yaml
-      # 下载目录（下载的音乐文件）
+      # 下载的歌曲（让 Navidrome 也挂载此目录即可扫描入库）
       - ./data/downloads:/app/data/downloads
-      # 音源目录（放 lx-music 音源脚本 .js）
-      - ./data/sources:/app/data/sources
-      # SQLite 数据库（任务记录/歌单，容器重建不丢）
-      - ./data/db:/app/data/db
-      # 刮削整理目录（按 艺术家/专辑 整理，需映射到 Navidrome 音乐目录）
+      # 刮削整理后的歌曲（按 艺术家/专辑 结构，映射到 Navidrome 音乐目录）
       - ./data/scraped:/app/data/scraped
-      # 曲库缓存（library_cache.json，避免每次重启重新全量加载）
-      - ./data/library_cache.json:/app/data/library_cache.json
+      # 音源脚本目录（放 lx-music 音源 .js）
+      - ./data/sources:/app/data/sources
+      # 持久化数据（SQLite 数据库 + 曲库缓存）
+      - ./data/db:/app/data/db
+      # 配置文件
+      - ./config.yaml:/app/config.yaml
     mem_limit: 512m

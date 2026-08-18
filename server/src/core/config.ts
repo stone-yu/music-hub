@@ -45,15 +45,16 @@ export interface RoConfig {
 const CONFIG_PATH = process.env.RO_CONFIG ?? path.join(ROOT_DIR, 'config.yaml')
 
 function applyEnvOverrides(cfg: RoConfig): void {
-  // RO_SERVER_PORT / RO_SERVER_HOST / RO_AUTH_APIKEY / RO_LOG_LEVEL 等简单覆盖
-  if (process.env.RO_SERVER_PORT) cfg.server.port = Number(process.env.RO_SERVER_PORT)
-  if (process.env.RO_SERVER_HOST) cfg.server.host = process.env.RO_SERVER_HOST
+  // 兼容旧版 MusicHub 变量名（无 RO_ 前缀）+ ro 新版变量名
+  if (process.env.PORT || process.env.RO_SERVER_PORT) cfg.server.port = Number(process.env.PORT || process.env.RO_SERVER_PORT)
+  if (process.env.HOST || process.env.RO_SERVER_HOST) cfg.server.host = process.env.HOST || process.env.RO_SERVER_HOST || ''
   if (process.env.RO_AUTH_APIKEY) cfg.auth.apiKey = process.env.RO_AUTH_APIKEY
   if (process.env.RO_LOG_LEVEL) cfg.log.level = process.env.RO_LOG_LEVEL
-  // Navidrome 凭据（便于 Docker/env 覆盖 yaml）
-  if (process.env.RO_NAVIDROME_URL) cfg.navidrome.url = process.env.RO_NAVIDROME_URL
-  if (process.env.RO_NAVIDROME_USER) cfg.navidrome.user = process.env.RO_NAVIDROME_USER
-  if (process.env.RO_NAVIDROME_PASSWORD) cfg.navidrome.password = process.env.RO_NAVIDROME_PASSWORD
+  if (process.env.LOGIN_PASSWORD) cfg.auth.webLogin.password = process.env.LOGIN_PASSWORD || ''
+  // Navidrome 凭据（兼容旧版 NAVIDROME_URL/USER/PASS + 新版 RO_NAVIDROME_*）
+  if (process.env.NAVIDROME_URL || process.env.RO_NAVIDROME_URL) cfg.navidrome.url = process.env.NAVIDROME_URL || process.env.RO_NAVIDROME_URL || ''
+  if (process.env.NAVIDROME_USER || process.env.RO_NAVIDROME_USER) cfg.navidrome.user = process.env.NAVIDROME_USER || process.env.RO_NAVIDROME_USER || ''
+  if (process.env.NAVIDROME_PASS || process.env.NAVIDROME_PASSWORD || process.env.RO_NAVIDROME_PASSWORD) cfg.navidrome.password = process.env.NAVIDROME_PASS || process.env.NAVIDROME_PASSWORD || process.env.RO_NAVIDROME_PASSWORD || ''
 }
 
 export function loadConfig(): RoConfig {
