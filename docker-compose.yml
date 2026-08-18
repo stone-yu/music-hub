@@ -7,7 +7,7 @@ services:
       - "4733:23330"
     environment:
       TZ: Asia/Shanghai
-      # Navidrome 连接
+      # Navidrome 连接（环境变量配，无需 config.yaml）
       NAVIDROME_URL: "http://your-navidrome:4533/"
       NAVIDROME_USER: "your-username"
       NAVIDROME_PASS: "your-password"
@@ -22,6 +22,6 @@ services:
       - ./data/sources:/app/data/sources
       # 持久化数据（SQLite 数据库 + 曲库缓存）
       - ./data/db:/app/data/db
-      # 配置文件
-      - ./config.yaml:/app/config.yaml
+      # 如需自定义下载/刮削/冒烟等配置，取消下面注释（先在宿主机建好文件）
+      # - ./config.yaml:/app/config.yaml
     mem_limit: 512m
