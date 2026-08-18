@@ -55,9 +55,10 @@ COPY --from=builder /app/server/package.json ./package.json
 COPY web /app/web
 
 # 容器内 /app 布局对齐代码里的 ROOT_DIR(=server/../..)：
-#   /app/config.yaml  /app/data/{downloads,sources,ro.db}  /app/web
-# config.yaml 与 data/ 通过 volume 从宿主机映射进来（见 compose）
-# 这里建目录占位，避免首次挂载前不存在
+#   /app/config/config.yaml  /app/data/{downloads,sources,db}  /app/web
+# config/ 与 data/ 通过 volume 从宿主机映射进来（见 compose）
+# 复制默认配置（用户可挂载覆盖）
+COPY config.example.yaml /app/config/config.yaml
 RUN mkdir -p /app/data/downloads /app/data/sources /app/data/db
 
 EXPOSE 23330

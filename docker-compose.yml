@@ -14,6 +14,8 @@ services:
       # Web 登录密码
       LOGIN_PASSWORD: "your-login-password"
     volumes:
+      # 配置目录（映射整个目录，放 config.yaml；不映射则用容器内置默认配置）
+      - ./config:/app/config
       # 下载的歌曲（让 Navidrome 也挂载此目录即可扫描入库）
       - ./data/downloads:/app/data/downloads
       # 刮削整理后的歌曲（按 艺术家/专辑 结构，映射到 Navidrome 音乐目录）
@@ -22,6 +24,4 @@ services:
       - ./data/sources:/app/data/sources
       # 持久化数据（SQLite 数据库 + 曲库缓存）
       - ./data/db:/app/data/db
-      # 如需自定义下载/刮削/冒烟等配置，取消下面注释（先在宿主机建好文件）
-      # - ./config.yaml:/app/config.yaml
     mem_limit: 512m

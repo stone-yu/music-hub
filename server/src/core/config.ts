@@ -42,7 +42,7 @@ export interface RoConfig {
   log: { level: string }
 }
 
-const CONFIG_PATH = process.env.RO_CONFIG ?? path.join(ROOT_DIR, 'config.yaml')
+const CONFIG_PATH = process.env.CONFIG_PATH ?? process.env.RO_CONFIG ?? path.join(ROOT_DIR, 'config/config.yaml')
 
 function applyEnvOverrides(cfg: RoConfig): void {
   // 兼容旧版 MusicHub 变量名（无 RO_ 前缀）+ ro 新版变量名
