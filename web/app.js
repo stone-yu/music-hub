@@ -394,7 +394,10 @@ function renderGroup(platform, list, error) {
     card.innerHTML = `
       <div class="song-card-top">
         <input type="checkbox" class="create-chk" data-key="${key}" data-matched="0" title="勾选已匹配歌曲创建歌单" />
-        ${coverHtml(item.img)}
+        <div class="song-cover-wrap">
+          ${coverHtml(item.img)}
+          <div class="song-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        </div>
         <div class="song-card-info">
           <div class="song-card-title">${escapeHtml(item.name)}</div>
           <div class="song-card-artist">${escapeHtml(item.singer)}${item.albumName ? ' · ' + escapeHtml(item.albumName) : ''}</div>
@@ -403,7 +406,7 @@ function renderGroup(platform, list, error) {
       <div class="song-card-bottom">
         <span class="match-col" data-key="${key}"><span class="pending">…</span></span>
         <div class="song-card-act">
-          <button class="preview-btn" data-key="${key}">▶试听</button>
+          <button class="preview-btn" data-key="${key}">▶播放</button>
           <button class="dl-one" data-key="${key}">⬇下载</button>
         </div>
       </div>`
@@ -542,9 +545,9 @@ function renderPlaylistGrid(groups) {
       const cover = p.img ? `<img src="${escapeHtml(p.img)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''
       const placeholder = `<div class="pl-cover-ph" style="${p.img ? 'display:none' : 'display:flex'}">🎶</div>`
       return `<div class="pl-card" data-id="${escapeHtml(p.id)}" data-src="${escapeHtml(p.source)}" data-name="${escapeHtml(p.name)}">
-        <div class="pl-cover">${cover}${placeholder}</div>
+        <div class="pl-cover">${cover}${placeholder}<div class="pl-cover-bar"><span>${p.total || 0} 首</span></div><div class="pl-play-btn" aria-hidden="true">▶</div></div>
         <div class="pl-name">${escapeHtml(p.name)}</div>
-        <div class="pl-meta">${escapeHtml(PLATFORM_NAME[p.source] || p.source)} · ${p.total || 0} 首</div>
+        <div class="pl-desc">${escapeHtml(p.desc || '')}</div>
       </div>`
     }).join('')
     return `<h3 class="platform-group" style="border-left:3px solid var(--accent);padding-left:6px;font-size:14px;color:#555;margin:12px 0 8px">${escapeHtml(g.keyword)}</h3><div class="pl-grid">${cards}</div>`
@@ -623,7 +626,10 @@ function renderPlaylistDetail(name, platform, matched, unmatched) {
     return `<div class="song-card" data-key="${key}">
       <div class="song-card-top">
         <input type="checkbox" class="create-chk" data-key="${key}" data-matched="1" title="勾选创建歌单">
-        ${coverHtml(it.img)}
+        <div class="song-cover-wrap">
+          ${coverHtml(it.img)}
+          <div class="song-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        </div>
         <div class="song-card-info">
           <div class="song-card-title">${escapeHtml(it.name)}</div>
           <div class="song-card-artist">${escapeHtml(it.singer)}${it.albumName ? ' · ' + escapeHtml(it.albumName) : ''}</div>
@@ -632,7 +638,7 @@ function renderPlaylistDetail(name, platform, matched, unmatched) {
       <div class="song-card-bottom">
         <span class="match-col"><span class="ok">✓已在曲库${m?.isFuzzy ? ' (模糊)' : ''}</span></span>
         <div class="song-card-act">
-          <button class="preview-btn" data-key="${key}">▶试听</button>
+          <button class="preview-btn" data-key="${key}">▶播放</button>
           <button class="dl-one disabled" data-key="${key}" disabled title="已在曲库">⬇下载</button>
         </div>
       </div>
@@ -643,7 +649,10 @@ function renderPlaylistDetail(name, platform, matched, unmatched) {
     return `<div class="song-card" data-key="${key}">
       <div class="song-card-top">
         <input type="checkbox" class="create-chk" data-key="${key}" data-matched="0" style="visibility:hidden">
-        ${coverHtml(it.img)}
+        <div class="song-cover-wrap">
+          ${coverHtml(it.img)}
+          <div class="song-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        </div>
         <div class="song-card-info">
           <div class="song-card-title">${escapeHtml(it.name)}</div>
           <div class="song-card-artist">${escapeHtml(it.singer)}${it.albumName ? ' · ' + escapeHtml(it.albumName) : ''}</div>
@@ -652,7 +661,7 @@ function renderPlaylistDetail(name, platform, matched, unmatched) {
       <div class="song-card-bottom">
         <span class="match-col"><span class="muted">未收录</span></span>
         <div class="song-card-act">
-          <button class="preview-btn" data-key="${key}">▶试听</button>
+          <button class="preview-btn" data-key="${key}">▶播放</button>
           <button class="dl-one" data-key="${key}">⬇下载</button>
         </div>
       </div>
@@ -779,6 +788,12 @@ document.addEventListener('click', (e) => {
 
 // ---------- 全局播放器 + 试听 ----------
 let currentPreview = null
+// 试听中卡片状态：rid = platform:songmid = 卡片 data-key，直接定位
+function setPlayingCard(rid) {
+  document.querySelectorAll('.song-card.playing').forEach((c) => c.classList.remove('playing', 'paused'))
+  if (rid) document.querySelector(`.song-card[data-key="${rid}"]`)?.classList.add('playing')
+}
+function resetPlayerCover() { $('#gp-icon').innerHTML = '🎵' }
 async function previewSong(platform, musicInfo, label) {
   const audio = $('#global-audio')
   const box = $('#global-player')
@@ -786,7 +801,9 @@ async function previewSong(platform, musicInfo, label) {
   // 切换：同一首正在播放则切换播放/暂停
   if (audio.dataset.rid === rid && audio.src) { togglePlay(); return }
   $('#gp-title').textContent = label || `${musicInfo.name} - ${musicInfo.singer}`
+  $('#gp-icon').innerHTML = coverHtml(musicInfo.img)
   box.hidden = false
+  setPlayingCard(rid)
   audio.src = ''
   audio.dataset.proxyTried = ''
   try {
@@ -801,6 +818,8 @@ async function previewSong(platform, musicInfo, label) {
   } catch (err) {
     toast(`试听失败：${err.message}`)
     $('#gp-title').textContent = '未播放'
+    resetPlayerCover()
+    setPlayingCard(null)
   }
   audio.onerror = () => {
     if (audio.dataset.proxyTried === 'done' || !audio.src) return
@@ -821,6 +840,8 @@ $('#gp-close').addEventListener('click', () => {
   const audio = $('#global-audio')
   audio.pause(); audio.src = ''; audio.dataset.proxyTried = ''
   $('#gp-title').textContent = '未播放'
+  resetPlayerCover()
+  setPlayingCard(null)
   $('#gp-play').textContent = '▶'
   $('#gp-progress-fill').style.width = '0%'
   $('#gp-current').textContent = '0:00'
@@ -842,8 +863,8 @@ function fmtTime(s) {
 }
 const _audio = document.querySelector('#global-audio')
 $('#gp-play').addEventListener('click', togglePlay)
-_audio.addEventListener('play', () => { $('#gp-play').textContent = '⏸' })
-_audio.addEventListener('pause', () => { $('#gp-play').textContent = '▶' })
+_audio.addEventListener('play', () => { $('#gp-play').textContent = '⏸'; document.querySelector('.song-card.playing')?.classList.remove('paused') })
+_audio.addEventListener('pause', () => { $('#gp-play').textContent = '▶'; if (_audio.src) document.querySelector('.song-card.playing')?.classList.add('paused') })
 _audio.addEventListener('timeupdate', () => {
   const cur = _audio.currentTime, dur = _audio.duration
   $('#gp-current').textContent = fmtTime(cur)
@@ -851,7 +872,7 @@ _audio.addEventListener('timeupdate', () => {
   if (dur) $('#gp-progress-fill').style.width = `${(cur / dur) * 100}%`
 })
 _audio.addEventListener('loadedmetadata', () => { $('#gp-duration').textContent = fmtTime(_audio.duration) })
-_audio.addEventListener('ended', () => { $('#gp-play').textContent = '▶' })
+_audio.addEventListener('ended', () => { $('#gp-play').textContent = '▶'; document.querySelector('.song-card.playing')?.classList.add('paused') })
 // 拖动进度条 seek
 $('#gp-progress').addEventListener('click', (e) => {
   const bar = $('#gp-progress')

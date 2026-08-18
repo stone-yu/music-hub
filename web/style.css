@@ -251,7 +251,9 @@ td.act button:hover { background: var(--accent-hover); }
   display: flex; align-items: center; gap: 12px; padding: 8px 16px; }
 .global-player[hidden] { display: none; }
 .gp-icon { width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; overflow: hidden; }
+.gp-icon .song-card-cover { width: 100%; height: 100%; border-radius: 0; }
+.gp-icon .song-card-icon { width: 100%; height: 100%; border-radius: 0; background: transparent; }
 .gp-info { min-width: 0; flex: 0 0 160px; }
 .gp-title { color: #fff; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gp-sub { color: #9ca3af; font-size: 11px; }
@@ -269,24 +271,39 @@ td.act button:hover { background: var(--accent-hover); }
 /* ---------- 搜索结果匹配标记 ---------- */
 /* ---------- 搜索结果卡片 ---------- */
 .song-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
-.song-card { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; transition: border-color .15s, box-shadow .15s; }
+.song-card { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; transition: border-color .15s, box-shadow .15s; position: relative; }
 .song-card:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(31,111,235,.1); }
 .song-card-selected { border-color: var(--accent); background: var(--accent-soft); }
 .dl-one.disabled { background: #cbd5e1 !important; color: #94a3b8 !important; cursor: not-allowed; }
 .song-card-top { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
 .song-card-icon { font-size: 18px; line-height: 22px; flex-shrink: 0; opacity: .6; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; background: var(--hover); }
 .song-card-cover { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
-.song-card-top .create-chk { margin-top: 3px; cursor: pointer; flex-shrink: 0; }
+.song-card-top .create-chk { position: absolute; top: 6px; right: 6px; z-index: 2; cursor: pointer; }
 .song-card-info { flex: 1; min-width: 0; }
 .song-card-title { font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .song-card-artist { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .song-card-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.song-card-act { display: flex; gap: 4px; flex-shrink: 0; }
+.song-card-act { display: flex; gap: 4px; flex-shrink: 0; opacity: 0; transition: opacity .15s; }
+.song-card:hover .song-card-act, .song-card:focus-within .song-card-act { opacity: 1; }
+/* 移动端无 hover，按钮始终显示（避免找不到入口） */
+@media (max-width: 768px) { .song-card .song-card-act { opacity: 1; } }
 .match-col .ok { color: var(--ok); font-size: 12px; }
 .match-col .muted { color: var(--text-muted); font-size: 12px; }
 .match-col .pending { color: var(--text-muted); font-size: 12px; }
 .preview-btn { padding: 3px 8px; background: var(--accent-soft); color: var(--accent); border: 1px solid #cfe0ff; border-radius: 5px; cursor: pointer; font-size: 12px; margin-right: 4px; }
 .preview-btn:hover { background: var(--accent); color: #fff; }
+
+/* ---------- 试听中波浪动效（卡片封面叠加） ---------- */
+.song-cover-wrap { position: relative; flex-shrink: 0; width: 40px; height: 40px; }
+.song-wave { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; gap: 2px; padding-bottom: 7px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.song-wave i { width: 3px; background: #fff; border-radius: 2px; height: 8px; box-shadow: 0 0 3px rgba(0,0,0,.3); animation: wave 1s ease-in-out infinite; }
+.song-wave i:nth-child(2) { animation-delay: .15s; }
+.song-wave i:nth-child(3) { animation-delay: .3s; }
+.song-wave i:nth-child(4) { animation-delay: .45s; }
+@keyframes wave { 0%, 100% { height: 6px; } 50% { height: 18px; } }
+.song-card.playing .song-wave { opacity: 1; }
+.song-card.playing .song-card-cover, .song-card.playing .song-card-icon { filter: brightness(.55); }
+.song-card.playing.paused .song-wave i { animation-play-state: paused; }
 .create-chk { cursor: pointer; }
 
 /* ---------- 平台标签（歌单页/设置子页通用）---------- */
@@ -297,16 +314,20 @@ td.act button:hover { background: var(--accent-hover); }
 .settings-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
 
 /* ---------- 歌单广场/卡片 ---------- */
-.pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
-.pl-card { padding: 0; background: var(--card); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: border-color .15s; overflow: hidden; }
-.pl-cover { width: 100%; aspect-ratio: 1 / 1; background: linear-gradient(135deg, #eef4ff, #e0e7ff); position: relative; }
+.pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(184px, 1fr)); column-gap: 20px; row-gap: 32px; }
+.pl-card { padding: 8px; background: transparent; border: none; border-radius: 10px; cursor: pointer; transition: background-color .15s; }
+.pl-card:hover { background: var(--accent-soft); }
+.pl-cover { position: relative; width: 100%; aspect-ratio: 1 / 1; border-radius: 10px; overflow: hidden; background: linear-gradient(135deg, #eef4ff, #e0e7ff); box-shadow: 0 8px 20px rgba(0,0,0,.12); }
 .pl-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.pl-cover-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 36px; color: var(--accent); opacity: .5; }
-.pl-card .pl-name { padding: 8px 10px 2px; }
-.pl-card .pl-meta { padding: 0 10px 10px; }
-.pl-card:hover { border-color: var(--accent); }
-.pl-name { font-size: 14px; color: var(--text); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pl-meta { font-size: 12px; color: #888; }
+.pl-cover-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 40px; color: var(--accent); opacity: .5; }
+.pl-cover-bar { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 56px 8px 12px; background: linear-gradient(to top, rgba(0,0,0,.82), rgba(0,0,0,.4) 65%, transparent); color: rgba(255,255,255,.9); font-size: 12px; line-height: 16px; }
+.pl-cover-bar span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-play-btn { position: absolute; right: 10px; bottom: 10px; width: 44px; height: 44px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; opacity: 0; transform: scale(.9); transition: opacity .2s, transform .15s; pointer-events: none; box-shadow: 0 6px 16px rgba(31,111,235,.4); }
+.pl-card:hover .pl-play-btn { opacity: 1; transform: scale(1); }
+.pl-name { margin-top: 10px; font-size: 14px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+.pl-card:hover .pl-name { color: var(--accent); }
+.pl-desc { margin-top: 4px; font-size: 12px; color: var(--text-muted); padding: 0 2px; line-height: 16px; min-height: 32px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pl-meta { margin-top: 4px; font-size: 12px; color: var(--text-muted); padding: 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status.ok { color: var(--ok); }
 .status.err { color: var(--err); }
 .warn { color: var(--warn); background: #fff4e0; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
