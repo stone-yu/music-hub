@@ -587,7 +587,7 @@ table.card th { color: #666; font-weight: 600; }
   flex-shrink: 0; padding: .35rem; border: 1px solid var(--border, #ddd); border-radius: 6px;
   background: var(--card-bg, #fff); color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
-.lib-song-card .lib-song-star.starred { color: var(--err, #e0245e); border-color: var(--err, #e0245e); }
+.lib-song-card .lib-song-star.starred { color: var(--err, #e0245e); }
 
 /* 歌单详情页：单曲用紧凑行式（覆盖大卡片，恢复小封面横排） */
 .lib-songs-compact { display: block; }
