@@ -69,10 +69,36 @@
   <main class="main">
     <div class="main-inner">
 
-    <!-- 首页（默认着陆，内容暂空） -->
+    <!-- 首页（仪表盘） -->
     <section id="view-home" class="view active">
       <div class="page-head"><h2 class="page-title">🏠 首页</h2></div>
-      <div class="empty">敬请期待</div>
+      <!-- 曲库状态卡 -->
+      <div id="home-stats" class="home-stats"></div>
+      <!-- 快捷入口 -->
+      <h3 class="home-section-title">快捷入口</h3>
+      <div id="home-shortcuts" class="home-shortcuts"></div>
+      <!-- 最近播放 + 我的收藏 -->
+      <div class="home-two-col">
+        <div class="home-col">
+          <h3 class="home-section-title">最近播放</h3>
+          <div id="home-recent" class="home-recent"></div>
+        </div>
+        <div class="home-col">
+          <h3 class="home-section-title">我的收藏</h3>
+          <div id="home-starred" class="home-starred"></div>
+        </div>
+      </div>
+      <!-- 热门推荐：热榜歌曲 + 本地电台 -->
+      <div class="home-two-col">
+        <div class="home-col">
+          <h3 class="home-section-title">🔥 热榜歌曲</h3>
+          <div id="home-ranks" class="home-ranks"></div>
+        </div>
+        <div class="home-col">
+          <h3 class="home-section-title">📻 本地电台</h3>
+          <div id="home-radios" class="home-radios"></div>
+        </div>
+      </div>
     </section>
 
     <!-- 热榜歌曲页 -->
