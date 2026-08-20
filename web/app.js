@@ -1999,7 +1999,7 @@ function renderLibraryStats(d) {
     count: p.songCount, desc: `${p.owner || ''}${p.public ? ' · 公开' : ''}`,
     playKind: 'nav', coverPh: '📁',
   })).join('')
-  // 概览页无详情视图，卡片整体不导航；仅 hover 播放按钮 → 整单播放
+  // 概览页歌单：卡片整体点击 → 切到曲库歌单页并打开详情；播放按钮 → 整单播放
   bindPlaylistCards('#lib-stats-pl-grid', async (card) => {
     const id = card.dataset.id, name = card.dataset.name
     const cover = card.querySelector('.pl-cover img')?.src || ''
@@ -2009,6 +2009,23 @@ function renderLibraryStats(d) {
       playLibPlaylist({ name, cover }, d2.songs)
     } catch (err) { toast(`播放失败：${err.message}`) }
   })
+  // 卡片整体点击 → 切到曲库歌单页 + 打开详情（播放按钮已 stopPropagation 不触发）
+  $$('#lib-stats-pl-grid .pl-card').forEach((card) => {
+    card.style.cursor = 'pointer'
+    card.addEventListener('click', () => goLibPlaylistDetail(card.dataset.id, card.dataset.name))
+  })
+}
+// 从曲库概览跳到曲库歌单页并打开某歌单详情
+function goLibPlaylistDetail(id, name) {
+  // 切到 lib-playlists 视图（同菜单点击逻辑）
+  $$('.menu-item').forEach((t) => t.classList.toggle('active', t.dataset.tab === 'lib-playlists'))
+  $$('.view').forEach((v) => v.classList.remove('active'))
+  $('#view-lib-playlists').classList.add('active')
+  // 确保歌单列表 home 显示、详情容器就位（loadLibPlaylists 会重置）
+  $('#lib-pl-home').hidden = false
+  $('#lib-pl-detail').hidden = true
+  loadLibPlaylists()
+  openLibPlaylistDetail(id, name)
 }
 $('#lib-stats-refresh').addEventListener('click', () => loadLibraryStats(true))
 
