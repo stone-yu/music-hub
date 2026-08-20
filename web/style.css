@@ -472,3 +472,47 @@ table.card th { color: #666; font-weight: 600; }
 .login-card button:disabled { background: #b6c6e0; cursor: not-allowed; }
 .login-err { color: var(--err); font-size: 13px; text-align: center; }
 .login-hint { color: var(--warn); background: #fff4e0; border: 1px solid #ffe0a3; padding: 8px 10px; border-radius: 8px; font-size: 12px; }
+
+/* ---------- 广播电台 ---------- */
+.radio-card {
+  background: var(--card-bg, #fff);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: box-shadow .15s, transform .15s;
+  border: 1px solid var(--border, #eee);
+}
+.radio-card:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.08); }
+.radio-card.playing { border-color: var(--primary, #6b7cf6); box-shadow: 0 0 0 2px var(--primary, #6b7cf6); }
+.radio-cover-wrap { width: 100%; aspect-ratio: 1/1; overflow: hidden; background: var(--bg-alt, #f5f5f5); }
+.radio-cover-wrap .song-card-cover { width: 100%; height: 100%; object-fit: cover; }
+.radio-cover-wrap .song-card-icon { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
+.radio-info { padding: .6rem .7rem; flex: 1; }
+.radio-name { font-weight: 600; font-size: .9rem; margin-bottom: .2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radio-artist { font-size: .75rem; color: var(--text-secondary, #888); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radio-play-btn { margin: 0 .7rem .7rem; padding: .4rem; border: none; border-radius: 6px; background: var(--primary, #6b7cf6); color: #fff; cursor: pointer; font-size: .8rem; }
+
+/* 高级筛选区 */
+.filter-advanced { padding: .6rem 0; }
+.filter-row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.filter-row select { padding: .35rem .5rem; border-radius: 6px; border: 1px solid var(--border, #ddd); background: var(--card-bg, #fff); color: inherit; }
+.filter-row button { padding: .35rem .8rem; border-radius: 6px; border: none; cursor: pointer; }
+#filter-apply { background: var(--primary, #6b7cf6); color: #fff; }
+#filter-reset { background: var(--bg-alt, #eee); color: inherit; }
+
+/* 本地电台列表行 */
+.radio-row {
+  display: flex; align-items: center; gap: .8rem;
+  padding: .7rem .9rem; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border, #eee); background: var(--card-bg, #fff);
+  margin-bottom: .5rem; transition: box-shadow .15s;
+}
+.radio-row:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.radio-row.playing { border-color: var(--primary, #6b7cf6); }
+.radio-row-info { flex: 1; min-width: 0; }
+.radio-stream { font-size: .72rem; color: var(--text-secondary, #999); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 直播流：进度条置灰 */
+.gp-progress.disabled { opacity: .35; pointer-events: none; }
