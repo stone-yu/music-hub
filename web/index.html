@@ -28,6 +28,14 @@
         <a href="#" class="menu-item" data-tab="lib-playlists"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h13M3 18h13M21 6v12"/></svg><span class="menu-text">曲库歌单</span></a>
       </div>
     </div>
+
+    <div class="menu-group" data-group="radio">
+      <div class="menu-group-head"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 3.1A10 10 0 0 1 4.9 21"/><path d="M7.8 6.3a6 6 0 0 0 0 11.4"/><circle cx="12" cy="12" r="2"/><path d="M12 11V3"/><path d="M16.2 6.3a6 6 0 0 1 0 11.4"/><path d="M19.1 3.1A10 10 0 0 0 19.1 21"/></svg><span class="menu-text">广播电台</span><svg class="menu-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="menu-group-body">
+        <a href="#" class="menu-item" data-tab="net-radio"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg><span class="menu-text">网络电台</span></a>
+        <a href="#" class="menu-item" data-tab="local-radio"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14a9 9 0 0 1 18 0"/><path d="M3 14v5a2 2 0 0 0 2 2h2v-7H3z"/><path d="M21 14v5a2 2 0 0 1-2 2h-2v-7h4z"/></svg><span class="menu-text">本地电台</span></a>
+      </div>
+    </div>
   </aside>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
@@ -198,6 +206,60 @@
       <div id="sources"></div>
     </section>
 
+    <!-- 网络电台页 (radio5.cn) -->
+    <section id="view-net-radio" class="view">
+      <div id="net-radio-home">
+        <div class="page-head">
+          <h2 class="page-title">📻 网络电台</h2>
+          <button id="net-radio-refresh">刷新</button>
+          <div class="head-search">
+            <input type="text" id="net-radio-keyword" placeholder="搜电台名（全站搜索）" class="name-in" />
+            <button id="net-radio-search-btn">搜电台</button>
+          </div>
+        </div>
+        <div class="pl-tabs" id="net-radio-quick-tabs">
+          <span class="ptab active" data-path="fm/cmg">央媒</span>
+          <span class="ptab" data-path="fm/province">省台</span>
+          <span class="ptab" data-path="fm/hk">港澳台</span>
+          <span class="ptab" data-path="fm/city">城市台</span>
+          <span class="ptab" data-path="fm/市县台">市县台</span>
+          <span class="ptab" data-advanced="1">⚙ 高级筛选</span>
+        </div>
+        <div id="net-radio-filter" class="filter-advanced" hidden>
+          <div class="filter-row">
+            <select id="filter-level"><option value="">级别(全部)</option></select>
+            <select id="filter-area"><option value="">地区(全部)</option></select>
+            <select id="filter-type"><option value="">类型(全部)</option></select>
+            <select id="filter-language"><option value="">语言(全部)</option></select>
+            <button id="filter-apply">应用筛选</button>
+            <button id="filter-reset">重置</button>
+          </div>
+        </div>
+        <div id="net-radio-status" class="status"></div>
+        <div id="net-radio-grid" class="pl-grid"></div>
+      </div>
+      <!-- 搜索结果页 -->
+      <div id="net-radio-search-page" hidden>
+        <div class="page-head">
+          <button id="net-radio-back" class="back-btn">← 返回分类</button>
+          <h2 class="page-title">电台搜索结果</h2>
+        </div>
+        <div id="net-radio-search-status" class="status"></div>
+        <div id="net-radio-search-grid" class="pl-grid"></div>
+      </div>
+    </section>
+
+    <!-- 本地电台页 (Navidrome) -->
+    <section id="view-local-radio" class="view">
+      <div class="page-head">
+        <h2 class="page-title">📻 本地电台</h2>
+        <button id="local-radio-refresh">刷新</button>
+      </div>
+      <div class="toolbar"><span id="local-radio-summary"></span></div>
+      <div id="local-radio-status" class="status"></div>
+      <div id="local-radio-list"></div>
+    </section>
+
     <!-- 设置页（步骤8改造为子tab，先保留原结构） -->
     <section id="view-settings" class="view">
       <div class="settings-tabs" id="settings-tabs">
@@ -313,6 +375,7 @@
 
   <div id="toast" class="toast" hidden></div>
 
+  <script src="/vendor/hls.min.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
