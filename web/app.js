@@ -1971,7 +1971,7 @@ async function loadLibSongs(force = false) {
   list.innerHTML = ''
   try {
     // 并行取当前页歌曲 + 收藏 id 集合（starred 全量，每页比对收藏状态）
-    const qs = new URLSearchParams({ page: String(libSongsPage), pageSize: '50' })
+    const qs = new URLSearchParams({ page: String(libSongsPage), pageSize: '8' })
     if (libSongsKeyword) qs.set('keyword', libSongsKeyword)
     const [d, sd] = await Promise.all([
       fetchJSON(`/api/v1/navidrome/songs?${qs.toString()}`),

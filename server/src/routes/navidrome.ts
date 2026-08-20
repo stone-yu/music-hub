@@ -92,7 +92,7 @@ export async function navidromeRoutes(app: FastifyInstance): Promise<void> {
   //   分页 + keyword 过滤（title/artist/album 包含，大小写不敏感），避免大库一次性传输+渲染卡顿
   app.get<{ Querystring: { page?: string; pageSize?: string; keyword?: string } }>('/api/v1/navidrome/songs', async (req) => {
     const page = Math.max(1, parseInt(req.query.page ?? '1', 10) || 1)
-    const pageSize = Math.max(1, Math.min(500, parseInt(req.query.pageSize ?? '50', 10) || 50))
+    const pageSize = Math.max(1, Math.min(500, parseInt(req.query.pageSize ?? '8', 10) || 8))
     const kw = (req.query.keyword ?? '').trim().toLowerCase()
     const all = library.getSongs()
     // keyword 过滤
