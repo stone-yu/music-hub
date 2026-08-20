@@ -178,6 +178,19 @@ class NavidromeClient {
     return new Set(songs.map((s: any) => String(s.id)))
   }
 
+  /** 获取网络电台列表（广播电台功能用，Subsonic getInternetRadioStations） */
+  async getInternetRadioStations(): Promise<{ id: string; name: string; streamUrl: string; homepageUrl?: string }[]> {
+    const r = await this.get('getInternetRadioStations')
+    if (!r) return []
+    const stations = r.internetRadioStations?.internetRadioStation ?? []
+    return stations.map((s: any) => ({
+      id: String(s.id ?? ''),
+      name: String(s.name ?? ''),
+      streamUrl: String(s.streamUrl ?? ''),
+      homepageUrl: s.homepageUrl ? String(s.homepageUrl) : undefined,
+    })).filter((s: any) => s.streamUrl)
+  }
+
   /** 收藏歌曲 */
   async starSong(songId: string): Promise<boolean> {
     const r = await this.get('star', { id: songId })
