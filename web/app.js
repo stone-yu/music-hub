@@ -2467,7 +2467,6 @@ async function loadHome() {
             <h2 class="home-list-title">${escapeHtml(l.title)}</h2>
             <p class="home-list-desc">${escapeHtml(l.desc)}</p>
           </div>
-          <div class="home-list-act"><span class="home-list-tag">精选推荐</span></div>
         </div>
         <div class="pl-grid home-list-grid" id="home-list-${l.key}"></div>
       </div>`
