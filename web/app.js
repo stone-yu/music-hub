@@ -1868,28 +1868,46 @@ async function loadLocalRadio() {
 
 function renderLocalRadioList(listEl, stations) {
   if (!stations.length) { listEl.innerHTML = '<div class="empty">未配置电台。请到 Navidrome 后台 > Settings > Radio 添加。</div>'; return }
+  listEl.className = 'pl-grid'
   listEl.innerHTML = stations.map((s) => {
-    // 有 coverArt 走封面代理，无则占位图（Navidrome 电台常无封面）
+    // 有 coverArt 走封面代理，无则占位图 📻
     const cover = s.coverArt
-      ? `<img class="radio-cover-img" src="/api/v1/navidrome/cover/${encodeURIComponent(s.coverArt)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="radio-cover-ph" style="display:none">📻</div>`
-      : `<div class="radio-cover-ph">📻</div>`
+      ? `<img class="song-card-cover" src="/api/v1/navidrome/cover/${encodeURIComponent(s.coverArt)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="song-card-icon" style="display:none">📻</span>`
+      : `<span class="song-card-icon">📻</span>`
+    // 首页URL可点击（有则显示，stopPropagation 避免触发卡片播放）
+    const home = s.homepageUrl
+      ? `<a class="radio-home-url" href="${escapeHtml(s.homepageUrl)}" target="_blank" rel="noopener" title="电台首页">${escapeHtml(s.homepageUrl)}</a>`
+      : '<span class="radio-home-url none">无首页</span>'
     return `
-    <div class="radio-row" data-url="${escapeHtml(s.streamUrl)}" data-name="${escapeHtml(s.name)}">
-      <div class="radio-cover-wrap-sm">${cover}</div>
-      <div class="radio-row-info">
+    <div class="radio-card local-radio-card" data-url="${escapeHtml(s.streamUrl)}" data-name="${escapeHtml(s.name)}">
+      <div class="radio-cover-wrap">${cover}</div>
+      <div class="radio-info">
         <div class="radio-name">${escapeHtml(s.name)}</div>
-        <div class="radio-stream">${escapeHtml(s.streamUrl)}</div>
+        <div class="radio-stream" title="${escapeHtml(s.streamUrl)}">推流：${escapeHtml(s.streamUrl)}</div>
+        ${home}
       </div>
-      <button class="radio-play-btn">▶ 播放</button>
+      <div class="radio-card-act">
+        <button class="radio-play-btn">▶ 播放</button>
+      </div>
     </div>` }).join('')
-  listEl.querySelectorAll('.radio-row').forEach((row) => {
-    row.addEventListener('click', () => playLocalRadio(row.dataset.url, row.dataset.name, row))
+  listEl.querySelectorAll('.local-radio-card').forEach((card) => {
+    // 点卡片区域（非按钮/链接）播放
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('button, a')) return
+      playLocalRadio(card.dataset.url, card.dataset.name, card)
+    })
+    card.querySelector('.radio-play-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation()
+      playLocalRadio(card.dataset.url, card.dataset.name, card)
+    })
+    // 首页链接点击不触发播放
+    card.querySelector('.radio-home-url')?.addEventListener('click', (e) => e.stopPropagation())
   })
 }
 
-function playLocalRadio(url, name, rowEl) {
-  document.querySelectorAll('.radio-row.playing').forEach((r) => r.classList.remove('playing'))
-  if (rowEl) rowEl.classList.add('playing')
+function playLocalRadio(url, name, cardEl) {
+  document.querySelectorAll('.local-radio-card.playing').forEach((r) => r.classList.remove('playing'))
+  if (cardEl) cardEl.classList.add('playing')
   // mp3 直链，原生 audio 播放，radio 类型非 HLS 分支
   startQueue([{
     kind: 'radio',

@@ -553,3 +553,17 @@ table.card th { color: #666; font-weight: 600; }
 .radio-add-btn:hover:not(:disabled) { background: var(--bg-alt, #f0f0f0); }
 .radio-add-btn:disabled { opacity: .6; cursor: default; }
 .radio-add-btn.added { color: var(--primary, #6b7cf6); border-color: var(--primary, #6b7cf6); }
+
+/* 本地电台大方格：推流URL/首页URL（可点击） */
+.local-radio-card .radio-stream {
+  font-size: .72rem; color: var(--text-secondary, #999);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  margin-bottom: .2rem;
+}
+.radio-home-url {
+  display: block; font-size: .72rem; color: var(--primary, #6b7cf6);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-decoration: none; cursor: pointer;
+}
+.radio-home-url:hover { text-decoration: underline; }
+.radio-home-url.none { color: var(--text-secondary, #bbb); cursor: default; pointer-events: none; }
