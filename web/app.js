@@ -2464,34 +2464,19 @@ async function loadHome() {
       const songs = d[l.key] || []
       return `<div class="home-list">
         <h3 class="home-section-title">${l.title}<span class="home-list-desc">${l.desc}</span></h3>
-        ${songs.length ? renderHomeSongs(songs) : '<div class="empty">暂无</div>'}
+        <div class="pl-grid home-list-grid" id="home-list-${l.key}"></div>
       </div>`
     }).join('')
-    // 绑定播放
-    el.querySelectorAll('.home-song-row').forEach((row) => {
-      row.addEventListener('click', () => {
-        const id = row.dataset.id
-        const title = row.dataset.title
-        const artist = row.dataset.artist
-        const cover = row.dataset.cover
-        playLibSong({ id, title, artist, coverArt: '' })
-      })
+    // 每个榜单用曲库歌曲大卡片样式渲染 + 绑定播放
+    HOME_LISTS.forEach((l) => {
+      const grid = $(`#home-list-${l.key}`)
+      const songs = d[l.key] || []
+      if (!grid) return
+      if (!songs.length) { grid.outerHTML = '<div class="empty">暂无</div>'; return }
+      grid.innerHTML = songs.map(libSongRowHtml).join('')
+      bindLibSongPlay(grid, songs)
     })
   } catch (err) {
     el.innerHTML = `<div class="empty">加载失败：${escapeHtml(err.message)}</div>`
   }
-}
-
-function renderHomeSongs(songs) {
-  return songs.map((s, i) => {
-    const cover = s.coverArt ? `/api/v1/navidrome/cover/${encodeURIComponent(s.coverArt)}` : ''
-    const plays = (typeof s.playCount === 'number' && s.playCount > 0) ? `<span class="home-song-plays">▶ ${s.playCount}</span>` : ''
-    return `<div class="home-song-row" data-id="${escapeHtml(s.id)}" data-title="${escapeHtml(s.title)}" data-artist="${escapeHtml(s.artist)}" data-cover="${escapeHtml(cover)}">
-      <span class="home-rank-num">${i + 1}</span>
-      ${coverHtml(cover)}
-      <div class="home-song-info"><div class="home-song-title">${escapeHtml(s.title)}</div><div class="home-song-artist">${escapeHtml(s.artist)}</div></div>
-      ${plays}
-      <button class="home-song-play">▶</button>
-    </div>`
-  }).join('')
 }

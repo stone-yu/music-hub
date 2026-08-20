@@ -606,24 +606,8 @@ table.card th { color: #666; font-weight: 600; }
 .lib-songs-compact .lib-song-card .lib-song-act { padding: 0; gap: 6px; }
 .lib-songs-compact .lib-song-card .lib-song-act .lib-song-play { flex: 0 0 auto; }
 
-/* ---------- 首页推荐榜单 ---------- */
-.home-recommend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-@media (max-width: 900px) { .home-recommend { grid-template-columns: 1fr; } }
-.home-list { min-width: 0; }
-.home-section-title { font-size: 15px; font-weight: 600; margin: 0 0 10px; color: var(--text, #333); display: flex; align-items: baseline; gap: 8px; }
-.home-list-desc { font-size: 11px; font-weight: 400; color: var(--text-muted, var(--text-secondary, #999)); }
-
-.home-song-row {
-  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px;
-  border: 1px solid var(--border, #eee); background: var(--bg-soft, var(--card-bg, #fff));
-  margin-bottom: 6px; cursor: pointer; transition: box-shadow .12s, border-color .12s; min-width: 0;
-}
-.home-song-row:hover { box-shadow: 0 2px 6px rgba(0,0,0,.06); border-color: var(--accent, var(--primary, #6b7cf6)); }
-.home-song-row .song-card-cover { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
-.home-song-row .song-card-icon { width: 40px; height: 40px; border-radius: 6px; font-size: 18px; flex-shrink: 0; }
-.home-rank-num { width: 20px; text-align: center; font-weight: 600; color: var(--accent, var(--primary, #6b7cf6)); flex-shrink: 0; font-size: 14px; }
-.home-song-info { flex: 1; min-width: 0; }
-.home-song-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.home-song-artist { font-size: 11px; color: var(--text-muted, var(--text-secondary, #888)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
-.home-song-plays { font-size: 11px; color: var(--text-muted, var(--text-secondary, #999)); flex-shrink: 0; }
-.home-song-play { flex-shrink: 0; padding: 4px 10px; border: none; border-radius: 6px; background: var(--accent, var(--primary, #6b7cf6)); color: #fff; cursor: pointer; font-size: 12px; }
+/* ---------- 首页推荐榜单（纵向排列，复用曲库歌曲大卡片） ---------- */
+.home-recommend { display: block; }
+.home-list { margin-bottom: 24px; }
+.home-section-title { font-size: 16px; font-weight: 600; margin: 0 0 12px; color: var(--text, #333); display: flex; align-items: baseline; gap: 8px; }
+.home-list-desc { font-size: 12px; font-weight: 400; color: var(--text-muted, var(--text-secondary, #999)); }
