@@ -9,7 +9,7 @@ const state = {
   selectedForCreate: new Set(), // 创建歌单选中项（已匹配歌曲的 rowKey）
   matchMap: new Map(), // rowKey → 匹配结果（matched/libId/isFuzzy）
   createMap: new Map(), // rowKey → {libId,title,artist} 已匹配歌曲信息（创建球用）
-  createCtx: { name: '', cover: '' }, // 创建歌单默认名/图（歌单详情页带过来，单曲搜索页为空）
+  createCtx: { name: '', cover: '', desc: '' }, // 创建歌单默认名/图/描述（网络歌单详情带过来，单曲搜索页为空）
   quality: 'flac',
 }
 
@@ -98,6 +98,20 @@ function initSidebar() {
   })
 }
 
+// ---------- 菜单分组折叠 ----------
+function initMenuGroups() {
+  $$('.menu-group').forEach((g) => {
+    const key = `menu-group:${g.dataset.group}`
+    const head = g.querySelector('.menu-group-head')
+    // 恢复折叠状态（默认展开）
+    if (localStorage.getItem(key) === '1') g.classList.add('collapsed')
+    head.addEventListener('click', () => {
+      g.classList.toggle('collapsed')
+      localStorage.setItem(key, g.classList.contains('collapsed') ? '1' : '0')
+    })
+  })
+}
+
 // ---------- 主题切换（亮色/暗色）----------
 function initTheme() {
   const saved = localStorage.getItem('theme') || 'light'
@@ -111,7 +125,11 @@ function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light')
   localStorage.setItem('theme', t)
   const btn = $('#theme-toggle')
-  if (btn) btn.textContent = t === 'dark' ? '☀️' : '🌙'
+  if (!btn) return
+  // 暗色显示太阳(点切回亮)，亮色显示月亮(点切到暗)
+  const sun = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>'
+  const moon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
+  btn.innerHTML = t === 'dark' ? sun : moon
 }
 
 // ---------- 顶部条：曲库状态 + 个人中心 ----------
@@ -164,6 +182,8 @@ $$('.menu-item').forEach((tab) => {
     if (name === 'sources') loadSources()
     if (name === 'playlists') loadPlaylists()
     if (name === 'library') loadLibraryStats()
+    if (name === 'lib-songs') loadLibSongs()
+    if (name === 'lib-playlists') loadLibPlaylists()
     if (name === 'settings') switchSettingsSub('general')
     if (name === 'search') loadSearchSquare()
   })
@@ -171,7 +191,7 @@ $$('.menu-item').forEach((tab) => {
 
 // 搜索页热榜推荐（未搜索时显示，直接展示榜单歌曲）
 // 缓存持久化到 localStorage（10分钟过期），避免每次登录重载慢
-const RANK_CACHE_TTL = 10 * 60 * 1000
+const RANK_CACHE_TTL = 30 * 60 * 1000
 function getRankCache(key) {
   try {
     const raw = localStorage.getItem('rank:' + key)
@@ -222,7 +242,7 @@ async function loadRankSongs(source, id, name) {
   state.selectedForCreate.clear()
   state.matchMap = new Map()
   state.createMap = new Map()
-  state.createCtx = { name: name + ' - 热榜', cover: '' }
+  state.createCtx = { name: name + ' - 热榜', cover: '', desc: '' }
   updateGlobalCreateBtn()
   try {
     let list = getRankCache(cacheKey)
@@ -258,7 +278,7 @@ $('#search-form').addEventListener('submit', async (e) => {
   state.selectedForCreate.clear()
   state.matchMap = new Map()
   state.createMap = new Map()
-  state.createCtx = { name: '', cover: '' }
+  state.createCtx = { name: '', cover: '', desc: '' }
   updateGlobalCreateBtn()
 
   try {
@@ -539,22 +559,125 @@ async function loadPlaylists() {
     $('#pl-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
   }
 }
+// 统一歌单卡片 HTML（热榜歌单 / 曲库歌单 / 曲库概览 三处复用，避免样式漂移）
+// p 归一化字段：name, cover(封面URL|空), count(歌曲数), desc(描述), playKind('net'|'nav'), dataSrc(网络歌单平台，可选)
+function playlistCardHtml(p) {
+  const cover = p.cover
+    ? `<img src="${escapeHtml(p.cover)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+    : ''
+  const placeholder = `<div class="pl-cover-ph" style="${p.cover ? 'display:none' : 'display:flex'}">${p.coverPh || '🎶'}</div>`
+  const srcAttr = p.dataSrc ? ` data-src="${escapeHtml(p.dataSrc)}"` : ''
+  return `<div class="pl-card" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" data-play="${p.playKind}"${srcAttr}>
+    <div class="pl-cover">${cover}${placeholder}
+      <div class="pl-cover-bar">
+        <span class="pl-bar-count">${p.count || 0} 首歌曲</span>
+        <span class="pl-bar-dur">${fmtPlayDuration(p.count || 0)}</span>
+      </div>
+      <div class="pl-play-btn" aria-hidden="true">▶</div>
+    </div>
+    <div class="pl-name">${escapeHtml(p.name)}</div>
+    <div class="pl-desc">${escapeHtml(p.desc || '')}</div>
+  </div>`
+}
+// 绑定卡片：hover 播放按钮 → 整单播放（stopPropagation 不触发卡片进详情）
+function bindPlaylistCards(scope, onPlay) {
+  $$(`${scope} .pl-play-btn`).forEach((btn) => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); onPlay(btn.closest('.pl-card')) })
+  })
+}
+// 统一歌单详情页顶部 header：封面 + 名称 + 描述 + 右侧[▶播放][循环模式]
+// info: { cover, name, desc, count, onPlay(整单播放回调) }
+function playlistDetailHeaderHtml(info) {
+  const cover = info.cover
+    ? `<img src="${escapeHtml(info.cover)}" class="pl-detail-cover" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="pl-detail-cover-ph" style="display:none">🎶</div>`
+    : `<div class="pl-detail-cover-ph">🎶</div>`
+  const editBtn = info.editable ? `<button class="pl-edit-btn" title="编辑歌单">✏️</button>` : ''
+  const deleteBtn = info.editable ? `<button class="pl-delete-btn" title="删除歌单">🗑</button>` : ''
+  const descLine = info.desc ? `<div class="pl-detail-desc">${escapeHtml(info.desc)}</div>` : ''
+  const metaLine = info.meta ? `<div class="pl-detail-meta-info">${escapeHtml(info.meta)}</div>` : ''
+  return `<div class="pl-detail-head">
+    ${cover}
+    <div class="pl-detail-meta">
+      <h2 class="pl-detail-name">${escapeHtml(info.name)}</h2>
+      ${descLine}
+      <div class="pl-detail-bottom">
+        ${metaLine}
+        <div class="pl-detail-act">
+          <button class="pl-detail-play">▶ 播放</button>
+          <button class="pl-loop-btn" title="顺序播放">▶▶</button>
+        ${editBtn}
+        ${deleteBtn}
+        </div>
+      </div>
+    </div>
+  </div>`
+}
+// 绑定详情 header 的播放 + 循环按钮（+ 可选编辑/删除）
+function bindDetailHeader(scope, onPlay, onEdit, onDelete) {
+  const playBtn = $(`${scope} .pl-detail-play`)
+  if (playBtn) playBtn.addEventListener('click', onPlay)
+  const loopBtn = $(`${scope} .pl-loop-btn`)
+  if (loopBtn) {
+    updateLoopBtn() // 同步所有循环按钮图标
+    loopBtn.addEventListener('click', cycleLoopMode)
+  }
+  if (onEdit) {
+    const editBtn = $(`${scope} .pl-edit-btn`)
+    if (editBtn) editBtn.addEventListener('click', onEdit)
+  }
+  if (onDelete) {
+    const delBtn = $(`${scope} .pl-delete-btn`)
+    if (delBtn) delBtn.addEventListener('click', onDelete)
+  }
+}
+// header 原地编辑：名称/描述 → 输入框，保存调 onSave(name,desc) 返回 Promise
+function enterDetailEdit(scope, name, desc, onSave) {
+  const meta = $(`${scope} .pl-detail-meta`)
+  if (!meta) return
+  meta.innerHTML = `
+    <div class="pl-detail-edit-form">
+      <input type="text" id="pl-edit-name" value="${escapeHtml(name)}" placeholder="歌单名称">
+      <textarea id="pl-edit-desc" placeholder="歌单描述（可选）">${escapeHtml(desc || '')}</textarea>
+      <div class="pl-detail-edit-btns">
+        <button class="pl-detail-save">保存</button>
+        <button class="pl-detail-cancel">取消</button>
+      </div>
+    </div>`
+  const nameInp = $('#pl-edit-name'), descInp = $('#pl-edit-desc')
+  $(`${scope} .pl-detail-save`).addEventListener('click', async () => {
+    const n = nameInp.value.trim(), d = descInp.value.trim()
+    if (!n) return toast('歌单名称不能为空')
+    try { await onSave(n, d) } catch (e) { toast(`保存失败：${e.message}`) }
+  })
+  $(`${scope} .pl-detail-cancel`).addEventListener('click', () => {
+    // 取消：重新拉取详情刷新（恢复原值）
+    const el = $(scope)
+    if (el?.dataset.playlistId) openLibPlaylistDetail(el.dataset.playlistId, name)
+  })
+}
 function renderPlaylistGrid(groups) {
   const parts = groups.map((g) => {
-    const cards = (g.items || []).map((p) => {
-      const cover = p.img ? `<img src="${escapeHtml(p.img)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''
-      const placeholder = `<div class="pl-cover-ph" style="${p.img ? 'display:none' : 'display:flex'}">🎶</div>`
-      return `<div class="pl-card" data-id="${escapeHtml(p.id)}" data-src="${escapeHtml(p.source)}" data-name="${escapeHtml(p.name)}">
-        <div class="pl-cover">${cover}${placeholder}<div class="pl-cover-bar"><span>${p.total || 0} 首</span></div><div class="pl-play-btn" aria-hidden="true">▶</div></div>
-        <div class="pl-name">${escapeHtml(p.name)}</div>
-        <div class="pl-desc">${escapeHtml(p.desc || '')}</div>
-      </div>`
-    }).join('')
+    const cards = (g.items || []).map((p) => playlistCardHtml({
+      id: p.id, name: p.name, cover: p.img, count: p.total, desc: p.desc,
+      playKind: 'net', coverPh: '🎶', dataSrc: p.source,
+    })).join('')
     return `<h3 class="platform-group" style="border-left:3px solid var(--accent);padding-left:6px;font-size:14px;color:#555;margin:12px 0 8px">${escapeHtml(g.keyword)}</h3><div class="pl-grid">${cards}</div>`
   })
   $('#pl-status').innerHTML = ''
   $('#pl-grid').innerHTML = parts.join('') || '<div class="empty">无结果</div>'
+  // 卡片整体点击 → 进详情
   $$('#pl-grid .pl-card').forEach((card) => card.addEventListener('click', () => openPlaylistDetail(card.dataset.src, card.dataset.id, card.dataset.name)))
+  // hover 播放按钮 → 整单播放（网络歌单需先取 square/detail 的歌曲列表）
+  bindPlaylistCards('#pl-grid', async (card) => {
+    const src = card.dataset.src, id = card.dataset.id, name = card.dataset.name
+    const cover = card.querySelector('.pl-cover img')?.src || ''
+    toast(`加载《${name}》歌曲列表…`)
+    try {
+      const d = await fetchJSON(`/api/v1/square/detail?platform=${encodeURIComponent(src)}&id=${encodeURIComponent(id)}`)
+      const list = d.detail?.list || []
+      playNetPlaylist({ name, cover }, list)
+    } catch (err) { toast(`播放失败：${err.message}`) }
+  })
 }
 $$('#pl-platform-tabs .ptab').forEach((t) => t.addEventListener('click', () => {
   $$('#pl-platform-tabs .ptab').forEach((x) => x.classList.toggle('active', x === t))
@@ -592,8 +715,9 @@ async function openPlaylistDetail(platform, id, name) {
   try {
     const d = await fetchJSON(`/api/v1/square/detail?platform=${encodeURIComponent(platform)}&id=${encodeURIComponent(id)}`)
     const list = d.detail?.list || []
-    // 设置创建歌单默认名/图（从歌单详情带过来）
-    state.createCtx = { name: d.detail?.info?.name || name, cover: d.detail?.info?.img || '' }
+    const info = d.detail?.info || {}
+    // 设置创建歌单默认名/图/描述（从歌单详情带过来）
+    state.createCtx = { name: info.name || name, cover: info.img || '', desc: info.desc || '' }
     state.results = list.map((s) => ({ ...s, platform }))
     // 匹配分组
     const songs = list.map((s) => ({ title: s.name, artist: s.singer, source: platform }))
@@ -613,19 +737,28 @@ async function openPlaylistDetail(platform, id, name) {
         unmatched.push(it)
       }
     })
-    renderPlaylistDetail(name, platform, matched, unmatched)
+    renderPlaylistDetail({ name: info.name || name, cover: info.img, desc: info.desc, platform, matched, unmatched, all: list.map((s) => ({ ...s, platform })) })
   } catch (err) {
     $('#pl-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
   }
 }
-function renderPlaylistDetail(name, platform, matched, unmatched) {
+function renderPlaylistDetail(info) {
+  const { name, cover, desc, platform, matched, unmatched, all } = info
   const el = $('#pl-detail')
-  const matchedCards = matched.map((it) => {
+  // 合并成一栏：按 all 原始顺序，每张卡片标识是否已在曲库
+  const cards = (all || [...matched, ...unmatched]).map((it) => {
     const key = rowKey(it)
     const m = state.matchMap.get(key)
+    const isMatched = !!m?.matched
+    const matchBadge = isMatched
+      ? `<span class="ok">✓已在曲库${m.isFuzzy ? ' (模糊)' : ''}</span>`
+      : `<span class="muted">未收录</span>`
+    const dlBtn = isMatched
+      ? `<button class="dl-one disabled" data-key="${key}" disabled title="已在曲库">⬇下载</button>`
+      : `<button class="dl-one" data-key="${key}">⬇下载</button>`
     return `<div class="song-card" data-key="${key}">
       <div class="song-card-top">
-        <input type="checkbox" class="create-chk" data-key="${key}" data-matched="1" title="勾选创建歌单">
+        <input type="checkbox" class="create-chk" data-key="${key}" data-matched="${isMatched ? 1 : 0}" ${isMatched ? '' : 'style="visibility:hidden"'} title="勾选创建歌单">
         <div class="song-cover-wrap">
           ${coverHtml(it.img)}
           <div class="song-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
@@ -636,43 +769,34 @@ function renderPlaylistDetail(name, platform, matched, unmatched) {
         </div>
       </div>
       <div class="song-card-bottom">
-        <span class="match-col"><span class="ok">✓已在曲库${m?.isFuzzy ? ' (模糊)' : ''}</span></span>
+        <span class="match-col">${matchBadge}</span>
         <div class="song-card-act">
           <button class="preview-btn" data-key="${key}">▶播放</button>
-          <button class="dl-one disabled" data-key="${key}" disabled title="已在曲库">⬇下载</button>
-        </div>
-      </div>
-    </div>`
-  }).join('')
-  const unmatchedCards = unmatched.map((it) => {
-    const key = rowKey(it)
-    return `<div class="song-card" data-key="${key}">
-      <div class="song-card-top">
-        <input type="checkbox" class="create-chk" data-key="${key}" data-matched="0" style="visibility:hidden">
-        <div class="song-cover-wrap">
-          ${coverHtml(it.img)}
-          <div class="song-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-        </div>
-        <div class="song-card-info">
-          <div class="song-card-title">${escapeHtml(it.name)}</div>
-          <div class="song-card-artist">${escapeHtml(it.singer)}${it.albumName ? ' · ' + escapeHtml(it.albumName) : ''}</div>
-        </div>
-      </div>
-      <div class="song-card-bottom">
-        <span class="match-col"><span class="muted">未收录</span></span>
-        <div class="song-card-act">
-          <button class="preview-btn" data-key="${key}">▶播放</button>
-          <button class="dl-one" data-key="${key}">⬇下载</button>
+          ${dlBtn}
         </div>
       </div>
     </div>`
   }).join('')
   el.innerHTML = `
-    <button id="pl-back" class="linkbtn" style="margin:4px 0 10px;padding:6px 12px;background:var(--hover);border:1px solid var(--border);border-radius:6px;cursor:pointer">← 返回歌单列表</button>
-    <h3 style="margin:0 0 10px">${escapeHtml(name)} · 共 ${matched.length + unmatched.length} 首（已匹配 ${matched.length} · 未匹配 ${unmatched.length}）</h3>
-    ${matched.length ? `<h4 style="color:var(--ok);margin:12px 0 6px">✓ 已在曲库（${matched.length}）</h4><div class="song-grid">${matchedCards}</div>` : ''}
-    ${unmatched.length ? `<h4 style="color:var(--text-muted);margin:16px 0 6px">未匹配 ${unmatched.length} 首（可试听/下载补库）</h4><div class="song-grid">${unmatchedCards}</div>` : ''}`
+    <button id="pl-back" class="back-btn" style="margin-bottom:10px">← 返回歌单列表</button>
+    ${playlistDetailHeaderHtml({ cover, name, desc: desc || '', meta: `共 ${matched.length + unmatched.length} 首歌曲 · 已匹配 ${matched.length}` })}
+    <div class="toolbar" style="margin:10px 0">
+      <button id="pl-select-all-matched" ${matched.length ? '' : 'disabled'}>勾选所有已在曲库</button>
+      <span class="muted" style="font-size:12px">共 ${matched.length + unmatched.length} 首 · 已匹配 ${matched.length}</span>
+    </div>
+    <div class="song-grid">${cards}</div>`
   $('#pl-back').addEventListener('click', () => { $('#pl-detail').hidden = true; $('#pl-home').hidden = false })
+  // 批量勾选所有已在曲库的歌曲
+  $('#pl-select-all-matched')?.addEventListener('click', () => {
+    $$('#pl-detail .create-chk[data-matched="1"]').forEach((cb) => {
+      cb.checked = true
+      cb.closest('.song-card')?.classList.add('song-card-selected')
+      state.selectedForCreate.add(cb.dataset.key)
+    })
+    updateGlobalCreateBtn()
+    toast(`已勾选 ${matched.length} 首已在曲库歌曲`)
+  })
+  bindDetailHeader('#pl-detail', () => playNetPlaylist({ name, cover }, all || [...matched, ...unmatched]))
   bindSongCardEvents(el)
 }
 
@@ -786,74 +910,302 @@ document.addEventListener('click', (e) => {
   }
 })
 
-// ---------- 全局播放器 + 试听 ----------
+// ---------- 全局播放器 + 播放队列 ----------
+// playQueue 统一两种来源：nav=Navidrome 库内歌曲（/stream/:id 直播），net=网络音源（/preview 取链）
+// 单首播放 = 长度为 1 的队列。整单播放 = 塞入全部歌曲后从第一首开始，ended 自动切下一首。
+let playQueue = []
+let playIndex = -1
 let currentPreview = null
+// 当前播放歌单元信息（队列面板顶部展示：封面+名称）
+let currentPlaylist = { cover: '', name: '' }
+// 播放/暂停 SVG 图标（主播放键切换）
+const PLAY_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'
+const PAUSE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>'
+function setPlayIcon(playing) {
+  const icon = playing ? PAUSE_ICON : PLAY_ICON
+  $('#gp-play').innerHTML = icon
+  // 同步队列面板大封面的播放按钮
+  const qBtn = document.querySelector('.queue-now-play')
+  if (qBtn) qBtn.innerHTML = icon
+}
+// 循环模式：order=顺序(播完停止) / single=单曲循环(重播当前) / random=随机播放(随机选一首)。仅当前队列作用域。
+let loopMode = 'order'
+// 线性 SVG 图标（顺序/单曲/随机），非顺序态在按钮上显示激活色
+const LOOP_SVG = {
+  order: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
+  single: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/><text x="12" y="15" font-size="9" fill="currentColor" stroke="none" text-anchor="middle" font-weight="600">1</text></svg>',
+  random: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>',
+}
+const LOOP_MODES = [
+  { key: 'order', title: '顺序播放' },
+  { key: 'single', title: '单曲循环' },
+  { key: 'random', title: '随机播放' },
+]
 // 试听中卡片状态：rid = platform:songmid = 卡片 data-key，直接定位
 function setPlayingCard(rid) {
   document.querySelectorAll('.song-card.playing').forEach((c) => c.classList.remove('playing', 'paused'))
   if (rid) document.querySelector(`.song-card[data-key="${rid}"]`)?.classList.add('playing')
 }
 function resetPlayerCover() { $('#gp-icon').innerHTML = '🎵' }
-async function previewSong(platform, musicInfo, label) {
+function clearLibSongHighlight() { document.querySelector('.lib-song-row.playing')?.classList.remove('playing') }
+
+// 启动队列：清空 → 塞入 items → 从第一首播。新队列重置循环模式为顺序（仅当前队列作用域）
+function startQueue(items, plInfo) {
+  if (!items?.length) { toast('歌单内暂无歌曲'); return }
+  playQueue = items.slice()
+  playIndex = 0
+  loopMode = 'order'
+  // 队列面板顶部歌单元信息：传入则用，否则用第一首的封面/标题
+  currentPlaylist = plInfo || { cover: items[0]?.cover || '', name: items[0]?.label || '' }
+  updateLoopBtn()
+  playCurrent()
+  renderQueuePanel()
+}
+// 播放当前队列项（按来源取流）
+async function playCurrent() {
+  const item = playQueue[playIndex]
+  if (!item) return
   const audio = $('#global-audio')
   const box = $('#global-player')
-  const rid = `${platform}:${musicInfo.songmid}`
-  // 切换：同一首正在播放则切换播放/暂停
-  if (audio.dataset.rid === rid && audio.src) { togglePlay(); return }
-  $('#gp-title').textContent = label || `${musicInfo.name} - ${musicInfo.singer}`
-  $('#gp-icon').innerHTML = coverHtml(musicInfo.img)
+  $('#gp-title').textContent = item.label
+  $('#gp-sub').textContent = playQueue.length > 1 ? `${playIndex + 1} / ${playQueue.length} · 播放列表` : '试听'
+  $('#gp-icon').innerHTML = coverHtml(item.cover)
   box.hidden = false
-  setPlayingCard(rid)
+  audio.onerror = null // 先清旧 onerror，避免清空 src 中断旧流时误触发「播放失败」
   audio.src = ''
   audio.dataset.proxyTried = ''
-  try {
-    const r = await fetchJSON('/api/v1/preview', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ platform, musicInfo, quality: '128k' }),
-    })
-    audio.src = r.url
-    audio.dataset.rid = rid
-    currentPreview = { platform, musicInfo, label }
-    await audio.play().catch(() => {})
-  } catch (err) {
-    toast(`试听失败：${err.message}`)
-    $('#gp-title').textContent = '未播放'
-    resetPlayerCover()
-    setPlayingCard(null)
-  }
-  audio.onerror = () => {
-    if (audio.dataset.proxyTried === 'done' || !audio.src) return
-    if (audio.dataset.proxyTried === '1') {
-      // 代理也失败才提示
-      audio.dataset.proxyTried = 'done'
-      toast('播放失败，可能音源失效或防盗链')
-      return
+  renderQueuePanel() // 同步队列面板当前项高亮
+  if (item.kind === 'nav') {
+    // Navidrome 库内：/stream/:id 直播，无需 preview 代理重试
+    audio.src = `/api/v1/navidrome/stream/${encodeURIComponent(item.id)}`
+    audio.dataset.rid = `lib:${item.id}`
+    audio.dataset.proxyTried = 'done'
+    audio.play().catch(() => toast('播放失败，可能 Navidrome 未连接'))
+    audio.onerror = () => { toast('播放失败，可能 Navidrome 未连接') }
+  } else {
+    // 网络音源：/preview 取 128k 直链
+    try {
+      const r = await fetchJSON('/api/v1/preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform: item.platform, musicInfo: item.musicInfo, quality: '128k' }),
+      })
+      audio.src = r.url
+      audio.dataset.rid = `${item.platform}:${item.musicInfo.songmid}`
+      currentPreview = { platform: item.platform, musicInfo: item.musicInfo, label: item.label }
+      await audio.play().catch(() => {})
+      // 直链失败：切流式代理重试一次
+      audio.onerror = () => {
+        if (audio.dataset.proxyTried === 'done' || !audio.src) return
+        if (audio.dataset.proxyTried === '1') {
+          audio.dataset.proxyTried = 'done'
+          return // 代理也失败：静默，靠 onended 跳下一首
+        }
+        audio.dataset.proxyTried = '1'
+        const directUrl = audio.src
+        audio.src = `/api/v1/preview/proxy?url=${encodeURIComponent(directUrl)}`
+        audio.play().catch(() => { /* 静默 */ })
+      }
+    } catch {
+      // 取链失败：静默跳下一首，全队列失败才有 ended 兜底
+      advanceQueue()
     }
-    // 直链失败：切流式代理重试
-    audio.dataset.proxyTried = '1'
-    const directUrl = audio.src
-    audio.src = `/api/v1/preview/proxy?url=${encodeURIComponent(directUrl)}`
-    audio.play().catch(() => { /* 静默，靠 onerror 二次判断 */ })
   }
 }
-$('#gp-close').addEventListener('click', () => {
+// 切下一首（onended 触发），按 loopMode：
+//   order=顺序(越界停止) / single=单曲循环(重播当前) / random=随机播放(随机选一首，避免重复当前)
+function advanceQueue() {
+  if (loopMode === 'single' && playQueue.length) {
+    const audio = $('#global-audio')
+    audio.currentTime = 0
+    audio.play().catch(() => {})
+    return
+  }
+  if (loopMode === 'random' && playQueue.length > 1) {
+    let next = playIndex
+    while (next === playIndex) next = Math.floor(Math.random() * playQueue.length)
+    playIndex = next
+    playCurrent()
+    return
+  }
+  playIndex++
+  if (playIndex < playQueue.length) playCurrent()
+  else if (loopMode === 'random' && playQueue.length) { playIndex = Math.floor(Math.random() * playQueue.length); playCurrent() }
+  else stopPlayer()
+}
+// 上一首：index--，越界到末首
+function playPrev() {
+  if (!playQueue.length) return
+  playIndex--
+  if (playIndex < 0) playIndex = playQueue.length - 1
+  playCurrent()
+}
+// 下一首（手动触发，不区分单曲循环）：越界按 loopMode 处理
+function playNext() {
+  if (!playQueue.length) return
+  if (loopMode === 'random' && playQueue.length > 1) {
+    let next = playIndex
+    while (next === playIndex) next = Math.floor(Math.random() * playQueue.length)
+    playIndex = next
+    playCurrent()
+    return
+  }
+  playIndex++
+  if (playIndex < playQueue.length) playCurrent()
+  else if (loopMode === 'list' || loopMode === 'random') { playIndex = 0; playCurrent() }
+  else stopPlayer()
+}
+// 循环模式按钮：点击循环切档 order→single→random→order
+function cycleLoopMode() {
+  const idx = LOOP_MODES.findIndex((m) => m.key === loopMode)
+  loopMode = LOOP_MODES[(idx + 1) % LOOP_MODES.length].key
+  updateLoopBtn()
+  toast(LOOP_MODES.find((m) => m.key === loopMode).title)
+}
+// 同步所有循环按钮（详情 header .pl-loop-btn + 播放条 #gp-loop-btn）图标/标题
+// 同步所有循环按钮（详情 header .pl-loop-btn + 播放条 #gp-loop-btn）SVG 图标/标题/激活态
+function updateLoopBtn() {
+  const m = LOOP_MODES.find((x) => x.key === loopMode)
+  const active = loopMode !== 'order' // 非顺序态显示激活色
+  const apply = (el) => {
+    el.innerHTML = LOOP_SVG[loopMode]
+    el.title = m.title
+    el.classList.toggle('active', active)
+  }
+  document.querySelectorAll('.pl-loop-btn').forEach(apply)
+  const gp = $('#gp-loop-btn')
+  if (gp) apply(gp)
+}
+function stopPlayer() {
   const audio = $('#global-audio')
   audio.pause(); audio.src = ''; audio.dataset.proxyTried = ''
   $('#gp-title').textContent = '未播放'
+  $('#gp-sub').textContent = '试听'
   resetPlayerCover()
   setPlayingCard(null)
-  $('#gp-play').textContent = '▶'
+  clearLibSongHighlight()
+  setPlayIcon(false)
   $('#gp-progress-fill').style.width = '0%'
   $('#gp-current').textContent = '0:00'
   $('#gp-duration').textContent = '0:00'
-})
+}
+
+// 单首试听（网络音源，热榜歌曲/热榜歌单详情用）
+// 已有队列时插到当前播放歌曲后面并播放（不替换队列）；无队列则新建单曲队列
+async function previewSong(platform, musicInfo, label) {
+  const audio = $('#global-audio')
+  const rid = `${platform}:${musicInfo.songmid}`
+  if (audio.dataset.rid === rid && audio.src) { togglePlay(); return }
+  const item = { kind: 'net', platform, musicInfo, label: label || `${musicInfo.name} - ${musicInfo.singer}`, cover: musicInfo.img }
+  if (playQueue.length) { playQueue.splice(playIndex + 1, 0, item); playIndex++; playCurrent() }
+  else startQueue([item])
+}
+// 单首播放（Navidrome 库内歌曲，曲库歌曲/歌单详情用）
+// 已有队列时插到当前播放歌曲后面并播放（不替换队列）；无队列则新建单曲队列
+function playLibSong(song) {
+  const audio = $('#global-audio')
+  const rid = `lib:${song.id}`
+  if (audio.dataset.rid === rid && audio.src) { togglePlay(); return }
+  Array.from(document.querySelectorAll('.lib-song-row')).forEach((r) => r.classList.toggle('playing', r.dataset.id === song.id))
+  const item = { kind: 'nav', id: song.id, label: `${song.title} - ${song.artist}`, cover: song.coverArt ? `/api/v1/navidrome/cover/${encodeURIComponent(song.coverArt)}` : '' }
+  if (playQueue.length) { playQueue.splice(playIndex + 1, 0, item); playIndex++; playCurrent() }
+  else startQueue([item])
+}
+// 整单播放（Navidrome 歌单）
+function playLibPlaylist(playlist, songs) {
+  if (!songs?.length) { toast('歌单内暂无歌曲'); return }
+  const cover = playlist.cover || (songs[0]?.coverArt ? `/api/v1/navidrome/cover/${encodeURIComponent(songs[0].coverArt)}` : '')
+  startQueue(songs.map((s) => ({ kind: 'nav', id: s.id, label: `${s.title} - ${s.artist}`, cover: s.coverArt ? `/api/v1/navidrome/cover/${encodeURIComponent(s.coverArt)}` : '' })), { cover, name: playlist.name || '曲库歌单' })
+}
+// 整单播放（网络歌单）
+function playNetPlaylist(playlist, songs) {
+  if (!songs?.length) { toast('歌单内暂无歌曲'); return }
+  startQueue(songs.map((s) => ({ kind: 'net', platform: s.source, musicInfo: s, label: `${s.name} - ${s.singer}`, cover: s.img })), { cover: playlist.cover || '', name: playlist.name || '网络歌单' })
+}
+
+$('#gp-close').addEventListener('click', () => { playQueue = []; playIndex = -1; stopPlayer(); hideQueuePanel() })
+
+// ---------- 播放队列面板 ----------
+function renderQueuePanel() {
+  const panel = $('#queue-panel')
+  if (!panel) return
+  if (!playQueue.length) { panel.innerHTML = '<div class="queue-empty">队列为空</div>'; return }
+  // 头部展示当前正在播放的歌曲（非歌单）：大封面 + 左上"正在播放" + 左下播放按钮
+  const now = playQueue[playIndex] || playQueue[0]
+  const [nowTitle, ...nowRest] = (now?.label || '').split(' - ')
+  const nowArtist = nowRest.join(' - ')
+  const isPlaying = !$('#global-audio')?.paused
+  const cover = now?.cover
+    ? `<img class="queue-now-cover" src="${escapeHtml(now.cover)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="queue-now-cover-ph" style="display:none">🎵</div>`
+    : `<div class="queue-now-cover-ph">🎵</div>`
+  const items = playQueue.map((it, i) => {
+    const [title, ...rest] = (it.label || '').split(' - ')
+    const artist = rest.join(' - ')
+    const cur = i === playIndex ? 'current' : ''
+    return `<div class="queue-item ${cur}" data-idx="${i}">
+      <span class="queue-idx">${i === playIndex ? '▶' : (i + 1)}</span>
+      ${it.cover ? `<img class="queue-item-cover" src="${escapeHtml(it.cover)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="queue-item-cover-ph" style="display:none">🎵</span>` : `<span class="queue-item-cover-ph">🎵</span>`}
+      <div class="queue-item-info">
+        <div class="queue-item-title">${escapeHtml(title)}</div>
+        ${artist ? `<div class="queue-item-artist">${escapeHtml(artist)}</div>` : ''}
+      </div>
+    </div>`
+  }).join('')
+  panel.innerHTML = `
+    <div class="queue-head">
+      <div class="queue-now-cover-wrap">
+        ${cover}
+        <div class="queue-now-badge">正在播放</div>
+        <button class="queue-now-play" title="播放/暂停">${isPlaying ? PAUSE_ICON : PLAY_ICON}</button>
+      </div>
+      <div class="queue-now-info">
+        <div class="queue-now-title">${escapeHtml(nowTitle)}</div>
+        <div class="queue-now-artist">${escapeHtml(nowArtist)}</div>
+        <div class="queue-now-sub">${playQueue.length} 首 · 当前第 ${playIndex + 1} 首 <button class="queue-clear-btn" title="清空队列">清空</button></div>
+      </div>
+    </div>
+    <div class="queue-list">${items}</div>`
+  // 点击列表项跳播
+  panel.querySelectorAll('.queue-item').forEach((it) => it.addEventListener('click', () => {
+    const idx = Number(it.dataset.idx)
+    if (idx === playIndex) return
+    playIndex = idx
+    playCurrent()
+  }))
+  panel.querySelector('.queue-now-play')?.addEventListener('click', (e) => { e.stopPropagation(); togglePlay() })
+  // 清空队列
+  panel.querySelector('.queue-clear-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation()
+    if (!confirm('确定清空播放队列？')) return
+    playQueue = []; playIndex = -1; stopPlayer(); renderQueuePanel(); toast('队列已清空')
+  })
+}
+function showQueuePanel() {
+  document.body.classList.add('queue-open')
+  $('#queue-panel').classList.add('show')
+  // 移动端才显示遮罩（PC 端 CSS 已隐藏 backdrop）
+  if (window.innerWidth <= 768) $('#queue-backdrop').classList.add('show')
+  renderQueuePanel()
+}
+function hideQueuePanel() {
+  document.body.classList.remove('queue-open')
+  $('#queue-panel').classList.remove('show')
+  $('#queue-backdrop').classList.remove('show')
+}
+function toggleQueuePanel() {
+  if (!$('#queue-panel').classList.contains('show')) showQueuePanel()
+  else hideQueuePanel()
+}
+$('#gp-queue-btn').addEventListener('click', toggleQueuePanel)
+$('#queue-backdrop').addEventListener('click', hideQueuePanel)
+$('#gp-loop-btn').addEventListener('click', cycleLoopMode)
+updateLoopBtn() // 初始化播放条循环按钮图标
 
 // 播放/暂停 + 进度条 + 时间
 function togglePlay() {
   const audio = $('#global-audio')
   if (!audio.src) return
-  if (audio.paused) { audio.play().catch(() => {}); $('#gp-play').textContent = '⏸' }
-  else { audio.pause(); $('#gp-play').textContent = '▶' }
+  if (audio.paused) { audio.play().catch(() => {}); setPlayIcon(true) }
+  else { audio.pause(); setPlayIcon(false) }
 }
 function fmtTime(s) {
   if (!s || isNaN(s)) return '0:00'
@@ -861,10 +1213,20 @@ function fmtTime(s) {
   const sec = Math.floor(s % 60)
   return `${m}:${sec < 10 ? '0' : ''}${sec}`
 }
+// 歌单播放时长：单曲按 3.9 分钟，count*3.9 分钟 → "X小时Y分" / "Y分"
+function fmtPlayDuration(count) {
+  let mins = Math.round(count * 3.9) // 59.9 → 60 进位
+  if (mins < 60) return `${mins}分`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return `${h}小时${m}分`
+}
 const _audio = document.querySelector('#global-audio')
 $('#gp-play').addEventListener('click', togglePlay)
-_audio.addEventListener('play', () => { $('#gp-play').textContent = '⏸'; document.querySelector('.song-card.playing')?.classList.remove('paused') })
-_audio.addEventListener('pause', () => { $('#gp-play').textContent = '▶'; if (_audio.src) document.querySelector('.song-card.playing')?.classList.add('paused') })
+$('#gp-prev').addEventListener('click', playPrev)
+$('#gp-next').addEventListener('click', playNext)
+_audio.addEventListener('play', () => { setPlayIcon(true); document.querySelector('.song-card.playing')?.classList.remove('paused') })
+_audio.addEventListener('pause', () => { setPlayIcon(false); if (_audio.src) document.querySelector('.song-card.playing')?.classList.add('paused') })
 _audio.addEventListener('timeupdate', () => {
   const cur = _audio.currentTime, dur = _audio.duration
   $('#gp-current').textContent = fmtTime(cur)
@@ -872,7 +1234,8 @@ _audio.addEventListener('timeupdate', () => {
   if (dur) $('#gp-progress-fill').style.width = `${(cur / dur) * 100}%`
 })
 _audio.addEventListener('loadedmetadata', () => { $('#gp-duration').textContent = fmtTime(_audio.duration) })
-_audio.addEventListener('ended', () => { $('#gp-play').textContent = '▶'; document.querySelector('.song-card.playing')?.classList.add('paused') })
+// 队列自动推进：播完一首切下一首，队列末尾则停止
+_audio.addEventListener('ended', () => { advanceQueue() })
 // 拖动进度条 seek
 $('#gp-progress').addEventListener('click', (e) => {
   const bar = $('#gp-progress')
@@ -892,26 +1255,29 @@ function updateGlobalCreateBtn() {
 function renderCreatePanel() {
   const items = state.results.filter((it) => state.selectedForCreate.has(rowKey(it)))
   const rows = items.map((it) => `<tr><td>${escapeHtml(it.name)}</td><td>${escapeHtml(it.singer)}</td><td>${escapeHtml(PLATFORM_NAME[it.platform] || it.platform)}</td></tr>`).join('')
-  const ctx = state.createCtx || { name: '', cover: '' }
+  const ctx = state.createCtx || { name: '', cover: '', desc: '' }
   const defaultName = ctx.name || ''
-  const coverHtml = ctx.cover
+  const defaultDesc = ctx.desc || ''
+  const coverImg = ctx.cover
     ? `<img src="${escapeHtml(ctx.cover)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;margin-right:10px" onerror="this.style.display='none'">`
     : ''
   $('#float-create-panel').innerHTML = `
     <div class="float-panel-head"><b>✅ 创建 Navidrome 歌单（${items.length} 首）</b><button class="float-panel-close" data-close>×</button></div>
-    <div style="display:flex;align-items:center;margin-bottom:10px">${coverHtml}
+    <div style="display:flex;align-items:center;margin-bottom:10px">${coverImg}
       <input type="text" id="create-pl-name" placeholder="歌单名称" class="name-in" value="${escapeHtml(defaultName)}">
     </div>
+    <input type="text" id="create-pl-desc" placeholder="歌单描述（可选）" class="name-in" style="width:100%;margin-bottom:10px" value="${escapeHtml(defaultDesc)}">
     <div style="max-height:200px;overflow-y:auto;margin-bottom:10px"><table class="card"><thead><tr><th>歌曲</th><th>歌手</th><th>平台</th></tr></thead><tbody>${rows}</tbody></table></div>
     <button id="create-pl-btn" class="create-btn">创建 Navidrome 歌单</button>`
   $('#create-pl-btn').addEventListener('click', async () => {
     const name = $('#create-pl-name').value.trim()
     if (!name) return toast('请输入歌单名称')
+    const desc = $('#create-pl-desc').value.trim()
     const ids = items.map((it) => state.createMap.get(rowKey(it))?.libId).filter(Boolean)
     if (!ids.length) return toast('无有效歌曲')
     try {
       const d = await fetchJSON('/api/v1/navidrome/playlist/create', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, song_ids: ids }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, song_ids: ids, desc: desc || undefined }),
       })
       toast(`歌单「${name}」已创建（${d.songCount} 首）`)
       state.selectedForCreate.clear()
@@ -1261,33 +1627,268 @@ function escapeHtml(str) {
 // ---------- 曲库 ----------
 let libTimer = null
 // ---------- 曲库统计（独立曲库菜单）----------
-async function loadLibraryStats() {
+let libStatsCache = null
+async function loadLibraryStats(force = false) {
   const el = $('#library-stats')
   const sum = $('#lib-stats-summary')
   if (!el) return
+  // 有缓存直接渲染，跳过实时 Navidrome /stats 往返，避免切换卡顿；force=true 强制重拉
+  if (!force && libStatsCache) { renderLibraryStats(libStatsCache); return }
   el.innerHTML = '<div class="empty">加载中…</div>'
   try {
     const d = await fetchJSON('/api/v1/navidrome/stats')
-    sum.textContent = `${d.songCount} 首 · ${d.artistCount} 位艺术家 · ${d.albumCount} 张专辑`
-    const pls = d.playlists || []
-    const cards = pls.map((p) => `<div class="src-card"><div class="src-head">
-      <div><b>${escapeHtml(p.name)}</b> <span class="badge">${p.songCount} 首</span></div>
-      <div class="src-desc">${escapeHtml(p.owner || '')} ${p.public ? '· 公开' : ''}</div>
-      </div></div>`).join('')
-    el.innerHTML = `
-      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
-        <div class="src-card" style="flex:1;min-width:120px;text-align:center"><div style="font-size:24px;font-weight:600;color:var(--accent)">${d.songCount}</div><div style="font-size:13px;color:var(--text-muted)">歌曲</div></div>
-        <div class="src-card" style="flex:1;min-width:120px;text-align:center"><div style="font-size:24px;font-weight:600;color:var(--accent)">${d.artistCount}</div><div style="font-size:13px;color:var(--text-muted)">艺术家</div></div>
-        <div class="src-card" style="flex:1;min-width:120px;text-align:center"><div style="font-size:24px;font-weight:600;color:var(--accent)">${d.albumCount}</div><div style="font-size:13px;color:var(--text-muted)">专辑</div></div>
-        <div class="src-card" style="flex:1;min-width:120px;text-align:center"><div style="font-size:24px;font-weight:600;color:var(--accent)">${pls.length}</div><div style="font-size:13px;color:var(--text-muted)">歌单</div></div>
-      </div>
-      <h3 class="platform-group" style="border-left:3px solid var(--accent);padding-left:6px;font-size:14px;color:#555;margin:12px 0 8px">🎵 Navidrome 歌单（只读）</h3>
-      ${cards || '<div class="empty">暂无歌单</div>'}`
+    libStatsCache = d
+    renderLibraryStats(d)
   } catch (err) {
     el.innerHTML = `<div class="empty">加载失败：${escapeHtml(err.message)}</div>`
   }
 }
-$('#lib-stats-refresh').addEventListener('click', loadLibraryStats)
+function renderLibraryStats(d) {
+  const el = $('#library-stats')
+  const sum = $('#lib-stats-summary')
+  if (!el || !d) return
+  sum.textContent = `${d.songCount} 首 · ${d.artistCount} 位艺术家 · ${d.albumCount} 张专辑`
+  const pls = d.playlists || []
+  el.innerHTML = `
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+      <div class="src-card" style="flex:1;min-width:120px;text-align:center"><div style="font-size:24px;font-weight:600;color:var(--accent)">${d.songCount}</div><div style="font-size:13px;color:var(--text-muted)">歌曲</div></div>
+      <div class="src-card" style="flex:1;min-width:120px;text-align:center"><div style="font-size:24px;font-weight:600;color:var(--accent)">${d.artistCount}</div><div style="font-size:13px;color:var(--text-muted)">艺术家</div></div>
+      <div class="src-card" style="flex:1;min-width:120px;text-align:center"><div style="font-size:24px;font-weight:600;color:var(--accent)">${d.albumCount}</div><div style="font-size:13px;color:var(--text-muted)">专辑</div></div>
+      <div class="src-card" style="flex:1;min-width:120px;text-align:center"><div style="font-size:24px;font-weight:600;color:var(--accent)">${pls.length}</div><div style="font-size:13px;color:var(--text-muted)">歌单</div></div>
+    </div>
+    <h3 class="platform-group" style="border-left:3px solid var(--accent);padding-left:6px;font-size:14px;color:#555;margin:12px 0 8px">🎵 Navidrome 歌单</h3>
+    <div id="lib-stats-pl-grid" class="pl-grid"></div>`
+  const grid = $('#lib-stats-pl-grid')
+  if (!pls.length) { grid.innerHTML = '<div class="empty">暂无歌单</div>'; return }
+  grid.innerHTML = pls.map((p) => playlistCardHtml({
+    id: p.id, name: p.name,
+    cover: p.coverArt ? `/api/v1/navidrome/cover/${encodeURIComponent(p.coverArt)}` : '',
+    count: p.songCount, desc: `${p.owner || ''}${p.public ? ' · 公开' : ''}`,
+    playKind: 'nav', coverPh: '📁',
+  })).join('')
+  // 概览页无详情视图，卡片整体不导航；仅 hover 播放按钮 → 整单播放
+  bindPlaylistCards('#lib-stats-pl-grid', async (card) => {
+    const id = card.dataset.id, name = card.dataset.name
+    const cover = card.querySelector('.pl-cover img')?.src || ''
+    toast(`加载《${name}》歌曲列表…`)
+    try {
+      const d2 = await fetchJSON(`/api/v1/navidrome/playlist/${encodeURIComponent(id)}`)
+      playLibPlaylist({ name, cover }, d2.songs)
+    } catch (err) { toast(`播放失败：${err.message}`) }
+  })
+}
+$('#lib-stats-refresh').addEventListener('click', () => loadLibraryStats(true))
+
+// ---------- 曲库歌曲（Navidrome 库内歌曲列表 + 可播放）----------
+let libSongsCache = []
+let libStarredIds = new Set() // 已收藏歌曲 id 集合
+async function loadLibSongs(force = false) {
+  const list = $('#lib-songs-list')
+  const status = $('#lib-songs-status')
+  const sum = $('#lib-songs-summary')
+  if (!list) return
+  // 已加载则复用现有 DOM（1088 行仍在 DOM 中只是隐藏），切回零请求零重渲染，避免卡顿；force=true 强制重拉
+  if (!force && libSongsCache.length && list.children.length) return
+  status.innerHTML = '<div class="status">加载中…</div>'
+  list.innerHTML = ''
+  try {
+    // 并行取歌曲列表 + 收藏 id 集合
+    const [d, sd] = await Promise.all([
+      fetchJSON('/api/v1/navidrome/songs'),
+      fetchJSON('/api/v1/navidrome/starred'),
+    ])
+    libSongsCache = d.songs || []
+    libStarredIds = new Set(sd.ids || [])
+    sum.textContent = d.loading ? `${d.total} 首 · 曲库刷新中` : `${d.total} 首`
+    renderLibSongs(libSongsCache)
+  } catch (err) {
+    status.innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
+  }
+}
+function libSongRowHtml(s, opts = {}) {
+  const cover = s.coverArt
+    ? `<img class="lib-song-cover" src="/api/v1/navidrome/cover/${encodeURIComponent(s.coverArt)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="lib-song-cover-ph" style="display:none">🎵</div>`
+    : `<div class="lib-song-cover-ph">🎵</div>`
+  const dur = s.duration ? fmtTime(s.duration) : ''
+  const plays = (typeof s.playCount === 'number' && s.playCount > 0) ? `<span class="lib-song-plays" title="播放次数">▶ ${s.playCount}</span>` : ''
+  const removeBtn = opts.removable ? `<button class="lib-song-remove" data-id="${escapeHtml(s.id)}" title="移出歌单"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>` : ''
+  const starred = libStarredIds.has(s.id)
+  const starIcon = starred
+    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.5-9.5-9C1 9 2.5 5 6 5c2 0 3.5 1 6 3.5C14.5 6 16 5 18 5c3.5 0 5 4 3.5 7-2.5 4.5-9.5 9-9.5 9z"/></svg>'
+    : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>'
+  return `<div class="lib-song-row" data-id="${escapeHtml(s.id)}">
+    ${cover}
+    <div class="lib-song-info">
+      <div class="lib-song-title">${escapeHtml(s.title)}</div>
+      <div class="lib-song-artist">${escapeHtml(s.artist)}${s.album ? ' · ' + escapeHtml(s.album) : ''}</div>
+    </div>
+    ${plays}
+    <span class="lib-song-dur">${dur}</span>
+    <button class="lib-song-play preview-btn" data-id="${escapeHtml(s.id)}">▶播放</button>
+    <button class="lib-song-queue" data-id="${escapeHtml(s.id)}" title="加入播放队列"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg></button>
+    <button class="lib-song-star ${starred ? 'starred' : ''}" data-id="${escapeHtml(s.id)}" title="${starred ? '取消收藏' : '收藏'}">${starIcon}</button>
+    ${removeBtn}
+  </div>`
+}
+function bindLibSongPlay(container, songs) {
+  container.querySelectorAll('.lib-song-play').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation()
+    const song = songs.find((x) => x.id === b.dataset.id)
+    if (song) playLibSong(song)
+  }))
+  // 加入播放队列（追加到 playQueue 末尾，不立即播放）
+  container.querySelectorAll('.lib-song-queue').forEach((b) => b.addEventListener('click', async (e) => {
+    e.stopPropagation()
+    const song = songs.find((x) => x.id === b.dataset.id)
+    if (!song) return
+    const item = { kind: 'nav', id: song.id, label: `${song.title} - ${song.artist}`, cover: song.coverArt ? `/api/v1/navidrome/cover/${encodeURIComponent(song.coverArt)}` : '' }
+    playQueue.push(item)
+    // 若队列原本为空，则从这首开始播
+    if (playIndex < 0) { playIndex = 0; playCurrent() }
+    else { renderQueuePanel(); toast(`已加入队列：${song.title}`) }
+  }))
+  // 收藏 / 取消收藏
+  const STAR_FILL = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.5-9.5-9C1 9 2.5 5 6 5c2 0 3.5 1 6 3.5C14.5 6 16 5 18 5c3.5 0 5 4 3.5 7-2.5 4.5-9.5 9-9.5 9z"/></svg>'
+  const STAR_LINE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>'
+  container.querySelectorAll('.lib-song-star').forEach((b) => b.addEventListener('click', async (e) => {
+    e.stopPropagation()
+    const id = b.dataset.id
+    const wasStarred = libStarredIds.has(id)
+    try {
+      await fetchJSON(`/api/v1/navidrome/${wasStarred ? 'unstar' : 'star'}/${encodeURIComponent(id)}`, { method: 'POST' })
+      if (wasStarred) { libStarredIds.delete(id); b.classList.remove('starred'); b.innerHTML = STAR_LINE; b.title = '收藏'; toast('已取消收藏') }
+      else { libStarredIds.add(id); b.classList.add('starred'); b.innerHTML = STAR_FILL; b.title = '取消收藏'; toast('已收藏') }
+    } catch (err) { toast(`操作失败：${err.message}`) }
+  }))
+}
+function renderLibSongs(songs) {
+  const list = $('#lib-songs-list')
+  const status = $('#lib-songs-status')
+  status.innerHTML = ''
+  if (!songs.length) { list.innerHTML = '<div class="empty">曲库暂无歌曲</div>'; return }
+  list.innerHTML = songs.map(libSongRowHtml).join('')
+  bindLibSongPlay(list, songs)
+}
+// playLibSong 已在上方播放队列模块定义（插队头播放逻辑），此处不再重复定义
+$('#lib-songs-refresh').addEventListener('click', () => loadLibSongs(true))
+$('#lib-songs-keyword').addEventListener('input', () => {
+  const kw = $('#lib-songs-keyword').value.trim().toLowerCase()
+  if (!kw) return renderLibSongs(libSongsCache)
+  renderLibSongs(libSongsCache.filter((s) =>
+    `${s.title} ${s.artist} ${s.album || ''}`.toLowerCase().includes(kw)))
+})
+
+// ---------- 曲库歌单（Navidrome 歌单列表 + 详情可播放）----------
+let libPlCache = null
+async function loadLibPlaylists(force = false) {
+  const grid = $('#lib-pl-grid')
+  const status = $('#lib-pl-status')
+  const sum = $('#lib-pl-summary')
+  $('#lib-pl-home').hidden = false
+  $('#lib-pl-detail').hidden = true
+  if (!grid) return
+  // 有缓存直接渲染，跳过实时 Navidrome /stats 往返，避免切换卡顿；force=true 强制重拉
+  if (!force && libPlCache) { renderLibPlaylists(libPlCache); return }
+  status.innerHTML = '<div class="status">加载中…</div>'
+  grid.innerHTML = ''
+  try {
+    const d = await fetchJSON('/api/v1/navidrome/stats')
+    libPlCache = d.playlists || []
+    renderLibPlaylists(libPlCache)
+  } catch (err) {
+    status.innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
+  }
+}
+function renderLibPlaylists(pls) {
+  const grid = $('#lib-pl-grid')
+  const status = $('#lib-pl-status')
+  const sum = $('#lib-pl-summary')
+  sum.textContent = `${pls.length} 个歌单`
+  status.innerHTML = ''
+  if (!pls.length) { grid.innerHTML = '<div class="empty">暂无歌单</div>'; return }
+  grid.innerHTML = pls.map((p) => playlistCardHtml({
+    id: p.id, name: p.name,
+    cover: p.coverArt ? `/api/v1/navidrome/cover/${encodeURIComponent(p.coverArt)}` : '',
+    count: p.songCount, desc: `${p.owner || ''}${p.public ? ' · 公开' : ''}`,
+    playKind: 'nav', coverPh: '📁',
+  })).join('')
+  // 卡片整体点击 → 进详情
+  $$('#lib-pl-grid .pl-card').forEach((card) => card.addEventListener('click', () =>
+    openLibPlaylistDetail(card.dataset.id, card.dataset.name)))
+  // hover 播放按钮 → 整单播放（Navidrome 歌单需先取 /playlist/:id 的歌曲列表）
+  bindPlaylistCards('#lib-pl-grid', async (card) => {
+    const id = card.dataset.id, name = card.dataset.name
+    toast(`加载《${name}》歌曲列表…`)
+    try {
+      const d = await fetchJSON(`/api/v1/navidrome/playlist/${encodeURIComponent(id)}`)
+      playLibPlaylist({ name }, d.songs)
+    } catch (err) { toast(`播放失败：${err.message}`) }
+  })
+}
+async function openLibPlaylistDetail(id, name) {
+  const el = $('#lib-pl-detail')
+  $('#lib-pl-home').hidden = true
+  el.hidden = false
+  el.dataset.playlistId = id
+  el.innerHTML = '<div class="status">加载中…</div>'
+  try {
+    const d = await fetchJSON(`/api/v1/navidrome/playlist/${encodeURIComponent(id)}`)
+    const songs = d.songs || []
+    const meta = `${d.songCount || 0} 首歌曲${d.owner ? ' · ' + escapeHtml(d.owner) : ''}${d.public ? ' · 公开' : ''}`
+    el.innerHTML = `
+      <button class="back-btn" id="lib-pl-back" style="margin-bottom:10px">← 返回歌单列表</button>
+      ${playlistDetailHeaderHtml({ cover: d.coverArt ? `/api/v1/navidrome/cover/${encodeURIComponent(d.coverArt)}` : '', name: d.name || name, desc: d.comment || '', meta, editable: true })}
+      <div id="lib-pl-songs"></div>`
+    renderLibPlaylistSongs(songs)
+    $('#lib-pl-back').addEventListener('click', () => { el.hidden = true; $('#lib-pl-home').hidden = false })
+    bindDetailHeader('#lib-pl-detail', () => playLibPlaylist({ name: d.name || name, cover: d.coverArt ? `/api/v1/navidrome/cover/${encodeURIComponent(d.coverArt)}` : '' }, songs), () => {
+      enterDetailEdit('#lib-pl-detail', d.name || name, d.comment || '', async (n, dd) => {
+        await fetchJSON('/api/v1/navidrome/playlist/update?id=' + encodeURIComponent(id), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: n, desc: dd }),
+        })
+        toast('歌单已更新')
+        openLibPlaylistDetail(id, n) // 刷新详情
+      })
+    }, () => {
+      // 删除歌单
+      if (!confirm(`确定删除歌单「${d.name || name}」？此操作不可恢复。`)) return
+      fetchJSON(`/api/v1/navidrome/playlist/${encodeURIComponent(id)}`, { method: 'DELETE' })
+        .then(() => { toast('歌单已删除'); libPlCache = null; $('#lib-pl-detail').hidden = true; $('#lib-pl-home').hidden = false; loadLibPlaylists(true) })
+        .catch((e) => toast(`删除失败：${e.message}`))
+    })
+  } catch (err) {
+    el.innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
+  }
+}
+// 渲染曲库歌单详情的歌曲列表（带移出按钮 + 播放次数）
+function renderLibPlaylistSongs(songs) {
+  const box = $('#lib-pl-songs')
+  if (!box) return
+  if (!songs.length) { box.innerHTML = '<div class="empty">歌单内暂无歌曲</div>'; return }
+  box.innerHTML = songs.map((s) => libSongRowHtml(s, { removable: true })).join('')
+  bindLibSongPlay(box, songs)
+  // 移出歌单
+  box.querySelectorAll('.lib-song-remove').forEach((b) => b.addEventListener('click', async (e) => {
+    e.stopPropagation()
+    const songId = b.dataset.id
+    const row = b.closest('.lib-song-row')
+    const title = row?.querySelector('.lib-song-title')?.textContent || '该歌曲'
+    if (!confirm(`确定将「${title}」移出歌单？`)) return
+    const plId = $('#lib-pl-detail').dataset.playlistId
+    try {
+      await fetchJSON(`/api/v1/navidrome/playlist/${encodeURIComponent(plId)}/remove`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ song_id: songId }),
+      })
+      row?.remove()
+      toast('已移出歌单')
+      // songCount 同步减一（刷新歌单列表缓存下次进入生效）
+      const cnt = $('#lib-pl-detail .pl-detail-desc')?.textContent
+      // 重新拉取详情更新计数
+      openLibPlaylistDetail(plId, $('#lib-pl-detail .pl-detail-name')?.textContent || '')
+    } catch (err) { toast(`移出失败：${err.message}`) }
+  }))
+}
+$('#lib-pl-refresh').addEventListener('click', () => loadLibPlaylists(true))
 
 async function loadLibrary() {
   await updateLibraryStatus()
@@ -1443,6 +2044,6 @@ function switchSettingsSub(sub) {
 }
 $$('#settings-tabs .ptab').forEach((t) => t.addEventListener('click', () => switchSettingsSub(t.dataset.sub)))
 initSidebar()
+initMenuGroups()
 initTheme()
-// 初始加载热榜歌曲（默认 active 的 view 是 search）
-loadSearchSquare()
+// 默认着陆页为首页（view-home，内容空），无需初始加载

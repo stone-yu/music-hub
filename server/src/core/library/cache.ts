@@ -33,6 +33,10 @@ function loadFromDisk(): void {
       title: s.title ?? '',
       artist: s.artist ?? '',
       album: s.album ?? '',
+      coverArt: s.coverArt ? String(s.coverArt) : undefined,
+      duration: typeof s.duration === 'number' ? s.duration : undefined,
+      suffix: typeof s.suffix === 'string' ? s.suffix : undefined,
+      playCount: typeof s.playCount === 'number' ? s.playCount : undefined,
     }))
     state.lastUpdate = data.last_update ?? 0
     logger.info(
@@ -48,7 +52,7 @@ function saveToDisk(): void {
   try {
     fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true })
     const payload = {
-      songs: state.songs.map((s) => ({ id: s.id, title: s.title, artist: s.artist, album: s.album })),
+      songs: state.songs.map((s) => ({ id: s.id, title: s.title, artist: s.artist, album: s.album, coverArt: s.coverArt, duration: s.duration, suffix: s.suffix, playCount: s.playCount })),
       last_update: state.lastUpdate,
     }
     const tmp = `${CACHE_FILE}.tmp`

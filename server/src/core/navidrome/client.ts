@@ -18,6 +18,10 @@ export interface NavidromeSong {
   title: string
   artist: string
   album: string
+  coverArt?: string
+  duration?: number
+  suffix?: string
+  playCount?: number
 }
 
 const CLIENT_NAME = 'navidrome-ai-playlist'
@@ -124,6 +128,10 @@ class NavidromeClient {
             title: s.title ?? '',
             artist: s.artist ?? artistName,
             album: s.album ?? album.name ?? '',
+            coverArt: String(s.coverArt ?? albumData.album.coverArt ?? '') || undefined,
+            duration: typeof s.duration === 'number' ? s.duration : undefined,
+            suffix: typeof s.suffix === 'string' ? s.suffix : undefined,
+            playCount: typeof s.playCount === 'number' ? s.playCount : undefined,
           })
         }
       }
@@ -141,6 +149,10 @@ class NavidromeClient {
       title: s.title ?? '',
       artist: s.artist ?? '',
       album: s.album ?? '',
+      coverArt: String(s.coverArt ?? '') || undefined,
+      duration: typeof s.duration === 'number' ? s.duration : undefined,
+      suffix: typeof s.suffix === 'string' ? s.suffix : undefined,
+      playCount: typeof s.playCount === 'number' ? s.playCount : undefined,
     }))
   }
 
@@ -159,19 +171,72 @@ class NavidromeClient {
     return r !== null
   }
 
-  /** 加歌到已有歌单（去重由调用方处理） */
-  async updatePlaylist(playlistId: string, songIds: string[]): Promise<boolean> {
-    if (!songIds.length) return true
-    const r = await this.get('updatePlaylist', { playlistId, songIdToAdd: songIds })
+  /** 获取已收藏歌曲 id 集合（getStarred2 一次返回全部，供曲库歌曲页比对收藏状态） */
+  async getStarredSongIds(): Promise<Set<string>> {
+    const r = await this.get('getStarred2')
+    const songs = r?.starred2?.song ?? []
+    return new Set(songs.map((s: any) => String(s.id)))
+  }
+
+  /** 收藏歌曲 */
+  async starSong(songId: string): Promise<boolean> {
+    const r = await this.get('star', { id: songId })
     return r !== null
   }
 
+  /** 取消收藏歌曲 */
+  async unstarSong(songId: string): Promise<boolean> {
+    const r = await this.get('unstar', { id: songId })
+    return r !== null
+  }
+
+  /** 更新歌单：加歌(songIds)/改名(name)/改描述(comment)，可任意组合。
+   *  走原生 fetch + URLSearchParams.append 重复 songIdToAdd：needle 在该 Navidrome 实例上
+   *  对 updatePlaylist 会挂起（HTTP 层兼容问题），fetch 无此问题。 */
+  async updatePlaylist(playlistId: string, opts: { songIds?: string[]; name?: string; comment?: string }): Promise<boolean> {
+    const { songIds = [], name, comment } = opts
+    if (!songIds.length && !name && !comment) return true
+    const params = new URLSearchParams(this.makeParams({ playlistId }) as Record<string, string>)
+    songIds.forEach((id) => params.append('songIdToAdd', id))
+    if (name) params.set('name', name)
+    if (comment !== undefined) params.set('comment', comment)
+    const url = `${this.baseUrl}/rest/updatePlaylist?${params.toString()}`
+    try {
+      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+      const data = (await r.json().catch(() => null)) as any
+      if (data?.['subsonic-response']?.status === 'ok') return true
+      logger.warn({ error: data?.['subsonic-response']?.error }, '[navidrome] updatePlaylist API error')
+      return false
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, '[navidrome] updatePlaylist failed')
+      return false
+    }
+  }
+
+  /** 从歌单移除单曲（Subsonic updatePlaylist 的 songIndexToRemove，按 0-based 索引） */
+  async removePlaylistSong(playlistId: string, index: number): Promise<boolean> {
+    const params = new URLSearchParams(this.makeParams({ playlistId }) as Record<string, string>)
+    params.append('songIndexToRemove', String(index))
+    const url = `${this.baseUrl}/rest/updatePlaylist?${params.toString()}`
+    try {
+      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+      const data = (await r.json().catch(() => null)) as any
+      if (data?.['subsonic-response']?.status === 'ok') return true
+      logger.warn({ error: data?.['subsonic-response']?.error }, '[navidrome] removePlaylistSong API error')
+      return false
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, '[navidrome] removePlaylistSong failed')
+      return false
+    }
+  }
+
   /**
-   * 创建歌单。coverData 非空时走 POST multipart（字段名 coverArt），
-   * 认证参数走 query string。创建后若 songIds 非空再 updatePlaylist 加歌。
+   * 创建歌单。coverData 非空时走 POST multipart（字段名 coverArt），认证参数走 query string。
+   * 创建后若 songIds/desc 非空，走 updatePlaylist 加歌 + 设 comment（Subsonic 创建接口无 desc 字段；
+   * 加歌必须走 updatePlaylist，createPlaylist 内联 songId 在本实例不持久化）。
    * 返回 playlistId。
    */
-  async createPlaylist(name: string, songIds: string[] = [], coverData?: Buffer): Promise<string | null> {
+  async createPlaylist(name: string, songIds: string[] = [], coverData?: Buffer, desc?: string): Promise<string | null> {
     const url = `${this.baseUrl}/rest/createPlaylist`
     const params = this.makeParams({ name })
     let playlistId: string | null = null
@@ -206,7 +271,8 @@ class NavidromeClient {
       logger.warn({ err: (err as Error).message }, '[navidrome] createPlaylist failed')
       return null
     }
-    if (playlistId && songIds.length) await this.updatePlaylist(playlistId, songIds)
+    // 加歌 + 设描述（comment），走 fetch 版 updatePlaylist（needle 对 updatePlaylist 会挂起）
+    if (playlistId && (songIds.length || desc)) await this.updatePlaylist(playlistId, { songIds, comment: desc })
     return playlistId
   }
 
@@ -224,6 +290,19 @@ class NavidromeClient {
     } catch {
       return null
     }
+  }
+
+  /**
+   * 构造带鉴权的 stream 直链 URL（仅服务端 fetch 用，凭据不暴露给浏览器）。
+   * subsonic stream 端点直接返回音频二进制，不走 subsonic-response 包装。
+   */
+  streamUrl(songId: string): string {
+    const url = `${this.baseUrl}/rest/stream`
+    const params = new URLSearchParams()
+    for (const [k, v] of Object.entries(this.makeParams({ id: songId }))) {
+      params.set(k, Array.isArray(v) ? String(v[0]) : String(v))
+    }
+    return `${url}?${params.toString()}`
   }
 
   /** 供 Phase 2 刮削用：触发扫描并轮询直到完成或超时 */
