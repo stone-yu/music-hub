@@ -616,3 +616,17 @@ table.card th { color: #666; font-weight: 600; }
 .home-list-desc { margin: 6px 0 0; font-size: 13px; color: var(--text-muted, rgba(255,255,255,.6)); }
 .home-list-act { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 .home-list-tag { border-radius: 999px; padding: 4px 12px; background: var(--accent, #1ed45f); color: #000; font-weight: 600; font-size: 12px; white-space: nowrap; }
+
+/* 首页榜单：单行横向滚动（鼠标左右拖动/滚轮滑动） */
+.home-list-grid {
+  display: flex !important; flex-wrap: nowrap; overflow-x: auto; gap: 12px;
+  scroll-snap-type: x proximity; padding-bottom: 8px;
+  -webkit-overflow-scrolling: touch; scrollbar-width: thin;
+}
+.home-list-grid::-webkit-scrollbar { height: 6px; }
+.home-list-grid::-webkit-scrollbar-thumb { background: var(--border, #ccc); border-radius: 3px; }
+.home-list-grid > .lib-song-card { flex: 0 0 160px; width: 160px; scroll-snap-align: start; }
+.home-list-grid > .lib-song-card .lib-song-info { padding: .5rem .6rem; }
+.home-list-grid > .lib-song-card .lib-song-title { font-size: 13px; }
+.home-list-grid > .lib-song-card .lib-song-artist { font-size: 11px; }
+.home-list-grid > .lib-song-card .lib-song-act { padding: 0 .6rem .6rem; }

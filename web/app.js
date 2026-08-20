@@ -2459,7 +2459,7 @@ async function loadHome() {
   if (!el) return
   el.innerHTML = '<div class="empty">加载中…</div>'
   try {
-    const d = await fetchJSON('/api/v1/navidrome/recommendations?limit=5')
+    const d = await fetchJSON('/api/v1/navidrome/recommendations?limit=10')
     el.innerHTML = HOME_LISTS.map((l) => {
       return `<div class="home-list">
         <div class="home-list-head">
