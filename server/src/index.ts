@@ -17,6 +17,7 @@ import { scrapeRoutes } from './routes/scrape.js'
 import { playlistSquareRoutes } from './routes/playlist-square.js'
 import { previewRoutes } from './routes/preview.js'
 import { rankRoutes } from './routes/ranks.js'
+import { radioRoutes } from './routes/radio.js'
 import { authRoutes, registerAuthGuard } from './routes/auth.js'
 import { createRateLimiter } from './core/rate-limit.js'
 import { startSmokeScheduler } from './core/smoke/scheduler.js'
@@ -61,6 +62,7 @@ async function main(): Promise<void> {
   await app.register(playlistSquareRoutes)
   await app.register(previewRoutes)
   await app.register(rankRoutes)
+  await app.register(radioRoutes)
 
   // Web 后台静态资源（web/ 目录），放最后避免抢占 /api 路由
   await app.register(fastifyStatic, {

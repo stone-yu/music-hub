@@ -186,6 +186,8 @@ $$('.menu-item').forEach((tab) => {
     if (name === 'lib-playlists') loadLibPlaylists()
     if (name === 'settings') switchSettingsSub('general')
     if (name === 'search') loadSearchSquare()
+    if (name === 'net-radio') loadNetRadio()
+    if (name === 'local-radio') loadLocalRadio()
   })
 })
 
@@ -947,6 +949,37 @@ function setPlayingCard(rid) {
   if (rid) document.querySelector(`.song-card[data-key="${rid}"]`)?.classList.add('playing')
 }
 function resetPlayerCover() { $('#gp-icon').innerHTML = '🎵' }
+// 广播电台直播流：销毁 hls 实例，避免流泄漏
+function destroyHls() {
+  if (window._radioHls) { try { window._radioHls.destroy() } catch { /* noop */ } window._radioHls = null }
+}
+// 直播流 UI：进度条置灰/恢复
+function setRadioLiveUI(live) {
+  const progress = $('#gp-progress')
+  if (!progress) return
+  progress.classList.toggle('disabled', !!live)
+}
+// 流失效重试：重新取流地址(key 过期) 再播
+async function retryRadioStream(slug) {
+  try {
+    const s = await fetchJSON(`/api/v1/radio5/stream/${encodeURIComponent(slug)}`)
+    const audio = $('#global-audio')
+    destroyHls()
+    if (window.Hls && Hls.isSupported()) {
+      const hls = new Hls()
+      window._radioHls = hls
+      hls.loadSource(s.streamUrl)
+      hls.attachMedia(audio)
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (data.fatal) { toast('电台流播放失败'); stopPlayer() }
+      })
+      audio.play().catch(() => {})
+    } else {
+      audio.src = s.streamUrl
+      audio.play().catch(() => {})
+    }
+  } catch { toast('重试取流失败'); stopPlayer() }
+}
 function clearLibSongHighlight() { document.querySelector('.lib-song-row.playing')?.classList.remove('playing') }
 
 // 启动队列：清空 → 塞入 items → 从第一首播。新队列重置循环模式为顺序（仅当前队列作用域）
@@ -974,8 +1007,47 @@ async function playCurrent() {
   audio.onerror = null // 先清旧 onerror，避免清空 src 中断旧流时误触发「播放失败」
   audio.src = ''
   audio.dataset.proxyTried = ''
+  // 清理上一首 radio 专属状态：无论切到什么 kind 都先销毁 hls 实例并重置重试标志
+  destroyHls()
+  audio.dataset.radioRetry = ''
+  setRadioLiveUI(false)
   renderQueuePanel() // 同步队列面板当前项高亮
-  if (item.kind === 'nav') {
+  if (item.kind === 'radio') {
+    // 广播电台直播流：HLS(m3u8) 用 hls.js，mp3 直链用原生 audio
+    audio.dataset.rid = `radio:${item.slug || item.streamUrl}`
+    audio.dataset.proxyTried = 'done'
+    setRadioLiveUI(true) // 直播流：进度条置灰
+    if (item.isHls && window.Hls && Hls.isSupported()) {
+      destroyHls()
+      const hls = new Hls()
+      window._radioHls = hls
+      hls.loadSource(item.streamUrl)
+      hls.attachMedia(audio)
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (data.fatal) {
+          // 致命错误：流失效(key过期等)，重取一次
+          if (!audio.dataset.radioRetry && item.slug) {
+            audio.dataset.radioRetry = '1'
+            retryRadioStream(item.slug)
+          } else {
+            toast('电台流播放失败')
+            stopPlayer()
+          }
+        }
+      })
+      audio.play().catch(() => toast('播放失败，可能流已失效'))
+    } else {
+      // 非 HLS 或 Safari 原生支持 m3u8 / mp3 直链
+      audio.src = item.streamUrl
+      audio.play().catch(() => toast('播放失败，可能流已失效'))
+      audio.onerror = () => {
+        if (!audio.dataset.radioRetry && item.slug) {
+          audio.dataset.radioRetry = '1'
+          retryRadioStream(item.slug)
+        } else { toast('电台流播放失败'); stopPlayer() }
+      }
+    }
+  } else if (item.kind === 'nav') {
     // Navidrome 库内：/stream/:id 直播，无需 preview 代理重试
     audio.src = `/api/v1/navidrome/stream/${encodeURIComponent(item.id)}`
     audio.dataset.rid = `lib:${item.id}`
@@ -1078,6 +1150,9 @@ function updateLoopBtn() {
 function stopPlayer() {
   const audio = $('#global-audio')
   audio.pause(); audio.src = ''; audio.dataset.proxyTried = ''
+  audio.dataset.radioRetry = ''
+  destroyHls()
+  setRadioLiveUI(false)
   $('#gp-title').textContent = '未播放'
   $('#gp-sub').textContent = '试听'
   resetPlayerCover()
@@ -1587,6 +1662,204 @@ function renderHealth(h) {
   html += '</tbody></table>'
   c.innerHTML = html
 }
+
+// ---------- 网络电台 (radio5.cn) ----------
+let netRadioCatalog = null
+let netRadioActivePath = 'fm/cmg'
+
+async function loadNetRadio() {
+  // 切回分类首页
+  $('#net-radio-home').hidden = false
+  $('#net-radio-search-page').hidden = true
+  // 加载分类目录填充筛选下拉
+  if (!netRadioCatalog) {
+    try {
+      netRadioCatalog = await fetchJSON('/api/v1/radio5/categories')
+      fillFilterSelects(netRadioCatalog)
+    } catch { /* 目录静态，失败也继续 */ }
+  }
+  // 默认加载第一个快捷标签（央媒）
+  const activeTab = $('#net-radio-quick-tabs .ptab.active[data-path]') || $('#net-radio-quick-tabs .ptab[data-path]')
+  if (activeTab) {
+    netRadioActivePath = activeTab.dataset.path
+    await loadNetRadioStations(netRadioActivePath)
+  }
+}
+
+function fillFilterSelects(cat) {
+  const fill = (sel, opts) => {
+    const el = $(sel)
+    if (!el) return
+    opts.forEach((o) => { const opt = document.createElement('option'); opt.value = o.path; opt.textContent = o.label; el.appendChild(opt) })
+  }
+  fill('#filter-level', cat.level)
+  fill('#filter-area', cat.area)
+  fill('#filter-type', cat.type)
+  fill('#filter-language', cat.language)
+}
+
+async function loadNetRadioStations(path) {
+  netRadioActivePath = path
+  $('#net-radio-home').hidden = false
+  $('#net-radio-search-page').hidden = true
+  const grid = $('#net-radio-grid')
+  const status = $('#net-radio-status')
+  status.textContent = '加载中…'
+  grid.innerHTML = ''
+  try {
+    const d = await fetchJSON(`/api/v1/radio5/stations?cat=${encodeURIComponent(path)}`)
+    status.textContent = `共 ${d.total} 个电台`
+    renderNetRadioGrid(grid, d.stations)
+  } catch (err) {
+    status.textContent = ''
+    grid.innerHTML = `<div class="empty">加载失败：${escapeHtml(err.message)}</div>`
+  }
+}
+
+function renderNetRadioGrid(grid, stations) {
+  if (!stations.length) { grid.innerHTML = '<div class="empty">暂无电台</div>'; return }
+  grid.innerHTML = stations.map((s) => `
+    <div class="radio-card" data-slug="${escapeHtml(s.slug)}">
+      <div class="radio-cover-wrap">${coverHtml(s.cover)}</div>
+      <div class="radio-info">
+        <div class="radio-name">${escapeHtml(s.name)}</div>
+        <div class="radio-artist">${escapeHtml(s.artist || '网络电台')}</div>
+      </div>
+      <button class="radio-play-btn" data-slug="${escapeHtml(s.slug)}">▶ 播放</button>
+    </div>`).join('')
+  grid.querySelectorAll('.radio-card').forEach((card) => {
+    card.addEventListener('click', () => playRadioStream(card.dataset.slug, card))
+  })
+}
+
+// 快捷标签切换
+$$('#net-radio-quick-tabs .ptab').forEach((t) => {
+  t.addEventListener('click', () => {
+    if (t.dataset.advanced) {
+      // 高级筛选折叠切换
+      $('#net-radio-filter').hidden = !$('#net-radio-filter').hidden
+      return
+    }
+    $$('#net-radio-quick-tabs .ptab').forEach((x) => x.classList.toggle('active', x === t))
+    loadNetRadioStations(t.dataset.path)
+  })
+})
+
+// 高级筛选应用：四维任选，应用后取消快捷标签激活
+$('#filter-apply')?.addEventListener('click', () => {
+  const path = $('#filter-level').value || $('#filter-area').value || $('#filter-type').value || $('#filter-language').value
+  if (!path) { toast('请至少选择一个筛选维度'); return }
+  $$('#net-radio-quick-tabs .ptab').forEach((x) => x.classList.remove('active'))
+  loadNetRadioStations(path)
+})
+$('#filter-reset')?.addEventListener('click', () => {
+  ;['#filter-level', '#filter-area', '#filter-type', '#filter-language'].forEach((s) => { $(s).value = '' })
+})
+
+// 刷新
+$('#net-radio-refresh')?.addEventListener('click', () => loadNetRadioStations(netRadioActivePath))
+
+// 搜索
+$('#net-radio-search-btn')?.addEventListener('click', () => {
+  const q = $('#net-radio-keyword').value.trim()
+  if (!q) return
+  searchNetRadio(q)
+})
+$('#net-radio-keyword')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { const q = $('#net-radio-keyword').value.trim(); if (q) searchNetRadio(q) }
+})
+$('#net-radio-back')?.addEventListener('click', () => loadNetRadioStations(netRadioActivePath))
+
+async function searchNetRadio(q) {
+  $('#net-radio-home').hidden = true
+  $('#net-radio-search-page').hidden = false
+  const grid = $('#net-radio-search-grid')
+  const status = $('#net-radio-search-status')
+  status.textContent = '搜索中…'
+  grid.innerHTML = ''
+  try {
+    const d = await fetchJSON(`/api/v1/radio5/search?q=${encodeURIComponent(q)}`)
+    status.textContent = `找到 ${d.total} 个电台`
+    renderNetRadioGrid(grid, d.stations)
+  } catch (err) {
+    status.textContent = ''
+    grid.innerHTML = `<div class="empty">搜索失败：${escapeHtml(err.message)}</div>`
+  }
+}
+
+// 点电台卡片 → 取流 → 播放（HLS）
+async function playRadioStream(slug, cardEl) {
+  document.querySelectorAll('.radio-card.playing').forEach((c) => c.classList.remove('playing'))
+  if (cardEl) cardEl.classList.add('playing')
+  let stream
+  try {
+    stream = await fetchJSON(`/api/v1/radio5/stream/${encodeURIComponent(slug)}`)
+  } catch (err) {
+    toast(`取流失败：${err.message}`)
+    return
+  }
+  // 单元素队列播放，radio 类型走 HLS 分支
+  startQueue([{
+    kind: 'radio',
+    slug,
+    streamUrl: stream.streamUrl,
+    label: stream.title || '网络电台',
+    cover: stream.cover || '',
+    artist: stream.artist || '',
+    isHls: true,
+  }], { cover: stream.cover || '', name: stream.title || '网络电台' })
+}
+
+// ---------- 本地电台 (Navidrome) ----------
+async function loadLocalRadio() {
+  const list = $('#local-radio-list')
+  const status = $('#local-radio-status')
+  const summary = $('#local-radio-summary')
+  status.textContent = '加载中…'
+  list.innerHTML = ''
+  summary.textContent = ''
+  try {
+    const d = await fetchJSON('/api/v1/navidrome/radio')
+    status.textContent = ''
+    summary.textContent = `共 ${d.total} 个电台`
+    renderLocalRadioList(list, d.stations)
+  } catch (err) {
+    status.textContent = ''
+    summary.textContent = ''
+    list.innerHTML = `<div class="empty">${escapeHtml(err.message)}。请在 Navidrome 后台 Settings > Radio 添加电台。</div>`
+  }
+}
+
+function renderLocalRadioList(listEl, stations) {
+  if (!stations.length) { listEl.innerHTML = '<div class="empty">未配置电台。请到 Navidrome 后台 > Settings > Radio 添加。</div>'; return }
+  listEl.innerHTML = stations.map((s) => `
+    <div class="radio-row" data-url="${escapeHtml(s.streamUrl)}" data-name="${escapeHtml(s.name)}">
+      <div class="radio-row-info">
+        <div class="radio-name">${escapeHtml(s.name)}</div>
+        <div class="radio-stream">${escapeHtml(s.streamUrl)}</div>
+      </div>
+      <button class="radio-play-btn">▶ 播放</button>
+    </div>`).join('')
+  listEl.querySelectorAll('.radio-row').forEach((row) => {
+    row.addEventListener('click', () => playLocalRadio(row.dataset.url, row.dataset.name, row))
+  })
+}
+
+function playLocalRadio(url, name, rowEl) {
+  document.querySelectorAll('.radio-row.playing').forEach((r) => r.classList.remove('playing'))
+  if (rowEl) rowEl.classList.add('playing')
+  // mp3 直链，原生 audio 播放，radio 类型非 HLS 分支
+  startQueue([{
+    kind: 'radio',
+    streamUrl: url,
+    label: name,
+    cover: '',
+    artist: '',
+    isHls: false,
+  }], { cover: '', name })
+}
+
+$('#local-radio-refresh')?.addEventListener('click', loadLocalRadio)
 
 // ---------- 鉴权（登出按钮 + 401 跳登录） ----------
 async function initAuth() {
