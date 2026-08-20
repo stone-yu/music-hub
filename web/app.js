@@ -980,7 +980,7 @@ async function retryRadioStream(slug) {
     }
   } catch { toast('重试取流失败'); stopPlayer() }
 }
-function clearLibSongHighlight() { document.querySelector('.lib-song-row.playing')?.classList.remove('playing') }
+function clearLibSongHighlight() { document.querySelector('.lib-song-card.playing')?.classList.remove('playing') }
 
 // 启动队列：清空 → 塞入 items → 从第一首播。新队列重置循环模式为顺序（仅当前队列作用域）
 function startQueue(items, plInfo) {
@@ -1180,7 +1180,7 @@ function playLibSong(song) {
   const audio = $('#global-audio')
   const rid = `lib:${song.id}`
   if (audio.dataset.rid === rid && audio.src) { togglePlay(); return }
-  Array.from(document.querySelectorAll('.lib-song-row')).forEach((r) => r.classList.toggle('playing', r.dataset.id === song.id))
+  Array.from(document.querySelectorAll('.lib-song-card')).forEach((r) => r.classList.toggle('playing', r.dataset.id === song.id))
   const item = { kind: 'nav', id: song.id, label: `${song.title} - ${song.artist}`, cover: song.coverArt ? `/api/v1/navidrome/cover/${encodeURIComponent(song.coverArt)}` : '' }
   if (playQueue.length) { playQueue.splice(playIndex + 1, 0, item); playIndex++; playCurrent() }
   else startQueue([item])
@@ -2079,6 +2079,7 @@ function renderLibSongsPager() {
   }
 }
 function libSongRowHtml(s, opts = {}) {
+  // 大卡片模式：大封面在上 + 信息 + 操作按钮在底
   const cover = s.coverArt
     ? `<img class="lib-song-cover" src="/api/v1/navidrome/cover/${encodeURIComponent(s.coverArt)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="lib-song-cover-ph" style="display:none">🎵</div>`
     : `<div class="lib-song-cover-ph">🎵</div>`
@@ -2089,18 +2090,19 @@ function libSongRowHtml(s, opts = {}) {
   const starIcon = starred
     ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.5-9.5-9C1 9 2.5 5 6 5c2 0 3.5 1 6 3.5C14.5 6 16 5 18 5c3.5 0 5 4 3.5 7-2.5 4.5-9.5 9-9.5 9z"/></svg>'
     : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>'
-  return `<div class="lib-song-row" data-id="${escapeHtml(s.id)}">
-    ${cover}
+  return `<div class="lib-song-card" data-id="${escapeHtml(s.id)}">
+    <div class="lib-song-cover-wrap">${cover}</div>
     <div class="lib-song-info">
       <div class="lib-song-title">${escapeHtml(s.title)}</div>
       <div class="lib-song-artist">${escapeHtml(s.artist)}${s.album ? ' · ' + escapeHtml(s.album) : ''}</div>
+      <div class="lib-song-meta">${plays}${dur ? `<span class="lib-song-dur">${dur}</span>` : ''}</div>
     </div>
-    ${plays}
-    <span class="lib-song-dur">${dur}</span>
-    <button class="lib-song-play preview-btn" data-id="${escapeHtml(s.id)}">▶播放</button>
-    <button class="lib-song-queue" data-id="${escapeHtml(s.id)}" title="加入播放队列"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg></button>
-    <button class="lib-song-star ${starred ? 'starred' : ''}" data-id="${escapeHtml(s.id)}" title="${starred ? '取消收藏' : '收藏'}">${starIcon}</button>
-    ${removeBtn}
+    <div class="lib-song-act">
+      <button class="lib-song-play preview-btn" data-id="${escapeHtml(s.id)}">▶播放</button>
+      <button class="lib-song-queue" data-id="${escapeHtml(s.id)}" title="加入播放队列"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg></button>
+      <button class="lib-song-star ${starred ? 'starred' : ''}" data-id="${escapeHtml(s.id)}" title="${starred ? '取消收藏' : '收藏'}">${starIcon}</button>
+      ${removeBtn}
+    </div>
   </div>`
 }
 function bindLibSongPlay(container, songs) {
@@ -2139,6 +2141,7 @@ function renderLibSongs(songs) {
   const status = $('#lib-songs-status')
   status.innerHTML = ''
   if (!songs.length) { list.innerHTML = '<div class="empty">曲库暂无歌曲</div>'; return }
+  list.className = 'pl-grid'
   list.innerHTML = songs.map(libSongRowHtml).join('')
   bindLibSongPlay(list, songs)
 }
@@ -2247,7 +2250,7 @@ function renderLibPlaylistSongs(songs) {
   box.querySelectorAll('.lib-song-remove').forEach((b) => b.addEventListener('click', async (e) => {
     e.stopPropagation()
     const songId = b.dataset.id
-    const row = b.closest('.lib-song-row')
+    const row = b.closest('.lib-song-card')
     const title = row?.querySelector('.lib-song-title')?.textContent || '该歌曲'
     if (!confirm(`确定将「${title}」移出歌单？`)) return
     const plId = $('#lib-pl-detail').dataset.playlistId
