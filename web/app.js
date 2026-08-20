@@ -970,6 +970,9 @@ async function retryRadioStream(slug) {
       window._radioHls = hls
       hls.loadSource(s.streamUrl)
       hls.attachMedia(audio)
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (data.fatal) { toast('电台流播放失败'); stopPlayer() }
+      })
       audio.play().catch(() => {})
     } else {
       audio.src = s.streamUrl
@@ -1004,6 +1007,10 @@ async function playCurrent() {
   audio.onerror = null // 先清旧 onerror，避免清空 src 中断旧流时误触发「播放失败」
   audio.src = ''
   audio.dataset.proxyTried = ''
+  // 清理上一首 radio 专属状态：无论切到什么 kind 都先销毁 hls 实例并重置重试标志
+  destroyHls()
+  audio.dataset.radioRetry = ''
+  setRadioLiveUI(false)
   renderQueuePanel() // 同步队列面板当前项高亮
   if (item.kind === 'radio') {
     // 广播电台直播流：HLS(m3u8) 用 hls.js，mp3 直链用原生 audio
@@ -1659,13 +1666,11 @@ function renderHealth(h) {
 // ---------- 网络电台 (radio5.cn) ----------
 let netRadioCatalog = null
 let netRadioActivePath = 'fm/cmg'
-let netRadioSearchActive = false
 
 async function loadNetRadio() {
   // 切回分类首页
   $('#net-radio-home').hidden = false
   $('#net-radio-search-page').hidden = true
-  netRadioSearchActive = false
   // 加载分类目录填充筛选下拉
   if (!netRadioCatalog) {
     try {
@@ -1695,7 +1700,6 @@ function fillFilterSelects(cat) {
 
 async function loadNetRadioStations(path) {
   netRadioActivePath = path
-  netRadioSearchActive = false
   $('#net-radio-home').hidden = false
   $('#net-radio-search-page').hidden = true
   const grid = $('#net-radio-grid')
@@ -1767,7 +1771,6 @@ $('#net-radio-keyword')?.addEventListener('keydown', (e) => {
 $('#net-radio-back')?.addEventListener('click', () => loadNetRadioStations(netRadioActivePath))
 
 async function searchNetRadio(q) {
-  netRadioSearchActive = true
   $('#net-radio-home').hidden = true
   $('#net-radio-search-page').hidden = false
   const grid = $('#net-radio-search-grid')
