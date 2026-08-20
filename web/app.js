@@ -2459,7 +2459,12 @@ async function loadHome() {
   if (!el) return
   el.innerHTML = '<div class="empty">加载中…</div>'
   try {
-    const d = await fetchJSON('/api/v1/navidrome/recommendations?limit=10')
+    // 并行拉推荐 + 收藏 id 集合（收藏按钮状态判断用）
+    const [d, sd] = await Promise.all([
+      fetchJSON('/api/v1/navidrome/recommendations?limit=10'),
+      fetchJSON('/api/v1/navidrome/starred'),
+    ])
+    libStarredIds = new Set(sd.ids || [])
     el.innerHTML = HOME_LISTS.map((l) => {
       return `<div class="home-list">
         <div class="home-list-head">
@@ -2479,6 +2484,13 @@ async function loadHome() {
       if (!songs.length) { grid.outerHTML = '<div class="empty">暂无</div>'; return }
       grid.innerHTML = songs.map(libSongRowHtml).join('')
       bindLibSongPlay(grid, songs)
+      // 横向滚动容器：垂直滚轮(deltaY)不转横向，放行页面正常上下滚；仅显式横向(deltaX)才横向滑
+      grid.addEventListener('wheel', (e) => {
+        if (e.deltaY !== 0 && e.deltaX === 0) {
+          // 垂直滚动：阻止容器把它转成横向 scrollLeft，让页面正常垂直滚
+          e.preventDefault()
+        }
+      }, { passive: false })
     })
   } catch (err) {
     el.innerHTML = `<div class="empty">加载失败：${escapeHtml(err.message)}</div>`
