@@ -118,7 +118,31 @@ export async function navidromeRoutes(app: FastifyInstance): Promise<void> {
         duration: s.duration ?? null,
         suffix: s.suffix ?? null,
         playCount: s.playCount ?? null,
+        created: s.created ?? null,
       })),
+    }
+  })
+
+  // 首页推荐：3 个榜单各 N 首（默认5），全部从本地曲库排序
+  //   new=新歌推荐(created 降序) / taste=偏好推荐(playCount 降序) / longTime=好久没听(playCount>0 升序)
+  app.get<{ Querystring: { limit?: string } }>('/api/v1/navidrome/recommendations', async (req) => {
+    const limit = Math.max(1, Math.min(20, parseInt(req.query.limit ?? '5', 10) || 5))
+    const all = library.getSongs()
+    const pick = (arr: typeof all) => arr.slice(0, limit).map((s) => ({
+      id: s.id, title: s.title, artist: s.artist, album: s.album,
+      coverArt: s.coverArt ?? null, duration: s.duration ?? null, playCount: s.playCount ?? null, created: s.created ?? null,
+    }))
+    // 新歌推荐：created 降序（无 created 视为最旧）
+    const newSongs = [...all].sort((a, b) => (b.created ?? '').localeCompare(a.created ?? ''))
+    // 偏好推荐：playCount 降序（听得多=偏好，无 playCount 视为 0）
+    const taste = [...all].sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0))
+    // 好久没听：playCount>0 的里升序（听得少但又听过的），无足够则用 playCount==0 的兜底
+    const played = all.filter((s) => (s.playCount ?? 0) > 0).sort((a, b) => (a.playCount ?? 0) - (b.playCount ?? 0))
+    const longTime = played.length >= limit ? played : [...played, ...all.filter((s) => !s.playCount)]
+    return {
+      new: pick(newSongs),
+      taste: pick(taste),
+      longTime: pick(longTime),
     }
   })
 

@@ -999,7 +999,6 @@ function startQueue(items, plInfo) {
 async function playCurrent() {
   const item = playQueue[playIndex]
   if (!item) return
-  recordPlayHistory(item) // 记录播放史（首页「最近播放」用，localStorage 持久化）
   const audio = $('#global-audio')
   const box = $('#global-player')
   $('#gp-title').textContent = item.label
@@ -2448,158 +2447,51 @@ initTheme()
 // 默认着陆页为首页，初始加载首页内容
 loadHome()
 
-// ---------- 首页（仪表盘） ----------
-const HOME_SHORTCUTS = [
-  { tab: 'search', icon: '🔍', label: '搜索音乐' },
-  { tab: 'net-radio', icon: '📻', label: '听广播' },
-  { tab: 'library', icon: '📁', label: '我的曲库' },
-  { tab: 'playlists', icon: '🎶', label: '热榜歌单' },
-  { tab: 'lib-songs', icon: '🎵', label: '曲库歌曲' },
+// ---------- 首页（本地曲库推荐 3 榜单） ----------
+const HOME_LISTS = [
+  { key: 'new', title: '🆕 新歌推荐', desc: '最近加入曲库' },
+  { key: 'taste', title: '❤️ 偏好推荐', desc: '你常听的' },
+  { key: 'longTime', title: '⏰ 好久没听', desc: '重温旧爱' },
 ]
-const PLAY_HISTORY_KEY = 'playHistory'
-const PLAY_HISTORY_MAX = 20
-
-// 记录播放史（去重最新在前，localStorage 持久化）
-function recordPlayHistory(item) {
-  if (!item?.label) return
-  try {
-    const hist = JSON.parse(localStorage.getItem(PLAY_HISTORY_KEY) || '[]')
-    // 去重：同 rid/id 的移到最前
-    const key = item.id || item.slug || item.label
-    const filtered = hist.filter((h) => (h.id || h.label) !== key)
-    filtered.unshift({ id: item.id || '', slug: item.slug || '', label: item.label, cover: item.cover || '', kind: item.kind, ts: Date.now() })
-    localStorage.setItem(PLAY_HISTORY_KEY, JSON.stringify(filtered.slice(0, PLAY_HISTORY_MAX)))
-  } catch { /* quota */ }
-}
-function getPlayHistory(n = 6) {
-  try { return JSON.parse(localStorage.getItem(PLAY_HISTORY_KEY) || '[]').slice(0, n) }
-  catch { return [] }
-}
 
 async function loadHome() {
-  // 1. 快捷入口（静态，立即可用）
-  renderHomeShortcuts()
-  // 2. 并行加载各区块
-  loadHomeStats()
-  loadHomeRecent()
-  loadHomeStarred()
-  loadHomeRanks()
-  loadHomeRadios()
-}
-
-function renderHomeShortcuts() {
-  const el = $('#home-shortcuts')
+  const el = $('#home-recommend')
   if (!el) return
-  el.innerHTML = HOME_SHORTCUTS.map((s) =>
-    `<div class="home-shortcut" data-tab="${s.tab}"><div class="home-shortcut-icon">${s.icon}</div><div class="home-shortcut-label">${s.label}</div></div>`).join('')
-  el.querySelectorAll('.home-shortcut').forEach((c) => {
-    c.addEventListener('click', () => {
-      const tab = document.querySelector(`.menu-item[data-tab="${c.dataset.tab}"]`)
-      if (tab) tab.click()
-    })
-  })
-}
-
-async function loadHomeStats() {
-  const el = $('#home-stats')
-  if (!el) return
+  el.innerHTML = '<div class="empty">加载中…</div>'
   try {
-    const d = await fetchJSON('/api/v1/navidrome/stats')
-    const cards = [
-      { num: d.songCount, label: '歌曲', tab: 'lib-songs' },
-      { num: d.artistCount, label: '艺术家', tab: 'library' },
-      { num: d.albumCount, label: '专辑', tab: 'library' },
-      { num: (d.playlists || []).length, label: '歌单', tab: 'library' },
-    ]
-    el.innerHTML = cards.map((c) =>
-      `<div class="home-stat-card" data-tab="${c.tab}"><div class="home-stat-num">${c.num}</div><div class="home-stat-label">${c.label}</div></div>`).join('')
-    el.querySelectorAll('.home-stat-card').forEach((c) => {
-      c.addEventListener('click', () => {
-        const tab = document.querySelector(`.menu-item[data-tab="${c.dataset.tab}"]`)
-        if (tab) tab.click()
-      })
-    })
-  } catch { el.innerHTML = '<div class="empty">曲库未连接</div>' }
-}
-
-function loadHomeRecent() {
-  const el = $('#home-recent')
-  if (!el) return
-  const hist = getPlayHistory(6)
-  if (!hist.length) { el.innerHTML = '<div class="empty">暂无播放记录</div>'; return }
-  el.innerHTML = hist.map((h) =>
-    `<div class="home-song-row" data-label="${escapeHtml(h.label)}">
-      ${coverHtml(h.cover)}
-      <div class="home-song-info"><div class="home-song-title">${escapeHtml(h.label)}</div></div>
-      <button class="home-song-play" data-idx="${hist.indexOf(h)}">▶</button>
-    </div>`).join('')
-  el.querySelectorAll('.home-song-play').forEach((b) => {
-    b.addEventListener('click', () => {
-      const h = hist[parseInt(b.dataset.idx, 10)]
-      if (!h) return
-      // 重播：nav 类型可凭 id 续播，否则只 toast
-      if (h.kind === 'nav' && h.id) {
-        playLibSong({ id: h.id, title: h.label.split(' - ')[0] || h.label, artist: h.label.split(' - ')[1] || '', coverArt: '' })
-      } else { toast('该来源需到对应页面重播') }
-    })
-  })
-}
-
-async function loadHomeStarred() {
-  const el = $('#home-starred')
-  if (!el) return
-  try {
-    const d = await fetchJSON('/api/v1/navidrome/starred')
-    const ids = (d.ids || []).slice(0, 6)
-    if (!ids.length) { el.innerHTML = '<div class="empty">暂无收藏</div>'; return }
-    // 取库内歌曲匹配 id（用 songs 接口第一页里命中的，无命中则只显示 id）
-    el.innerHTML = ids.map((id) => `<div class="home-song-row"><span class="song-card-icon">⭐</span><div class="home-song-info"><div class="home-song-title">收藏歌曲</div></div></div>`).join('')
-    // 简化：收藏列表点进曲库歌曲页（精确展示需 songs 全量，首页只做入口）
-    el.innerHTML += `<div class="home-more" data-tab="lib-songs">查看全部 →</div>`
-    el.querySelector('.home-more')?.addEventListener('click', () => document.querySelector('.menu-item[data-tab="lib-songs"]')?.click())
-  } catch { el.innerHTML = '<div class="empty">加载失败</div>' }
-}
-
-async function loadHomeRanks() {
-  const el = $('#home-ranks')
-  if (!el) return
-  try {
-    const d = await fetchJSON('/api/v1/ranks/wy/3778678?limit=6')
-    const list = d.list || []
-    if (!list.length) { el.innerHTML = '<div class="empty">加载失败</div>'; return }
-    el.innerHTML = list.map((s, i) =>
-      `<div class="home-song-row" data-src="wy" data-id="${escapeHtml(s.songmid)}">
-        <span class="home-rank-num">${i + 1}</span>
-        ${coverHtml(s.img)}
-        <div class="home-song-info"><div class="home-song-title">${escapeHtml(s.name)}</div><div class="home-song-artist">${escapeHtml(s.singer)}</div></div>
-      </div>`).join('')
-    el.querySelectorAll('.home-song-row').forEach((row, i) => {
-      row.addEventListener('click', () => {
-        const s = list[i]
-        startQueue([{ kind: 'net', platform: 'wy', musicInfo: s, label: `${s.name} - ${s.singer}`, cover: s.img }], { cover: s.img, name: '网易热歌榜' })
-      })
-    })
-  } catch { el.innerHTML = '<div class="empty">加载失败</div>' }
-}
-
-async function loadHomeRadios() {
-  const el = $('#home-radios')
-  if (!el) return
-  try {
-    const d = await fetchJSON('/api/v1/navidrome/radio')
-    const list = (d.stations || []).slice(0, 4)
-    if (!list.length) { el.innerHTML = '<div class="empty">暂无电台</div>'; return }
-    el.innerHTML = list.map((s) =>
-      `<div class="home-song-row" data-url="${escapeHtml(s.streamUrl)}" data-name="${escapeHtml(s.name)}">
-        <span class="song-card-icon">📻</span>
-        <div class="home-song-info"><div class="home-song-title">${escapeHtml(s.name)}</div></div>
-        <button class="home-song-play">▶</button>
-      </div>`).join('')
+    const d = await fetchJSON('/api/v1/navidrome/recommendations?limit=5')
+    el.innerHTML = HOME_LISTS.map((l) => {
+      const songs = d[l.key] || []
+      return `<div class="home-list">
+        <h3 class="home-section-title">${l.title}<span class="home-list-desc">${l.desc}</span></h3>
+        ${songs.length ? renderHomeSongs(songs) : '<div class="empty">暂无</div>'}
+      </div>`
+    }).join('')
+    // 绑定播放
     el.querySelectorAll('.home-song-row').forEach((row) => {
-      row.querySelector('.home-song-play')?.addEventListener('click', (e) => {
-        e.stopPropagation()
-        playLocalRadio(row.dataset.url, row.dataset.name, null)
+      row.addEventListener('click', () => {
+        const id = row.dataset.id
+        const title = row.dataset.title
+        const artist = row.dataset.artist
+        const cover = row.dataset.cover
+        playLibSong({ id, title, artist, coverArt: '' })
       })
     })
-  } catch { el.innerHTML = '<div class="empty">电台未连接</div>' }
+  } catch (err) {
+    el.innerHTML = `<div class="empty">加载失败：${escapeHtml(err.message)}</div>`
+  }
+}
+
+function renderHomeSongs(songs) {
+  return songs.map((s, i) => {
+    const cover = s.coverArt ? `/api/v1/navidrome/cover/${encodeURIComponent(s.coverArt)}` : ''
+    const plays = (typeof s.playCount === 'number' && s.playCount > 0) ? `<span class="home-song-plays">▶ ${s.playCount}</span>` : ''
+    return `<div class="home-song-row" data-id="${escapeHtml(s.id)}" data-title="${escapeHtml(s.title)}" data-artist="${escapeHtml(s.artist)}" data-cover="${escapeHtml(cover)}">
+      <span class="home-rank-num">${i + 1}</span>
+      ${coverHtml(cover)}
+      <div class="home-song-info"><div class="home-song-title">${escapeHtml(s.title)}</div><div class="home-song-artist">${escapeHtml(s.artist)}</div></div>
+      ${plays}
+      <button class="home-song-play">▶</button>
+    </div>`
+  }).join('')
 }

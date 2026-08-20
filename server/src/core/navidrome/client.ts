@@ -22,6 +22,7 @@ export interface NavidromeSong {
   duration?: number
   suffix?: string
   playCount?: number
+  created?: string  // ISO 时间戳，加入曲库时间（首页「新歌推荐」用）
 }
 
 const CLIENT_NAME = 'navidrome-ai-playlist'
@@ -132,6 +133,7 @@ class NavidromeClient {
             duration: typeof s.duration === 'number' ? s.duration : undefined,
             suffix: typeof s.suffix === 'string' ? s.suffix : undefined,
             playCount: typeof s.playCount === 'number' ? s.playCount : undefined,
+            created: typeof s.created === 'string' ? s.created : undefined,
           })
         }
       }
@@ -153,6 +155,7 @@ class NavidromeClient {
       duration: typeof s.duration === 'number' ? s.duration : undefined,
       suffix: typeof s.suffix === 'string' ? s.suffix : undefined,
       playCount: typeof s.playCount === 'number' ? s.playCount : undefined,
+      created: typeof s.created === 'string' ? s.created : undefined,
     }))
   }
 
