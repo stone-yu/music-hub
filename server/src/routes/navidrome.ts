@@ -89,10 +89,25 @@ export async function navidromeRoutes(app: FastifyInstance): Promise<void> {
   })
 
   // 曲库歌曲列表（来自本地缓存，含封面/时长/格式，供"曲库歌曲"页）
-  app.get('/api/v1/navidrome/songs', async () => {
-    const songs = library.getSongs()
+  //   分页 + keyword 过滤（title/artist/album 包含，大小写不敏感），避免大库一次性传输+渲染卡顿
+  app.get<{ Querystring: { page?: string; pageSize?: string; keyword?: string } }>('/api/v1/navidrome/songs', async (req) => {
+    const page = Math.max(1, parseInt(req.query.page ?? '1', 10) || 1)
+    const pageSize = Math.max(1, Math.min(500, parseInt(req.query.pageSize ?? '50', 10) || 50))
+    const kw = (req.query.keyword ?? '').trim().toLowerCase()
+    const all = library.getSongs()
+    // keyword 过滤
+    const filtered = kw
+      ? all.filter((s) => `${s.title} ${s.artist} ${s.album ?? ''}`.toLowerCase().includes(kw))
+      : all
+    const total = filtered.length
+    const totalPages = Math.max(1, Math.ceil(total / pageSize))
+    const start = (page - 1) * pageSize
+    const songs = filtered.slice(start, start + pageSize)
     return {
-      total: songs.length,
+      total,
+      page,
+      pageSize,
+      totalPages,
       loading: library.getStatus().loading,
       songs: songs.map((s) => ({
         id: s.id,

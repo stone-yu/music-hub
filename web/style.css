@@ -516,3 +516,22 @@ table.card th { color: #666; font-weight: 600; }
 
 /* 直播流：进度条置灰 */
 .gp-progress.disabled { opacity: .35; pointer-events: none; }
+
+/* ---------- 分页器 ---------- */
+.pager {
+  display: flex; align-items: center; justify-content: center; gap: .8rem;
+  padding: 1rem .5rem; flex-wrap: wrap;
+}
+.pager-btn {
+  padding: .4rem .9rem; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border, #ddd); background: var(--card-bg, #fff); color: inherit;
+  font-size: .85rem; transition: background .12s, opacity .12s;
+}
+.pager-btn:hover:not(:disabled) { background: var(--bg-alt, #f0f0f0); }
+.pager-btn:disabled { opacity: .4; cursor: not-allowed; }
+.pager-info { font-size: .85rem; color: var(--text-secondary, #888); display: flex; align-items: center; gap: .3rem; }
+.pager-input {
+  width: 3.2rem; padding: .25rem .3rem; text-align: center; border-radius: 4px;
+  border: 1px solid var(--border, #ddd); background: var(--card-bg, #fff); color: inherit; font-size: .85rem;
+}
+.pager-input::-webkit-inner-spin-button, .pager-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }

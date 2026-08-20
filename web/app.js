@@ -1955,27 +1955,67 @@ $('#lib-stats-refresh').addEventListener('click', () => loadLibraryStats(true))
 // ---------- 曲库歌曲（Navidrome 库内歌曲列表 + 可播放）----------
 let libSongsCache = []
 let libStarredIds = new Set() // 已收藏歌曲 id 集合
+let libSongsPage = 1
+let libSongsTotalPages = 1
+let libSongsTotal = 0
+let libSongsKeyword = ''
+let libSongsFilterTimer = null
 async function loadLibSongs(force = false) {
   const list = $('#lib-songs-list')
   const status = $('#lib-songs-status')
   const sum = $('#lib-songs-summary')
   if (!list) return
-  // 已加载则复用现有 DOM（1088 行仍在 DOM 中只是隐藏），切回零请求零重渲染，避免卡顿；force=true 强制重拉
-  if (!force && libSongsCache.length && list.children.length) return
+  // force=true 回到第 1 页（刷新/重进场景）
+  if (force) libSongsPage = 1
   status.innerHTML = '<div class="status">加载中…</div>'
   list.innerHTML = ''
   try {
-    // 并行取歌曲列表 + 收藏 id 集合
+    // 并行取当前页歌曲 + 收藏 id 集合（starred 全量，每页比对收藏状态）
+    const qs = new URLSearchParams({ page: String(libSongsPage), pageSize: '50' })
+    if (libSongsKeyword) qs.set('keyword', libSongsKeyword)
     const [d, sd] = await Promise.all([
-      fetchJSON('/api/v1/navidrome/songs'),
+      fetchJSON(`/api/v1/navidrome/songs?${qs.toString()}`),
       fetchJSON('/api/v1/navidrome/starred'),
     ])
     libSongsCache = d.songs || []
     libStarredIds = new Set(sd.ids || [])
+    libSongsTotal = d.total
+    libSongsTotalPages = d.totalPages
     sum.textContent = d.loading ? `${d.total} 首 · 曲库刷新中` : `${d.total} 首`
     renderLibSongs(libSongsCache)
+    renderLibSongsPager()
   } catch (err) {
     status.innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
+  }
+}
+// 翻页：更新页码后重拉当前页
+function libSongsGoPage(page) {
+  if (page < 1 || page > libSongsTotalPages || page === libSongsPage) return
+  libSongsPage = page
+  loadLibSongs(false)
+}
+// 分页器渲染：上一页 · 第X/Y页 · 下一页 + 跳页输入
+function renderLibSongsPager() {
+  const pager = $('#lib-songs-pager')
+  if (!pager) return
+  if (libSongsTotalPages <= 1) { pager.hidden = true; return }
+  pager.hidden = false
+  const prevDisabled = libSongsPage <= 1
+  const nextDisabled = libSongsPage >= libSongsTotalPages
+  pager.innerHTML = `
+    <button class="pager-btn" data-page="${libSongsPage - 1}" ${prevDisabled ? 'disabled' : ''}>上一页</button>
+    <span class="pager-info">第 <input type="number" class="pager-input" min="1" max="${libSongsTotalPages}" value="${libSongsPage}"> / ${libSongsTotalPages} 页</span>
+    <button class="pager-btn" data-page="${libSongsPage + 1}" ${nextDisabled ? 'disabled' : ''}>下一页</button>`
+  pager.querySelectorAll('.pager-btn').forEach((b) => {
+    b.addEventListener('click', () => libSongsGoPage(parseInt(b.dataset.page, 10)))
+  })
+  const input = pager.querySelector('.pager-input')
+  if (input) {
+    input.addEventListener('change', () => {
+      const p = parseInt(input.value, 10)
+      if (p >= 1 && p <= libSongsTotalPages) libSongsGoPage(p)
+      else input.value = String(libSongsPage)
+    })
   }
 }
 function libSongRowHtml(s, opts = {}) {
@@ -2045,10 +2085,13 @@ function renderLibSongs(songs) {
 // playLibSong 已在上方播放队列模块定义（插队头播放逻辑），此处不再重复定义
 $('#lib-songs-refresh').addEventListener('click', () => loadLibSongs(true))
 $('#lib-songs-keyword').addEventListener('input', () => {
-  const kw = $('#lib-songs-keyword').value.trim().toLowerCase()
-  if (!kw) return renderLibSongs(libSongsCache)
-  renderLibSongs(libSongsCache.filter((s) =>
-    `${s.title} ${s.artist} ${s.album || ''}`.toLowerCase().includes(kw)))
+  // debounce 300ms → 后端过滤，回第 1 页（避免大库本地 filter 卡顿）
+  clearTimeout(libSongsFilterTimer)
+  libSongsFilterTimer = setTimeout(() => {
+    libSongsKeyword = $('#lib-songs-keyword').value.trim()
+    libSongsPage = 1
+    loadLibSongs(false)
+  }, 300)
 })
 
 // ---------- 曲库歌单（Navidrome 歌单列表 + 详情可播放）----------
