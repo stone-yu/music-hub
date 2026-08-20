@@ -608,6 +608,11 @@ table.card th { color: #666; font-weight: 600; }
 
 /* ---------- 首页推荐榜单（纵向排列，复用曲库歌曲大卡片） ---------- */
 .home-recommend { display: block; }
-.home-list { margin-bottom: 24px; }
-.home-section-title { font-size: 16px; font-weight: 600; margin: 0 0 12px; color: var(--text, #333); display: flex; align-items: baseline; gap: 8px; }
-.home-list-desc { font-size: 12px; font-weight: 400; color: var(--text-muted, var(--text-secondary, #999)); }
+.home-list { margin-bottom: 28px; }
+.home-list-head { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+@media (min-width: 768px) { .home-list-head { flex-direction: row; align-items: center; justify-content: space-between; } }
+.home-list-titles { min-width: 0; }
+.home-list-title { font-size: 22px; font-weight: 700; margin: 0; color: var(--text, #fff); line-height: 1.2; }
+.home-list-desc { margin: 6px 0 0; font-size: 13px; color: var(--text-muted, rgba(255,255,255,.6)); }
+.home-list-act { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.home-list-tag { border-radius: 999px; padding: 4px 12px; background: var(--accent, #1ed45f); color: #000; font-weight: 600; font-size: 12px; white-space: nowrap; }

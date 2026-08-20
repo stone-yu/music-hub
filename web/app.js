@@ -2449,9 +2449,9 @@ loadHome()
 
 // ---------- 首页（本地曲库推荐 3 榜单） ----------
 const HOME_LISTS = [
-  { key: 'new', title: '🆕 新歌推荐', desc: '最近加入曲库' },
-  { key: 'taste', title: '❤️ 偏好推荐', desc: '你常听的' },
-  { key: 'longTime', title: '⏰ 好久没听', desc: '重温旧爱' },
+  { key: 'new', title: '新歌推荐', desc: '最新入库歌曲，根据入库时间排序' },
+  { key: 'taste', title: '偏好推荐', desc: '根据你的播放次数，推荐常听好歌' },
+  { key: 'longTime', title: '好久没听', desc: '听过但很久没播放，重温旧爱' },
 ]
 
 async function loadHome() {
@@ -2461,9 +2461,14 @@ async function loadHome() {
   try {
     const d = await fetchJSON('/api/v1/navidrome/recommendations?limit=5')
     el.innerHTML = HOME_LISTS.map((l) => {
-      const songs = d[l.key] || []
       return `<div class="home-list">
-        <h3 class="home-section-title">${l.title}<span class="home-list-desc">${l.desc}</span></h3>
+        <div class="home-list-head">
+          <div class="home-list-titles">
+            <h2 class="home-list-title">${escapeHtml(l.title)}</h2>
+            <p class="home-list-desc">${escapeHtml(l.desc)}</p>
+          </div>
+          <div class="home-list-act"><span class="home-list-tag">精选推荐</span></div>
+        </div>
         <div class="pl-grid home-list-grid" id="home-list-${l.key}"></div>
       </div>`
     }).join('')
