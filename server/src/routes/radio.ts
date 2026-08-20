@@ -5,6 +5,7 @@
  *   GET /api/v1/radio5/search?q={keyword}             全站搜索电台
  *   GET /api/v1/radio5/stream/:slug                   解析 slug→id→streamUrl，返回播放流地址（时效 key）
  *   GET /api/v1/navidrome/radio                       Navidrome 网络电台列表（直链 mp3）
+ *   POST /api/v1/navidrome/radio                      创建网络电台到 Navidrome（streamUrl+name+homepageUrl）
  */
 import type { FastifyInstance } from 'fastify'
 import { radio5Client } from '../core/radio5/client.js'
@@ -16,6 +17,11 @@ interface StationsQuery {
 }
 interface SearchQuery {
   q?: string
+}
+interface CreateRadioBody {
+  streamUrl?: string
+  name?: string
+  homepageUrl?: string
 }
 
 export async function radioRoutes(app: FastifyInstance): Promise<void> {
@@ -59,5 +65,17 @@ export async function radioRoutes(app: FastifyInstance): Promise<void> {
     } catch (err) {
       return reply.code(500).send({ error: (err as Error).message })
     }
+  })
+
+  // 创建网络电台到 Navidrome（streamUrl+name+homepageUrl，封面 Subsonic API 不支持）
+  app.post<{ Body: CreateRadioBody }>('/api/v1/navidrome/radio', async (req, reply) => {
+    const { streamUrl, name, homepageUrl } = req.body ?? {}
+    if (!streamUrl?.trim()) return reply.code(400).send({ error: 'streamUrl is required' })
+    if (!name?.trim()) return reply.code(400).send({ error: 'name is required' })
+    const connected = await navidromeClient.ping()
+    if (!connected) return reply.code(502).send({ error: 'Navidrome 连接失败' })
+    const ok = await navidromeClient.createInternetRadioStation(streamUrl.trim(), name.trim(), homepageUrl?.trim() || undefined)
+    if (!ok) return reply.code(500).send({ error: '创建电台失败' })
+    return { success: true }
   })
 }

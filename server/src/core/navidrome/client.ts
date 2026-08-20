@@ -179,7 +179,7 @@ class NavidromeClient {
   }
 
   /** 获取网络电台列表（广播电台功能用，Subsonic getInternetRadioStations） */
-  async getInternetRadioStations(): Promise<{ id: string; name: string; streamUrl: string; homepageUrl?: string }[]> {
+  async getInternetRadioStations(): Promise<{ id: string; name: string; streamUrl: string; homepageUrl?: string; coverArt?: string }[]> {
     const r = await this.get('getInternetRadioStations')
     if (!r) return []
     const stations = r.internetRadioStations?.internetRadioStation ?? []
@@ -188,7 +188,18 @@ class NavidromeClient {
       name: String(s.name ?? ''),
       streamUrl: String(s.streamUrl ?? ''),
       homepageUrl: s.homepageUrl ? String(s.homepageUrl) : undefined,
+      coverArt: s.coverArt ? String(s.coverArt) : undefined,
     })).filter((s: any) => s.streamUrl)
+  }
+
+  /** 创建网络电台（Subsonic createInternetRadioStation）。
+   *  Subsonic 该接口不支持封面图参数，coverArt 无法通过 API 设置（Navidrome 后台可单独维护）。 */
+  async createInternetRadioStation(streamUrl: string, name: string, homepageUrl?: string): Promise<boolean> {
+    if (!streamUrl || !name) return false
+    const extra: Record<string, string> = { streamUrl, name }
+    if (homepageUrl) extra.homepageUrl = homepageUrl
+    const r = await this.get('createInternetRadioStation', extra)
+    return r !== null
   }
 
   /** 收藏歌曲 */

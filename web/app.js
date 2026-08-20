@@ -1719,17 +1719,53 @@ async function loadNetRadioStations(path) {
 function renderNetRadioGrid(grid, stations) {
   if (!stations.length) { grid.innerHTML = '<div class="empty">暂无电台</div>'; return }
   grid.innerHTML = stations.map((s) => `
-    <div class="radio-card" data-slug="${escapeHtml(s.slug)}">
+    <div class="radio-card" data-slug="${escapeHtml(s.slug)}" data-name="${escapeHtml(s.name)}" data-cover="${escapeHtml(s.cover || '')}">
       <div class="radio-cover-wrap">${coverHtml(s.cover)}</div>
       <div class="radio-info">
         <div class="radio-name">${escapeHtml(s.name)}</div>
         <div class="radio-artist">${escapeHtml(s.artist || '网络电台')}</div>
       </div>
-      <button class="radio-play-btn" data-slug="${escapeHtml(s.slug)}">▶ 播放</button>
+      <div class="radio-card-act">
+        <button class="radio-play-btn" data-slug="${escapeHtml(s.slug)}">▶ 播放</button>
+        <button class="radio-add-btn" data-slug="${escapeHtml(s.slug)}" title="添加到 Navidrome 本地电台">＋ 本地</button>
+      </div>
     </div>`).join('')
   grid.querySelectorAll('.radio-card').forEach((card) => {
-    card.addEventListener('click', () => playRadioStream(card.dataset.slug, card))
+    // 点卡片区域（非按钮）播放
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return
+      playRadioStream(card.dataset.slug, card)
+    })
+    card.querySelector('.radio-play-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation()
+      playRadioStream(card.dataset.slug, card)
+    })
+    card.querySelector('.radio-add-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation()
+      addRadioToLocal(card.dataset.slug, card.dataset.name, card)
+    })
   })
+}
+
+// 添加网络电台到 Navidrome 本地电台：现取流地址 + 详情页 URL，调创建接口
+// 注：Subsonic createInternetRadioStation 不支持封面图，电台图片无法通过 API 创建
+async function addRadioToLocal(slug, name, cardEl) {
+  const btn = cardEl?.querySelector('.radio-add-btn')
+  if (btn) { btn.disabled = true; btn.textContent = '添加中…' }
+  try {
+    // 取流地址（时效 key，服务端现取）
+    const stream = await fetchJSON(`/api/v1/radio5/stream/${encodeURIComponent(slug)}`)
+    const detailUrl = `https://radio5.cn/play/radio/${encodeURIComponent(slug)}`
+    await fetchJSON('/api/v1/navidrome/radio', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ streamUrl: stream.streamUrl, name: name || stream.title, homepageUrl: detailUrl }),
+    })
+    toast(`已添加到本地电台：${name}`)
+    if (btn) { btn.textContent = '✓ 已添加'; btn.classList.add('added') }
+  } catch (err) {
+    toast(`添加失败：${err.message}`)
+    if (btn) { btn.disabled = false; btn.textContent = '＋ 本地' }
+  }
 }
 
 // 快捷标签切换
@@ -1832,14 +1868,20 @@ async function loadLocalRadio() {
 
 function renderLocalRadioList(listEl, stations) {
   if (!stations.length) { listEl.innerHTML = '<div class="empty">未配置电台。请到 Navidrome 后台 > Settings > Radio 添加。</div>'; return }
-  listEl.innerHTML = stations.map((s) => `
+  listEl.innerHTML = stations.map((s) => {
+    // 有 coverArt 走封面代理，无则占位图（Navidrome 电台常无封面）
+    const cover = s.coverArt
+      ? `<img class="radio-cover-img" src="/api/v1/navidrome/cover/${encodeURIComponent(s.coverArt)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="radio-cover-ph" style="display:none">📻</div>`
+      : `<div class="radio-cover-ph">📻</div>`
+    return `
     <div class="radio-row" data-url="${escapeHtml(s.streamUrl)}" data-name="${escapeHtml(s.name)}">
+      <div class="radio-cover-wrap-sm">${cover}</div>
       <div class="radio-row-info">
         <div class="radio-name">${escapeHtml(s.name)}</div>
         <div class="radio-stream">${escapeHtml(s.streamUrl)}</div>
       </div>
       <button class="radio-play-btn">▶ 播放</button>
-    </div>`).join('')
+    </div>` }).join('')
   listEl.querySelectorAll('.radio-row').forEach((row) => {
     row.addEventListener('click', () => playLocalRadio(row.dataset.url, row.dataset.name, row))
   })

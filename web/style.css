@@ -535,3 +535,21 @@ table.card th { color: #666; font-weight: 600; }
   border: 1px solid var(--border, #ddd); background: var(--card-bg, #fff); color: inherit; font-size: .85rem;
 }
 .pager-input::-webkit-inner-spin-button, .pager-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ---------- 电台：本地封面占位 + 网络电台按钮区 ---------- */
+/* 本地电台行小封面（有图展示图，无图占位 📻） */
+.radio-cover-wrap-sm { width: 48px; height: 48px; flex-shrink: 0; border-radius: 8px; overflow: hidden; background: var(--bg-alt, #f0f0f0); }
+.radio-cover-wrap-sm .radio-cover-img { width: 100%; height: 100%; object-fit: cover; }
+.radio-cover-wrap-sm .radio-cover-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; opacity: .6; }
+
+/* 网络电台卡片操作区（播放 + 添加到本地） */
+.radio-card-act { display: flex; gap: .4rem; padding: 0 .7rem .7rem; }
+.radio-card-act .radio-play-btn { margin: 0; flex: 1; }
+.radio-add-btn {
+  padding: .4rem .6rem; border: 1px solid var(--border, #ddd); border-radius: 6px;
+  background: var(--card-bg, #fff); color: inherit; cursor: pointer; font-size: .8rem; white-space: nowrap;
+  transition: background .12s, opacity .12s;
+}
+.radio-add-btn:hover:not(:disabled) { background: var(--bg-alt, #f0f0f0); }
+.radio-add-btn:disabled { opacity: .6; cursor: default; }
+.radio-add-btn.added { color: var(--primary, #6b7cf6); border-color: var(--primary, #6b7cf6); }
