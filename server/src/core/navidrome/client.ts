@@ -187,7 +187,7 @@ class NavidromeClient {
       id: String(s.id ?? ''),
       name: String(s.name ?? ''),
       streamUrl: String(s.streamUrl ?? ''),
-      homepageUrl: s.homepageUrl ? String(s.homepageUrl) : undefined,
+      homepageUrl: s.homePageUrl ? String(s.homePageUrl) : undefined, // Subsonic 原始字段 homePageUrl(大写P)
       coverArt: s.coverArt ? String(s.coverArt) : undefined,
     })).filter((s: any) => s.streamUrl)
   }
