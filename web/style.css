@@ -588,3 +588,20 @@ table.card th { color: #666; font-weight: 600; }
   background: var(--card-bg, #fff); color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
 .lib-song-card .lib-song-star.starred { color: var(--accent, var(--primary, #6b7cf6)); border-color: var(--accent, var(--primary, #6b7cf6)); }
+
+/* 歌单详情页：单曲用紧凑行式（覆盖大卡片，恢复小封面横排） */
+.lib-songs-compact { display: block; }
+.lib-songs-compact .lib-song-card {
+  flex-direction: row; align-items: center; gap: 12px; padding: 9px 12px;
+  border-radius: 8px; border: 1px solid var(--border, #eee); box-shadow: none; transform: none;
+}
+.lib-songs-compact .lib-song-card:hover { transform: none; box-shadow: 0 2px 6px rgba(0,0,0,.05); }
+.lib-songs-compact .lib-song-card .lib-song-cover-wrap { width: 40px; height: 40px; aspect-ratio: auto; flex-shrink: 0; border-radius: 8px; }
+.lib-songs-compact .lib-song-card .lib-song-cover { width: 40px; height: 40px; border-radius: 8px; }
+.lib-songs-compact .lib-song-card .lib-song-cover-ph { width: 40px; height: 40px; border-radius: 8px; font-size: 18px; }
+.lib-songs-compact .lib-song-card .lib-song-info { flex: 1; min-width: 0; padding: 0; }
+.lib-songs-compact .lib-song-card .lib-song-title { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-songs-compact .lib-song-card .lib-song-artist { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.lib-songs-compact .lib-song-card .lib-song-meta { margin-top: 0; }
+.lib-songs-compact .lib-song-card .lib-song-act { padding: 0; gap: 6px; }
+.lib-songs-compact .lib-song-card .lib-song-act .lib-song-play { flex: 0 0 auto; }

@@ -2244,6 +2244,7 @@ function renderLibPlaylistSongs(songs) {
   const box = $('#lib-pl-songs')
   if (!box) return
   if (!songs.length) { box.innerHTML = '<div class="empty">歌单内暂无歌曲</div>'; return }
+  box.className = 'lib-songs-compact'
   box.innerHTML = songs.map((s) => libSongRowHtml(s, { removable: true })).join('')
   bindLibSongPlay(box, songs)
   // 移出歌单
