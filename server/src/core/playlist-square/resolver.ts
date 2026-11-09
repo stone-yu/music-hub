@@ -1,3 +1,4 @@
+import { resolveShareUrl } from './share-url.js'
 /**
  * 歌单广场 + URL 解析
  *
@@ -36,8 +37,8 @@ export const playlistSquare = {
 
   /** 解析分享 URL → 歌单详情（含歌曲列表，可直接下载） */
   async resolveUrl(url: string) {
-    const parsed = parseShareUrl(url)
-    if (!parsed) throw new Error('无法识别的歌单 URL，支持网易云/QQ/酷狗/酷我/咪咕')
+    const parsed = await resolveShareUrl(url)
+    if (!parsed) throw new Error('无法识别歌单链接，请使用网易云/QQ音乐/酷狗/酷我/咪咕的歌单直链或网易云 163cn.tv 分享短链接')
     const detail = await searchService.getSongListDetail(parsed.platform, parsed.id)
     return { platform: parsed.platform, id: parsed.id, detail }
   },
@@ -48,29 +49,6 @@ export const playlistSquare = {
   },
 }
 
-/** 解析 5 平台歌单分享 URL → {platform, id} */
-export function parseShareUrl(url: string): { platform: Platform; id: string } | null {
-  // 网易云：music.163.com/playlist?id=123 或 #/playlist?id=123
-  let m = url.match(/music\.163\.com.*?[?&#]id=(\d+)/)
-  if (m) return { platform: 'wy', id: m[1]! }
-
-  // QQ：y.qq.com/n/ryqq/playlist/{id}
-  m = url.match(/y\.qq\.com\/n\/ryqq\/playlist\/([A-Za-z0-9]+)/)
-  if (m) return { platform: 'tx', id: m[1]! }
-
-  // 酷狗：kugou.com/speciallist/single/xxx-id-123.html 或 special/123.html
-  m = url.match(/kugou\.com\/.*?special\/?(\d+)/) || url.match(/kugou\.com\/.*?-id-(\d+)/)
-  if (m) return { platform: 'kg', id: m[1]! }
-
-  // 酷我：kuwo.cn/play_detail/123 或 playlist_detail/123
-  m = url.match(/kuwo\.cn\/.*?detail\/?(\d+)/)
-  if (m) return { platform: 'kw', id: m[1]! }
-
-  // 咪咕：migu.cn/playlist/xxx 或 music.migu.cn/v3/music/playlist/xxx
-  m = url.match(/migu\.cn\/.*?playlist\/?([A-Za-z0-9_\-]+)/)
-  if (m) return { platform: 'mg', id: m[1]! }
-
-  return null
-}
+export { parseShareUrl } from './share-url.js'
 
 export { isPlatform, ALL_PLATFORMS }

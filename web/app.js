@@ -689,16 +689,30 @@ $$('#pl-platform-tabs .ptab').forEach((t) => t.addEventListener('click', () => {
 }))
 $('#pl-search-btn').addEventListener('click', async () => {
   const kw = $('#pl-keyword').value.trim()
-  if (!kw) return toast('请输入关键词')
+  if (!kw) return toast('请输入关键词或歌单链接')
+  const isLink = /https?:\/\//i.test(kw)
   $('#pl-detail').hidden = true
   $('#pl-home').hidden = false
-  $('#pl-status').innerHTML = '<div class="status">搜索中…</div>'
+  $('#pl-status').textContent = isLink ? '解析歌单链接中…' : '搜索中…'
+  $('#pl-search-btn').disabled = true
   try {
+    if (isLink) {
+      const resolved = await fetchJSON(`/api/v1/square/resolve?url=${encodeURIComponent(kw)}`)
+      await openPlaylistDetail(resolved.platform, resolved.id, resolved.detail?.info?.name || '分享歌单', resolved)
+      return
+    }
     const url = `/api/v1/square/search?keyword=${encodeURIComponent(kw)}` + (plActivePlatform ? `&platforms=${plActivePlatform}` : '')
     const d = await fetchJSON(url)
     const groups = (d.results || []).filter((r) => r.ok && r.list.length).map((r) => ({ keyword: PLATFORM_NAME[r.platform] || r.platform, items: r.list }))
     renderPlaylistGrid(groups)
   } catch (err) { $('#pl-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>` }
+  finally { $('#pl-search-btn').disabled = false }
+})
+$('#pl-keyword').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.isComposing) {
+    e.preventDefault()
+    $('#pl-search-btn').click()
+  }
 })
 $('#pl-refresh-btn').addEventListener('click', () => {
   // 清所有 pl: 缓存
@@ -706,17 +720,17 @@ $('#pl-refresh-btn').addEventListener('click', () => {
   loadPlaylists()
 })
 
-async function openPlaylistDetail(platform, id, name) {
+async function openPlaylistDetail(platform, id, name, resolved = null) {
   $('#pl-home').hidden = true
   $('#pl-detail').hidden = false
-  $('#pl-status').innerHTML = `<div class="status">加载 ${escapeHtml(name)} …</div>`
+  $('#pl-detail').textContent = `加载 ${name} …`
   // 进详情清空旧创建勾选
   state.selectedForCreate = new Set()
   state.matchMap = new Map()
   state.createMap = new Map()
   updateGlobalCreateBtn()
   try {
-    const d = await fetchJSON(`/api/v1/square/detail?platform=${encodeURIComponent(platform)}&id=${encodeURIComponent(id)}`)
+    const d = resolved || await fetchJSON(`/api/v1/square/detail?platform=${encodeURIComponent(platform)}&id=${encodeURIComponent(id)}`)
     const list = d.detail?.list || []
     const info = d.detail?.info || {}
     // 设置创建歌单默认名/图/描述（从歌单详情带过来）
@@ -740,8 +754,11 @@ async function openPlaylistDetail(platform, id, name) {
         unmatched.push(it)
       }
     })
+    $('#pl-status').textContent = ''
     renderPlaylistDetail({ name: info.name || name, cover: info.img, desc: info.desc, platform, matched, unmatched, all: list.map((s) => ({ ...s, platform })) })
   } catch (err) {
+    $('#pl-detail').hidden = true
+    $('#pl-home').hidden = false
     $('#pl-status').innerHTML = `<div class="status err">${escapeHtml(err.message)}</div>`
   }
 }
