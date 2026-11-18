@@ -406,6 +406,25 @@ body.queue-open .main { padding-right: 360px; }
 .preview-btn { padding: 3px 8px; background: var(--accent-soft); color: var(--accent); border: 1px solid #cfe0ff; border-radius: 5px; cursor: pointer; font-size: 12px; margin-right: 4px; }
 .preview-btn:hover { background: var(--accent); color: #fff; }
 
+/* ---------- 榜单 / 歌单批量下载 ---------- */
+.batch-download-toolbar { margin: 10px 0 14px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.batch-download-actions, .batch-download-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.batch-download-controls[hidden] { display: none; }
+.batch-download-toolbar button { min-height: 36px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-soft); color: var(--text); cursor: pointer; font-size: 13px; }
+.batch-download-toolbar button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.batch-download-toolbar .batch-download-submit { background: var(--accent); color: #fff; border-color: var(--accent); }
+.batch-download-toolbar .batch-download-submit:hover:not(:disabled) { background: var(--accent-hover); color: #fff; }
+.batch-download-toolbar button:disabled { opacity: .5; cursor: not-allowed; }
+.batch-download-count, .batch-download-hint { color: var(--text-muted); font-size: 12px; }
+.batch-download-result { margin-top: 10px; color: var(--text); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.batch-dl-chk { display: none; position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; z-index: 2; }
+.batch-download-mode .batch-dl-chk { display: block; }
+.batch-download-mode .batch-dl-chk:disabled { cursor: not-allowed; }
+.batch-download-mode .create-chk { display: none; }
+.batch-download-mode .song-card-info { padding-right: 18px; }
+.batch-download-mode .song-card-selected { background: var(--bg-soft); border-color: var(--border); }
+.batch-download-mode .song-card.batch-download-selected { border-color: var(--accent); background: var(--accent-soft); }
+
 /* ---------- 试听中波浪动效（卡片封面叠加） ---------- */
 .song-cover-wrap { position: relative; flex-shrink: 0; width: 40px; height: 40px; }
 .song-wave { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; gap: 2px; padding-bottom: 7px; opacity: 0; transition: opacity .2s; pointer-events: none; }
