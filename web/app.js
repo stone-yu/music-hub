@@ -21,7 +21,7 @@ const QUALITIES = [
   { v: '128k', label: '标准 128k', desc: '128kbps MP3' },
 ]
 // 下载时选择音质：自定义弹框展示音质+大小，返回 Promise<quality>
-async function pickQuality(musicInfo) {
+async function pickQuality(musicInfo, { batchCount = 0 } = {}) {
   // 从 musicInfo.types 取各音质大小；为空时（如热榜歌曲）实时搜该平台补全
   let typeMap = {}
   if (musicInfo?.types?.length) {
@@ -41,12 +41,14 @@ async function pickQuality(musicInfo) {
   }
   if (musicInfo?._types) Object.entries(musicInfo._types).forEach(([k, v]) => { if (v?.size && !typeMap[k]) typeMap[k] = v.size })
 
+  if (!$('#quality-modal').hidden) { toast('请先完成当前音质选择'); return null }
   return new Promise((resolve) => {
     const modal = $('#quality-modal')
+    modal.querySelector('.quality-modal-head b').textContent = batchCount ? `选择下载音质（${batchCount} 首统一设置）` : '选择下载音质'
     const list = $('#quality-modal-list')
     list.innerHTML = QUALITIES.map((q) => {
       const size = typeMap[q.v]
-      const sizeHtml = size ? `<div class="q-size">${escapeHtml(String(size))}</div>` : `<div class="q-size">未知大小</div>`
+      const sizeHtml = batchCount ? `<div class="q-size">统一音质，实际可用性以音源为准</div>` : size ? `<div class="q-size">${escapeHtml(String(size))}</div>` : `<div class="q-size">未知大小</div>`
       return `<div class="quality-row" data-q="${q.v}">
         <div class="q-label"><div class="q-name">${escapeHtml(q.label)}</div>${sizeHtml}</div>
         <button class="q-dl">下载</button>
@@ -241,6 +243,7 @@ function setRankCache(key, list) {
   try { localStorage.setItem('rank:' + key, JSON.stringify({ ts: Date.now(), list })) } catch { /* quota */ }
 }
 let activeRankTab = null
+let rankLoadRequest = 0
 
 async function loadSearchSquare() {
   // 切到热榜首页（隐藏搜索结果页）
@@ -270,6 +273,7 @@ $('#rank-refresh').addEventListener('click', () => {
 
 // 加载某榜单歌曲，渲染到 #search-square-list（卡片式 + 曲库匹配）
 async function loadRankSongs(source, id, name) {
+  const request = ++rankLoadRequest
   const el = $('#search-square-list')
   if (!el) return
   const cacheKey = `${source}:${id}`
@@ -287,13 +291,15 @@ async function loadRankSongs(source, id, name) {
       list = d.list || []
       setRankCache(cacheKey, list)
     }
-    const group = renderGroup(source, list, null)
+    if (request !== rankLoadRequest) return
+    const group = renderGroup(source, list, null, { batchDownload: true })
     const h3 = group.querySelector('h3')
     if (h3) h3.textContent = `${name} · ${list.length} 首`
     el.innerHTML = ''
     el.appendChild(group)
     matchSearchResults()
   } catch (err) {
+    if (request !== rankLoadRequest) return
     el.innerHTML = `<div class="empty">加载失败：${escapeHtml(err.message)}</div>`
   }
 }
@@ -423,7 +429,7 @@ function finalizeSearch(count) {
   $('#search-status').textContent = count ? `共 ${count} 首` : '无结果'
 }
 
-function renderGroup(platform, list, error) {
+function renderGroup(platform, list, error, { batchDownload = false } = {}) {
   const group = document.createElement('div')
   group.className = 'platform-group'
   const title = document.createElement('h3')
@@ -469,6 +475,7 @@ function renderGroup(platform, list, error) {
     grid.appendChild(card)
   }
   group.appendChild(grid)
+  if (batchDownload) mountBatchDownload(group, list.map((item) => ({ ...item, platform })))
   bindSongCardEvents(group)
   return group
 }
@@ -494,7 +501,16 @@ function bindSongCardEvents(container) {
     } catch (err) { toast(`下载失败: ${err.message}`) }
   }))
   container.querySelectorAll('.create-chk').forEach((cb) => cb.addEventListener('click', (e) => e.stopPropagation()))
-  container.querySelectorAll('.song-card').forEach((card) => card.addEventListener('click', () => {
+  container.querySelectorAll('.song-card').forEach((card) => card.addEventListener('click', (e) => {
+    if (e.target.closest('button, a, input')) return
+    if (container.classList.contains('batch-download-mode')) {
+      const checkbox = card.querySelector('.batch-dl-chk')
+      if (checkbox && !checkbox.disabled) {
+        checkbox.checked = !checkbox.checked
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }))
+      }
+      return
+    }
     const cb = card.querySelector('.create-chk')
     if (!cb || cb.dataset.matched !== '1') return
     cb.checked = !cb.checked
@@ -506,11 +522,13 @@ function bindSongCardEvents(container) {
 // 异步给搜索结果打"已在曲库"标记
 async function matchSearchResults() {
   if (!state.results.length) return
-  const songs = state.results.map((it) => ({ title: it.name, artist: it.singer, source: it.platform }))
+  const results = state.results
+  const songs = results.map((it) => ({ title: it.name, artist: it.singer, source: it.platform }))
   try {
     const r = await fetchJSON('/api/v1/navidrome/match/songs', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ songs }),
     })
+    if (state.results !== results) return // 快速切换榜单时，旧匹配结果不能覆盖新列表。
     state.matchMap = new Map()
     state.createMap = new Map()
     r.results.forEach((m) => {
@@ -521,8 +539,11 @@ async function matchSearchResults() {
       if (m.matched) state.createMap.set(key, { libId: m.libId, title: m.libTitle, artist: m.libArtist, platform: item.platform })
     })
     applyMatchMarks()
+    updateBatchDownloadMatches()
   } catch (err) {
+    if (state.results !== results) return
     $('#search-status').textContent += `（曲库匹配失败：${err.message}）`
+    updateBatchDownloadMatches('曲库匹配失败，请刷新列表后重试')
   }
 }
 
@@ -566,6 +587,182 @@ function toggleSelectedForCreate(key, on) {
 function updateSelectedCount() { /* no-op：原批量下载条已删除 */ }
 function selectedItems() {
   return state.results.filter((it) => state.selected.has(rowKey(it)))
+}
+
+// ---------- 批量下载：选择与提交 ----------
+function createBatchDownloadSelection(items) {
+  const unique = new Map()
+  for (const raw of items) {
+    const item = { ...raw, platform: raw.platform || raw.source }
+    if (item.platform && item.songmid && item.name) unique.set(rowKey(item), item)
+  }
+  let matched = new Set()
+  const selected = new Set()
+  const eligible = (key) => unique.has(key) && !matched.has(key)
+  return {
+    items: [...unique.values()],
+    setMatched(keys) {
+      matched = new Set(keys)
+      for (const key of selected) if (!eligible(key)) selected.delete(key)
+    },
+    eligible,
+    toggle(key, on) { if (on && eligible(key)) selected.add(key); else selected.delete(key) },
+    selectAll() { for (const key of unique.keys()) if (eligible(key)) selected.add(key) },
+    clear() { selected.clear() },
+    selectedItems: () => [...unique].filter(([key]) => selected.has(key)).map(([, item]) => item),
+  }
+}
+async function submitBatchDownloads(items, quality, submit, onAccepted = () => {}) {
+  const result = { accepted: [], rejected: [], uncertain: [], unsubmitted: [], error: '' }
+  for (let offset = 0; offset < items.length; offset += 200) {
+    const chunk = items.slice(offset, offset + 200)
+    let response
+    try {
+      response = await submit({ quality, items: chunk.map((item) => ({ platform: item.platform, musicInfo: item })) })
+      if (!Array.isArray(response?.accepted) || !Array.isArray(response?.rejected)) throw new Error('批量下载响应格式异常')
+      const indices = new Set()
+      for (const entry of [...response.accepted, ...response.rejected]) {
+        if (!Number.isInteger(entry.index) || entry.index < 0 || entry.index >= chunk.length || indices.has(entry.index)) throw new Error('批量下载响应索引异常')
+        indices.add(entry.index)
+      }
+      if (indices.size !== chunk.length || response.accepted.some((entry) => !entry.id)) throw new Error('批量下载响应不完整')
+    } catch (err) {
+      // 请求可能已在服务端执行：不自动重试，以免生成重复下载任务。
+      result.uncertain.push(...chunk)
+      result.unsubmitted.push(...items.slice(offset + chunk.length))
+      result.error = err.message
+      break
+    }
+    const accepted = response.accepted.map((entry) => chunk[entry.index])
+    result.accepted.push(...accepted)
+    result.rejected.push(...response.rejected.map((entry) => ({ item: chunk[entry.index], error: entry.error })))
+    onAccepted(accepted)
+  }
+  return result
+}
+
+// ---------- 批量下载：界面 ----------
+const batchDownloadViews = new WeakMap()
+function mountBatchDownload(container, items, { ready = false, matchedKeys = [] } = {}) {
+  const selection = createBatchDownloadSelection(items)
+  selection.setMatched(matchedKeys)
+  const view = { selection, ready, active: false, busy: false, error: '', result: '' }
+  batchDownloadViews.set(container, view)
+  container.dataset.batchDownload = '1'
+  const toolbar = document.createElement('div')
+  toolbar.className = 'batch-download-toolbar'
+  toolbar.innerHTML = `<div class="batch-download-actions">
+    <button class="batch-download-toggle" aria-expanded="false">⬇ 批量下载</button>
+    <div class="batch-download-controls" hidden>
+      <button class="batch-download-all">全选未收录</button>
+      <button class="batch-download-clear">取消全选</button>
+      <span class="batch-download-count"></span>
+      <button class="batch-download-submit">选择音质并下载</button>
+    </div>
+    <span class="batch-download-hint"></span>
+  </div><div class="batch-download-result" role="status" aria-live="polite" hidden></div>`
+  container.insertBefore(toolbar, container.querySelector('.song-grid'))
+  const byKey = new Map(selection.items.map((item) => [rowKey(item), item]))
+  container.querySelectorAll('.song-card').forEach((card) => {
+    const item = byKey.get(card.dataset.key)
+    if (!item) return
+    const checkbox = document.createElement('input')
+    checkbox.type = 'checkbox'
+    checkbox.className = 'batch-dl-chk'
+    checkbox.dataset.key = card.dataset.key
+    checkbox.setAttribute('aria-label', `选择下载：${item.name} - ${item.singer || ''}`)
+    checkbox.addEventListener('click', (e) => e.stopPropagation())
+    checkbox.addEventListener('change', () => {
+      if (!view.busy && view.ready) selection.toggle(checkbox.dataset.key, checkbox.checked)
+      updateBatchDownloadView(container)
+    })
+    card.querySelector('.song-card-top').prepend(checkbox)
+  })
+  toolbar.querySelector('.batch-download-toggle').addEventListener('click', () => {
+    if (view.busy) return
+    view.active = !view.active
+    updateBatchDownloadView(container)
+  })
+  toolbar.querySelector('.batch-download-all').addEventListener('click', () => {
+    if (view.ready && !view.busy) selection.selectAll()
+    updateBatchDownloadView(container)
+  })
+  toolbar.querySelector('.batch-download-clear').addEventListener('click', () => {
+    if (!view.busy) selection.clear()
+    updateBatchDownloadView(container)
+  })
+  toolbar.querySelector('.batch-download-submit').addEventListener('click', () => downloadBatchSelection(container))
+  updateBatchDownloadView(container)
+}
+function updateBatchDownloadView(container) {
+  const view = batchDownloadViews.get(container)
+  if (!view) return
+  const { selection, ready, busy, active } = view
+  const selected = new Set(selection.selectedItems().map(rowKey))
+  const available = selection.items.filter((item) => selection.eligible(rowKey(item))).length
+  container.classList.toggle('batch-download-mode', active)
+  const createAll = container.querySelector('#pl-select-all-matched')
+  if (createAll) createAll.disabled = active || !selection.items.some((item) => !selection.eligible(rowKey(item)))
+  const toggle = container.querySelector('.batch-download-toggle')
+  toggle.textContent = active ? '退出批量下载' : '⬇ 批量下载'
+  toggle.disabled = busy
+  toggle.setAttribute('aria-expanded', String(active))
+  container.querySelector('.batch-download-controls').hidden = !active
+  const all = container.querySelector('.batch-download-all')
+  all.textContent = `全选未收录（${ready ? available : '…'}）`
+  all.disabled = !ready || busy || !available
+  container.querySelector('.batch-download-clear').disabled = busy || !selected.size
+  container.querySelector('.batch-download-count').textContent = `已选 ${selected.size} 首`
+  const submit = container.querySelector('.batch-download-submit')
+  submit.textContent = busy ? '处理中…' : `选择音质并下载（${selected.size}）`
+  submit.disabled = !ready || busy || !selected.size
+  container.querySelector('.batch-download-hint').textContent = view.error || (!ready ? '曲库匹配中…' : (available ? '仅下载未收录歌曲' : '所有歌曲均已在曲库'))
+  const result = container.querySelector('.batch-download-result')
+  result.hidden = !view.result
+  result.textContent = view.result
+  container.querySelectorAll('.batch-dl-chk').forEach((checkbox) => {
+    checkbox.disabled = !ready || busy || !selection.eligible(checkbox.dataset.key)
+    checkbox.checked = selected.has(checkbox.dataset.key)
+    checkbox.title = !ready ? '等待曲库匹配完成' : selection.eligible(checkbox.dataset.key) ? '勾选加入批量下载' : '已在曲库，跳过下载'
+    checkbox.closest('.song-card').classList.toggle('batch-download-selected', checkbox.checked)
+  })
+}
+async function downloadBatchSelection(container) {
+  const view = batchDownloadViews.get(container)
+  if (!view || !view.ready || view.busy || !view.selection.selectedItems().length) return
+  view.busy = true
+  view.result = ''
+  updateBatchDownloadView(container)
+  try {
+    const quality = await pickQuality(null, { batchCount: view.selection.selectedItems().length })
+    if (!quality || batchDownloadViews.get(container) !== view || !container.isConnected) return
+    let acceptedCount = 0
+    const result = await submitBatchDownloads(view.selection.selectedItems(), quality,
+      (body) => fetchJSON('/api/v1/download/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+      (accepted) => {
+        accepted.forEach((item) => view.selection.toggle(rowKey(item), false))
+        acceptedCount += accepted.length
+        view.result = `已加入下载队列 ${acceptedCount} 首…`
+        updateBatchDownloadView(container)
+      })
+    view.result = `已加入下载队列 ${result.accepted.length} 首`
+    if (result.rejected.length) view.result += `；${result.rejected.length} 首提交失败，已保留勾选`
+    if (result.uncertain.length) view.result += `；${result.uncertain.length} 首提交结果未知，请先检查下载任务再重试（${result.error}）`
+    if (result.unsubmitted.length) view.result += `；${result.unsubmitted.length} 首尚未提交`
+    if (result.accepted.length) { globalTasksTick(); toast(`已提交 ${result.accepted.length} 首下载，请在下载任务中查看进度`) }
+  } catch (err) { view.result = `批量下载失败：${err.message}` }
+  finally { view.busy = false; updateBatchDownloadView(container) }
+}
+function updateBatchDownloadMatches(error = '') {
+  const currentKeys = new Set(state.results.map(rowKey))
+  document.querySelectorAll('[data-batch-download]').forEach((container) => {
+    const view = batchDownloadViews.get(container)
+    if (!view || !view.selection.items.every((item) => currentKeys.has(rowKey(item)))) return
+    view.ready = !error
+    view.error = error
+    view.selection.setMatched([...state.matchMap].filter(([, match]) => match.matched).map(([key]) => key))
+    updateBatchDownloadView(container)
+  })
 }
 
 // ---------- 歌单广场（平台标签 + 搜歌单 + 详情已匹配/未匹配分组）----------
@@ -838,6 +1035,7 @@ function renderPlaylistDetail(info) {
       <span class="muted" style="font-size:12px">共 ${matched.length + unmatched.length} 首 · 已匹配 ${matched.length}</span>
     </div>
     <div class="song-grid">${cards}</div>`
+  mountBatchDownload(el, all || [...matched, ...unmatched], { ready: true, matchedKeys: matched.map(rowKey) })
   $('#pl-back').addEventListener('click', () => { $('#pl-detail').hidden = true; $('#pl-home').hidden = false })
   // 批量勾选所有已在曲库的歌曲
   $('#pl-select-all-matched')?.addEventListener('click', () => {
