@@ -12,6 +12,7 @@ import path from 'node:path'
 import needle from 'needle'
 import { config } from '../config.js'
 import { logger } from '../logger.js'
+import { readLibrarySongs, type LibraryProgress } from '../library/reader.js'
 
 export interface NavidromeSong {
   id: string
@@ -111,34 +112,15 @@ class NavidromeClient {
   }
 
   /** 全量歌曲：artist→album→song 三级遍历 */
-  async getAllSongs(): Promise<NavidromeSong[]> {
-    const artists = await this.getArtists()
-    logger.info({ count: artists.length }, '[navidrome] fetching songs from artists')
-    const songs: NavidromeSong[] = []
-    for (let i = 0; i < artists.length; i++) {
-      const artist = artists[i]
-      const artistData = await this.getArtist(artist.id)
-      if (!artistData?.artist) continue
-      const artistName = artistData.artist.name ?? ''
-      for (const album of artistData.artist.album ?? []) {
-        const albumData = await this.getAlbum(album.id)
-        if (!albumData?.album) continue
-        for (const s of albumData.album.song ?? []) {
-          songs.push({
-            id: String(s.id ?? ''),
-            title: s.title ?? '',
-            artist: s.artist ?? artistName,
-            album: s.album ?? album.name ?? '',
-            coverArt: String(s.coverArt ?? albumData.album.coverArt ?? '') || undefined,
-            duration: typeof s.duration === 'number' ? s.duration : undefined,
-            suffix: typeof s.suffix === 'string' ? s.suffix : undefined,
-            playCount: typeof s.playCount === 'number' ? s.playCount : undefined,
-            created: typeof s.created === 'string' ? s.created : undefined,
-          })
-        }
+  async getAllSongs(onProgress?: (progress: LibraryProgress) => void): Promise<NavidromeSong[]> {
+    let logged = -1
+    const songs = await readLibrarySongs(this, (progress) => {
+      onProgress?.(progress)
+      if (progress.phase === 'songs' && progress.processedArtists % 20 === 0 && progress.processedArtists !== logged) {
+        logged = progress.processedArtists
+        logger.info({ done: progress.processedArtists, total: progress.totalArtists, songs: progress.songsRead }, '[navidrome] progress')
       }
-      if ((i + 1) % 20 === 0) logger.info({ done: i + 1, total: artists.length, songs: songs.length }, '[navidrome] progress')
-    }
+    })
     logger.info({ count: songs.length }, '[navidrome] all songs fetched')
     return songs
   }
