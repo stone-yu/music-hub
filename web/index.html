@@ -71,6 +71,11 @@
 
     <!-- 首页（本地曲库推荐） -->
     <section id="view-home" class="view active">
+      <div id="home-library-sync" class="library-sync" hidden>
+        <div class="library-sync-heading"><strong>正在同步曲库</strong><span id="home-sync-text" role="status" aria-live="polite"></span></div>
+        <progress id="home-sync-progress" max="100" aria-label="艺术家遍历进度"></progress>
+        <p>首次同步需要一些时间，完成后将自动显示推荐，无需重复刷新。</p>
+      </div>
       <div id="home-recommend" class="home-recommend"></div>
     </section>
 
@@ -352,7 +357,6 @@
       <div id="gp-progress" class="gp-progress"><div id="gp-progress-fill" class="gp-progress-fill"></div></div>
       <span id="gp-duration" class="gp-time">0:00</span>
     </div>
-    <audio id="global-audio" hidden></audio>
     <button id="gp-loop-btn" class="gp-queue-btn" title="顺序播放">↻</button>
     <button id="gp-queue-btn" class="gp-queue-btn" title="播放队列"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg></button>
     <button id="gp-close" class="gp-close">×</button>
@@ -360,7 +364,11 @@
 
   <!-- 播放队列面板 -->
   <div id="queue-backdrop" class="queue-backdrop"></div>
-  <div id="queue-panel" class="queue-panel"></div>
+  <div id="queue-panel" class="queue-panel">
+    <!-- 持久媒体节点：队列重绘不会重建播放器或中断播放 -->
+    <video id="global-audio" class="queue-video" controls playsinline preload="metadata" aria-label="视频播放器" hidden></video>
+    <div id="queue-content" class="queue-content"></div>
+  </div>
 
   <!-- 下载音质选择弹框 -->
   <div id="quality-modal" class="quality-modal" hidden>

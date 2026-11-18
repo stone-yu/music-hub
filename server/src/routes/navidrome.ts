@@ -18,6 +18,7 @@
  *   POST /api/v1/navidrome/unstar/:id                      取消收藏歌曲
  */
 import type { FastifyInstance } from 'fastify'
+import { proxyMediaStream } from '../core/media-stream.js'
 import { navidromeClient } from '../core/navidrome/client.js'
 import { library } from '../core/library/cache.js'
 import { matchSongs, matchOne, type MatchInput } from '../core/library/match.js'
@@ -61,6 +62,7 @@ export async function navidromeRoutes(app: FastifyInstance): Promise<void> {
       connected,
       librarySize: st.size,
       libraryLoading: st.loading,
+      libraryProgress: st.progress,
       everLoaded: st.everLoaded,
       lastUpdate: library.lastUpdate,
     }
@@ -181,22 +183,10 @@ export async function navidromeRoutes(app: FastifyInstance): Promise<void> {
     return reply.type('image/jpeg').send(buf)
   })
 
-  // 流式播放代理：fetch navidrome stream 端点并转发 Web 流到 <audio>（凭据不暴露给浏览器）
-  const SUFFIX_MIME: Record<string, string> = {
-    mp3: 'audio/mpeg', flac: 'audio/flac', ogg: 'audio/ogg', oga: 'audio/ogg',
-    opus: 'audio/ogg', m4a: 'audio/mp4', m4b: 'audio/mp4', wav: 'audio/wav', aac: 'audio/aac',
-  }
+  // 音视频流代理：保留 Range / 206 / 416，支持浏览器拖动播放进度。
   app.get<{ Params: { id: string } }>('/api/v1/navidrome/stream/:id', async (req, reply) => {
     const song = library.getSongs().find((s) => s.id === req.params.id)
-    const mime = (song?.suffix && SUFFIX_MIME[song.suffix.toLowerCase()]) || 'audio/mpeg'
-    try {
-      const upstream = await fetch(navidromeClient.streamUrl(req.params.id), { headers: { 'User-Agent': 'Mozilla/5.0' } })
-      if (!upstream.ok || !upstream.body) return reply.code(502).send({ error: `upstream ${upstream.status}` })
-      reply.header('Content-Type', upstream.headers.get('content-type') || mime)
-      return reply.send(upstream.body)
-    } catch (err) {
-      return reply.code(502).send({ error: (err as Error).message })
-    }
+    return proxyMediaStream(req, reply, navidromeClient.streamUrl(req.params.id), song?.suffix)
   })
 
   app.post<{ Querystring: RefreshQuery }>('/api/v1/navidrome/library/refresh', async (req) => {

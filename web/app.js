@@ -133,16 +133,49 @@ function applyTheme(t) {
 }
 
 // ---------- 顶部条：曲库状态 + 个人中心 ----------
+let lastLibraryStatus = null
+function libraryProgressText(progress) {
+  if (!progress || progress.phase === 'artists') return '正在获取艺术家列表…'
+  if (progress.phase === 'scan') return 'Navidrome 正在扫描媒体文件…'
+  const done = Number(progress.processedArtists) || 0
+  const total = Number(progress.totalArtists) || 0
+  const songs = Number(progress.songsRead) || 0
+  if (!total) return '正在整理曲库…'
+  return `艺术家 ${done}/${total}（${Math.floor(done / total * 100)}%）· 已读取 ${songs} 首`
+}
+function updateHomeLibraryProgress(d) {
+  const box = $('#home-library-sync')
+  if (!box) return
+  box.hidden = !d.libraryLoading
+  if (!d.libraryLoading) return
+  $('#home-sync-text').textContent = libraryProgressText(d.libraryProgress)
+  const bar = $('#home-sync-progress')
+  const p = d.libraryProgress
+  if (p?.phase === 'songs' && p.totalArtists > 0) bar.value = p.processedArtists / p.totalArtists * 100
+  else bar.removeAttribute('value') // 扫描/获取列表阶段总量未知，不能伪造百分比。
+}
 async function checkTopStatus() {
   const el = $('#status-indicator')
   try {
     const d = await fetchJSON('/api/v1/navidrome/status')
     if (d.connected) {
-      el.innerHTML = `<span class="ok">● 已连接</span> · 曲库 ${d.librarySize} 首${d.libraryLoading ? ' · 加载中' : ''}`
+      el.innerHTML = '<span class="ok">● 已连接</span>'
+      el.append(document.createTextNode(d.libraryLoading
+        ? ` · 同步中 · ${libraryProgressText(d.libraryProgress)}`
+        : ` · 曲库 ${d.librarySize} 首`))
     } else {
       el.innerHTML = `<span class="err">● 连接失败</span>`
     }
-  } catch { el.innerHTML = `<span class="err">● 网络错误</span>` }
+    el.title = el.textContent
+    const finished = lastLibraryStatus?.libraryLoading && !d.libraryLoading
+    lastLibraryStatus = d
+    updateHomeLibraryProgress(d)
+    if (finished && $('#view-home')?.classList.contains('active')) loadHome()
+    return !!d.libraryLoading
+  } catch {
+    el.innerHTML = `<span class="err">● 网络错误</span>`
+    return false
+  }
 }
 function refreshLibraryTop() {
   const ico = $('#libraryRefreshIcon')
@@ -936,6 +969,7 @@ document.addEventListener('click', (e) => {
 let playQueue = []
 let playIndex = -1
 let currentPreview = null
+let playbackRequest = 0 // 失效旧取链请求，避免快速切歌后覆盖当前媒体
 // 当前播放歌单元信息（队列面板顶部展示：封面+名称）
 let currentPlaylist = { cover: '', name: '' }
 // 播放/暂停 SVG 图标（主播放键切换）
@@ -967,6 +1001,19 @@ function setPlayingCard(rid) {
   if (rid) document.querySelector(`.song-card[data-key="${rid}"]`)?.classList.add('playing')
 }
 function resetPlayerCover() { $('#gp-icon').innerHTML = '🎵' }
+// 所有来源共用一个持久 video 节点；实际轨道决定是否展示画面（音频仍显示封面）。
+function setVideoPresentation(visible) {
+  const media = $('#global-audio')
+  media.hidden = !visible
+  $('#queue-panel').classList.toggle('has-video', visible)
+}
+function updateVideoPresentation() {
+  const media = $('#global-audio')
+  const visible = !!media.videoWidth && !!media.getAttribute('src')
+  const wasVisible = !media.hidden
+  setVideoPresentation(visible)
+  if (visible && !wasVisible) showQueuePanel()
+}
 // 广播电台直播流：销毁 hls 实例，避免流泄漏
 function destroyHls() {
   if (window._radioHls) { try { window._radioHls.destroy() } catch { /* noop */ } window._radioHls = null }
@@ -979,8 +1026,10 @@ function setRadioLiveUI(live) {
 }
 // 流失效重试：重新取流地址(key 过期) 再播
 async function retryRadioStream(slug) {
+  const request = playbackRequest
   try {
     const s = await fetchJSON(`/api/v1/radio5/stream/${encodeURIComponent(slug)}`)
+    if (request !== playbackRequest) return
     const audio = $('#global-audio')
     destroyHls()
     if (window.Hls && Hls.isSupported()) {
@@ -996,7 +1045,9 @@ async function retryRadioStream(slug) {
       audio.src = s.streamUrl
       audio.play().catch(() => {})
     }
-  } catch { toast('重试取流失败'); stopPlayer() }
+  } catch {
+    if (request === playbackRequest) { toast('重试取流失败'); stopPlayer() }
+  }
 }
 function clearLibSongHighlight() { document.querySelector('.lib-song-card.playing')?.classList.remove('playing') }
 
@@ -1016,6 +1067,7 @@ function startQueue(items, plInfo) {
 async function playCurrent() {
   const item = playQueue[playIndex]
   if (!item) return
+  const request = ++playbackRequest
   const audio = $('#global-audio')
   const box = $('#global-player')
   $('#gp-title').textContent = item.label
@@ -1023,10 +1075,16 @@ async function playCurrent() {
   $('#gp-icon').innerHTML = coverHtml(item.cover)
   box.hidden = false
   audio.onerror = null // 先清旧 onerror，避免清空 src 中断旧流时误触发「播放失败」
-  audio.src = ''
-  audio.dataset.proxyTried = ''
-  // 清理上一首 radio 专属状态：无论切到什么 kind 都先销毁 hls 实例并重置重试标志
+  audio.pause()
   destroyHls()
+  audio.removeAttribute('src')
+  audio.load()
+  setVideoPresentation(false)
+  $('#gp-progress-fill').style.width = '0%'
+  $('#gp-current').textContent = '0:00'
+  $('#gp-duration').textContent = '0:00'
+  audio.dataset.proxyTried = ''
+  // 上一首 HLS 已销毁，重置电台重试标志。
   audio.dataset.radioRetry = ''
   setRadioLiveUI(false)
   renderQueuePanel() // 同步队列面板当前项高亮
@@ -1079,10 +1137,12 @@ async function playCurrent() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ platform: item.platform, musicInfo: item.musicInfo, quality: '128k' }),
       })
+      if (request !== playbackRequest) return
       audio.src = r.url
       audio.dataset.rid = `${item.platform}:${item.musicInfo.songmid}`
       currentPreview = { platform: item.platform, musicInfo: item.musicInfo, label: item.label }
       await audio.play().catch(() => {})
+      if (request !== playbackRequest) return
       // 直链失败：切流式代理重试一次
       audio.onerror = () => {
         if (audio.dataset.proxyTried === 'done' || !audio.src) return
@@ -1096,8 +1156,8 @@ async function playCurrent() {
         audio.play().catch(() => { /* 静默 */ })
       }
     } catch {
-      // 取链失败：静默跳下一首，全队列失败才有 ended 兜底
-      advanceQueue()
+      // 只推进当前请求；旧请求失败不能跳过新选中的媒体。
+      if (request === playbackRequest) advanceQueue()
     }
   }
 }
@@ -1167,9 +1227,16 @@ function updateLoopBtn() {
 }
 function stopPlayer() {
   const audio = $('#global-audio')
-  audio.pause(); audio.src = ''; audio.dataset.proxyTried = ''
-  audio.dataset.radioRetry = ''
+  ++playbackRequest
+  audio.onerror = null
+  audio.pause()
   destroyHls()
+  audio.removeAttribute('src')
+  audio.load()
+  audio.dataset.rid = ''
+  audio.dataset.proxyTried = ''
+  audio.dataset.radioRetry = ''
+  setVideoPresentation(false)
   setRadioLiveUI(false)
   $('#gp-title').textContent = '未播放'
   $('#gp-sub').textContent = '试听'
@@ -1219,7 +1286,7 @@ $('#gp-close').addEventListener('click', () => { playQueue = []; playIndex = -1;
 
 // ---------- 播放队列面板 ----------
 function renderQueuePanel() {
-  const panel = $('#queue-panel')
+  const panel = $('#queue-content')
   if (!panel) return
   if (!playQueue.length) { panel.innerHTML = '<div class="queue-empty">队列为空</div>'; return }
   // 头部展示当前正在播放的歌曲（非歌单）：大封面 + 左上"正在播放" + 左下播放按钮
@@ -1326,7 +1393,12 @@ _audio.addEventListener('timeupdate', () => {
   $('#gp-duration').textContent = fmtTime(dur)
   if (dur) $('#gp-progress-fill').style.width = `${(cur / dur) * 100}%`
 })
-_audio.addEventListener('loadedmetadata', () => { $('#gp-duration').textContent = fmtTime(_audio.duration) })
+_audio.addEventListener('loadedmetadata', () => {
+  $('#gp-duration').textContent = fmtTime(_audio.duration)
+  updateVideoPresentation()
+})
+_audio.addEventListener('resize', updateVideoPresentation)
+_audio.addEventListener('emptied', () => setVideoPresentation(false))
 // 队列自动推进：播完一首切下一首，队列末尾则停止
 _audio.addEventListener('ended', () => { advanceQueue() })
 // 拖动进度条 seek
@@ -1956,8 +2028,12 @@ async function initAuth() {
     startGlobalTasksPolling()
     // 顶部条：曲库状态 + 个人中心
     initProfileMenu()
-    checkTopStatus()
-    setInterval(checkTopStatus, 15000)
+    // 串行轮询，避免慢连接时请求堆积；同步时 3 秒更新一次。
+    const pollTopStatus = async () => {
+      const loading = await checkTopStatus()
+      setTimeout(pollTopStatus, loading ? 3000 : 15000)
+    }
+    pollTopStatus()
   } catch { /* ignore */ }
 }
 initAuth()
@@ -2498,7 +2574,7 @@ async function loadHome() {
       const grid = $(`#home-list-${l.key}`)
       const songs = d[l.key] || []
       if (!grid) return
-      if (!songs.length) { grid.outerHTML = '<div class="empty">暂无</div>'; return }
+      if (!songs.length) { grid.outerHTML = `<div class="empty">${lastLibraryStatus?.libraryLoading ? '曲库同步中，完成后自动显示推荐' : '暂无'}</div>`; return }
       grid.innerHTML = songs.map(libSongRowHtml).join('')
       bindLibSongPlay(grid, songs)
       // 横向滚动容器：垂直滚轮(deltaY)不转横向，放行页面正常上下滚；仅显式横向(deltaX)才横向滑

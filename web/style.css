@@ -91,7 +91,19 @@ body.sidebar-open .sidebar { transform: translateX(0); }
 .topbar-brand { display: flex; align-items: center; gap: 8px; }
 .topbar-brand .brand-icon { width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0; }
 .topbar-brand .brand-text { font-size: 16px; font-weight: 600; color: var(--text); }
-.status-indicator { font-size: 13px; color: var(--text-muted); }
+.status-indicator { font-size: 13px; color: var(--text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-left { min-width: 0; }
+.topbar-brand, .topbar-right, .topbar-btn { flex-shrink: 0; }
+.library-sync { margin-bottom: 24px; padding: 18px 20px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+.library-sync[hidden] { display: none; }
+.library-sync-heading { display: flex; justify-content: space-between; gap: 8px 20px; flex-wrap: wrap; color: var(--text); font-size: 13px; }
+.library-sync-heading strong { color: var(--accent); }
+.library-sync progress { display: block; width: 100%; height: 8px; margin: 14px 0 10px; accent-color: var(--accent); border: 0; border-radius: 4px; overflow: hidden; background: var(--hover); appearance: none; }
+.library-sync progress::-webkit-progress-bar { background: var(--hover); border-radius: 4px; }
+.library-sync progress::-webkit-progress-value { background: var(--accent); border-radius: 4px; }
+.library-sync progress::-moz-progress-bar { background: var(--accent); border-radius: 4px; }
+.library-sync progress:indeterminate { background: repeating-linear-gradient(110deg, var(--hover) 0 18px, var(--accent-soft) 18px 36px); }
+.library-sync p { color: var(--text-muted); font-size: 12px; margin: 0; line-height: 1.6; }
 .status-indicator .ok { color: var(--ok); }
 .status-indicator .err { color: var(--err); }
 .topbar-right { display: flex; align-items: center; gap: 8px; position: relative; }
@@ -322,6 +334,12 @@ td.act button:hover { background: var(--accent-hover); }
   box-shadow: -8px 0 24px rgba(0,0,0,.08); overflow: hidden;
   transform: translateX(100%); transition: transform .28s cubic-bezier(.4,0,.2,1); }
 .queue-panel.show { transform: translateX(0); }
+.queue-content { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+/* 与音频封面共用同一占位比例，切换媒体时下方信息和队列不跳动。 */
+.queue-video, .queue-now-cover-wrap { aspect-ratio: 1 / 1; }
+.queue-video { display: block; width: 100%; height: auto; flex-shrink: 0; object-fit: contain; background: #000; }
+.queue-video[hidden] { display: none; }
+.queue-panel.has-video .queue-now-cover-wrap { display: none; }
 /* 抽屉打开时主区右缩；播放条保持全宽贴底不动 */
 body.queue-open .main { padding-right: 360px; }
 /* 移动端：抽屉全宽覆盖 + 保留遮罩，主区不缩 */
@@ -334,7 +352,7 @@ body.queue-open .main { padding-right: 360px; }
 @media (min-width: 769px) { .queue-backdrop { display: none !important; } } /* PC 无遮罩 */
 .queue-head { border-bottom: 1px solid var(--border); flex-shrink: 0; }
 /* 当前播放歌曲大封面（满宽）+ 左上角标 + 左下播放按钮 + 右上关闭 */
-.queue-now-cover-wrap { position: relative; width: 100%; aspect-ratio: 1 / 1; overflow: hidden; }
+.queue-now-cover-wrap { position: relative; width: 100%; overflow: hidden; }
 .queue-now-cover { width: 100%; height: 100%; object-fit: cover; display: block; }
 .queue-now-cover-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--hover); font-size: 48px; color: var(--accent); opacity: .6; }
 .queue-now-badge { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,.5); color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 10px; backdrop-filter: blur(4px); }

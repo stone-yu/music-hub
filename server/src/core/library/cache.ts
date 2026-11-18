@@ -11,6 +11,7 @@ import { ROOT_DIR } from '../config.js'
 import { logger } from '../logger.js'
 import { navidromeClient, type NavidromeSong } from '../navidrome/client.js'
 import { libMatchKey } from './match.js'
+import type { LibraryProgress } from './reader.js'
 
 const CACHE_FILE = path.join(ROOT_DIR, 'data', 'library_cache.json')
 const CACHE_TTL = 600_000 // 10 分钟
@@ -19,9 +20,10 @@ interface CacheState {
   songs: NavidromeSong[]
   lastUpdate: number
   loading: boolean
+  progress: LibraryProgress | null
 }
 
-const state: CacheState = { songs: [], lastUpdate: 0, loading: false }
+const state: CacheState = { songs: [], lastUpdate: 0, loading: false, progress: null }
 
 function loadFromDisk(): void {
   try {
@@ -68,6 +70,7 @@ function saveToDisk(): void {
 function refresh(scanFirst: boolean): void {
   if (state.loading) return
   state.loading = true
+  state.progress = { phase: scanFirst ? 'scan' : 'artists', processedArtists: 0, totalArtists: 0, songsRead: 0 }
   void (async () => {
     try {
       if (scanFirst) {
@@ -75,7 +78,7 @@ function refresh(scanFirst: boolean): void {
         await navidromeClient.startScanAndWait(120_000, 3_000)
       }
       logger.info('[library] refreshing songs...')
-      const songs = await navidromeClient.getAllSongs()
+      const songs = await navidromeClient.getAllSongs((progress) => { state.progress = progress })
       state.songs = songs
       state.lastUpdate = Date.now()
       saveToDisk()
@@ -84,6 +87,7 @@ function refresh(scanFirst: boolean): void {
       logger.error({ err: (err as Error).message }, '[library] refresh failed')
     } finally {
       state.loading = false
+      state.progress = null
     }
   })()
 }
@@ -118,12 +122,13 @@ export const library = {
     return idx
   },
 
-  getStatus(): { connected: boolean; size: number; loading: boolean; everLoaded: boolean } {
+  getStatus(): { connected: boolean; size: number; loading: boolean; everLoaded: boolean; progress: LibraryProgress | null } {
     return {
       connected: false, // 由路由层调 ping() 实时填
       size: state.songs.length,
       loading: state.loading,
       everLoaded: state.lastUpdate > 0,
+      progress: state.progress ? { ...state.progress } : null,
     }
   },
 
